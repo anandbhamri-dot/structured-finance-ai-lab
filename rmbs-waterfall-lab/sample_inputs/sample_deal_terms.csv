@@ -1,0 +1,20 @@
+type,name,amount,rate,pay_rule,pay_group
+deal,deal_name,"Harbor Residential Trust 2026-2",,,
+deal,first_payment_date,2026-11-25,,,
+deal,target_oc_pre_pct,3.0,,,
+deal,target_oc_post_pct,6.0,,,
+deal,oc_floor_pct,0.50,,,
+deal,stepdown_month,36,,,
+deal,post_stepdown_pay,pro_rata_all,,,
+deal,cum_loss_trigger_pct,2.25,,,
+deal,recovery_lag_months,9,,,
+tranche,A1,300000000,5.00,pro_rata,Senior
+tranche,A2,105000000,5.35,pro_rata,Senior
+tranche,M1,35000000,6.40,sequential,
+tranche,M2,27500000,7.30,sequential,
+tranche,B1,22500000,8.75,sequential,
+fee,Servicing,0,25,,
+fee,Master servicing,0,1.5,,
+fee,Trustee,30000,0.75,,
+fee,Custodian,12000,0,,
+fee,Credit risk manager,0,1.25,,

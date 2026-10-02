@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RMBS Waterfall & Stress Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --ink:#1B2A41; --muted:#5A6778; --paper:#F5F7FA; --panel:#FFFFFF; --rule:#D5DBE3; --soft:#EEF1F5;
+  --blue:#2F5496; --OC:#6B8F71; --loss:#B23A3A; --warn:#B7791F;
+  --serif:'IBM Plex Serif',Georgia,'Times New Roman',serif;
+  --sans:'IBM Plex Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans);font-variant-numeric:tabular-nums}
+header{padding:28px 32px 18px;border-bottom:1px solid var(--rule);background:var(--panel)}
+header h1{font:600 28px/1.2 var(--serif);margin:0 0 6px}
+header p{margin:0;color:var(--muted);max-width:76ch}
+main{display:grid;grid-template-columns:380px 1fr;min-height:calc(100vh - 110px)}
+aside{background:var(--panel);border-right:1px solid var(--rule);padding:20px 22px}
+aside h2{font:600 15px/1.3 var(--serif);margin:20px 0 8px}
+aside h2:first-child{margin-top:0}
+.field{display:grid;grid-template-columns:1fr 104px;align-items:center;gap:8px;margin:5px 0}
+.field label{font-size:13.5px;color:var(--muted)}
+.field.wide{grid-template-columns:1fr;gap:3px}
+input[type=number],input[type=text],input[type=date],select{width:100%;padding:5px 7px;border:1px solid var(--rule);border-radius:4px;font:inherit;font-size:14px;color:var(--ink);background:#fff}
+input[type=number]{text-align:right}
+input:disabled{background:var(--soft);color:var(--muted)}
+:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+table{border-collapse:collapse;width:100%}
+.in-table th,.in-table td{padding:3px 3px;font-size:13px}
+.in-table th{text-align:left;color:var(--muted);font-weight:500}
+.in-table input,.in-table select{padding:4px 5px;font-size:13px;width:100%}
+.in-table td:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.order{font-size:12.5px;color:var(--ink);background:var(--paper);border-radius:4px;padding:6px 8px;margin:8px 0 0}
+.order b{font-weight:600}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.upload{border:1px solid var(--rule);border-radius:6px;padding:12px;background:var(--paper)}
+.upload .row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.filebtn,.linkbtn,button{border:1px solid var(--ink);background:#fff;color:var(--ink);padding:6px 11px;border-radius:4px;font:500 13px var(--sans);cursor:pointer}
+.filebtn input{position:absolute;width:1px;height:1px;opacity:0}
+.filebtn:focus-within{outline:2px solid var(--blue);outline-offset:1px}
+.linkbtn{border:0;background:none;padding:2px 0;color:var(--blue);text-decoration:underline}
+button.primary{background:var(--ink);color:#fff}
+.src{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+.msg{font-size:12.5px;margin:6px 0 0}
+.msg.err{color:var(--loss)} .msg.ok{color:var(--OC)}
+.content{padding:22px 28px 40px;min-width:0}
+.dealname{font:600 20px var(--serif);margin:0 0 12px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.tabs button{border-color:var(--rule);padding:7px 14px;font-size:14px}
+.tabs button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.grid{display:grid;grid-template-columns:200px 1fr;gap:22px;align-items:start}
+.card{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:16px;margin-bottom:22px}
+.card h3{font:600 15px var(--serif);margin:0 0 10px}
+.stack{display:flex;flex-direction:column;height:360px;border:1px solid var(--ink)}
+.seg{position:relative;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:500;overflow:hidden}
+.seg .lost{position:absolute;left:0;right:0;bottom:0;background:repeating-linear-gradient(135deg,var(--loss) 0 5px,#d98080 5px 9px)}
+.seg span{position:relative;text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.note{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+.chart-box{position:relative;height:280px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.kpi{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:12px 14px}
+.kpi b{display:block;font:600 22px var(--serif)}
+.kpi small{color:var(--muted);font-size:12.5px}
+.scroll{overflow-x:auto}
+.res th,.res td{padding:7px 10px;border-bottom:1px solid var(--rule);text-align:right;font-size:13.5px;white-space:nowrap}
+.res th:first-child,.res td:first-child{text-align:left}
+.res thead th{color:var(--muted);font-weight:500}
+.bad{color:var(--loss);font-weight:600}.pass{color:var(--OC);font-weight:600}
+.cf-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.cf-bar .tabs{margin:0}
+.cf-wrap{overflow:auto;max-height:560px;border:1px solid var(--rule);border-radius:4px}
+.cf th,.cf td{padding:5px 9px;font-size:12.5px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--soft)}
+.cf thead th{position:sticky;top:0;background:#fff;color:var(--muted);font-weight:500;border-bottom:1px solid var(--rule);z-index:1}
+.cf td:nth-child(-n+2),.cf th:nth-child(-n+2){text-align:left}
+.cf tfoot td{position:sticky;bottom:0;background:var(--soft);font-weight:600;border-top:1px solid var(--rule)}
+.cf td.neg{color:var(--loss)}
+.recon{font-size:13px;margin:10px 0 0}
+.actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+footer{padding:18px 32px;color:var(--muted);font-size:13px;border-top:1px solid var(--rule);background:var(--panel)}
+@media (max-width:980px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--rule)}.grid{grid-template-columns:1fr}.stack{height:220px}.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>RMBS Waterfall & Stress Lab</h1>
+  <p>A monthly cash flow model for an RMBS with fees, excess spread, overcollateralization, a stepdown date and a cumulative loss trigger. Load deal terms and an actual collateral tape, or use the sample deal, and get period-by-period cash flows for the deal, the collateral, every class and every fee.</p>
+</header>
+<main>
+<aside>
+  <h2>Deal inputs</h2>
+  <div class="upload">
+    <div class="row">
+      <label class="filebtn">Upload deal terms (CSV)<input type="file" id="upTerms" accept=".csv"></label>
+      <label class="filebtn">Upload collateral tape (CSV)<input type="file" id="upTape" accept=".csv"></label>
+    </div>
+    <div class="row">
+      <button class="linkbtn" id="tmplTerms">Deal terms template</button>
+      <button class="linkbtn" id="tmplTape">Collateral tape template</button>
+    </div>
+    <p class="src" id="srcTerms"></p>
+    <p class="src" id="srcTape"></p>
+    <p class="msg" id="upMsg" role="status" aria-live="polite"></p>
+  </div>
+
+  <h2>Deal</h2>
+  <div class="field wide"><label for="dealName">Deal name</label><input id="dealName" type="text"></div>
+  <div class="field wide"><label for="fpd">First payment date</label><input id="fpd" type="date"></div>
+
+  <h2>Collateral</h2>
+  <div class="field"><label for="bal">Pool balance ($mm)</label><input id="bal" type="number" step="10"></div>
+  <div class="field"><label for="wac">Gross WAC (%)</label><input id="wac" type="number" step="0.05"></div>
+  <div class="field"><label for="wam">Remaining term (months)</label><input id="wam" type="number" step="1"></div>
+  <p class="src" id="collNote"></p>
+
+  <h2>Capital structure</h2>
+  <table class="in-table" style="table-layout:fixed">
+    <colgroup><col style="width:48px"><col><col style="width:58px"><col style="width:86px"><col style="width:66px"></colgroup>
+    <thead><tr><th>Class</th><th>Bal. ($mm)</th><th>Cpn %</th><th>Pay rule</th><th>Group</th></tr></thead>
+    <tbody id="trancheInputs"></tbody>
+  </table>
+  <p class="order" id="payOrder"></p>
+  <div class="field wide"><label for="ocInit">Initial OC ($mm, % of pool)</label><input id="ocInit" type="text" disabled></div>
+
+  <h2>Fees (paid before note interest)</h2>
+  <table class="in-table">
+    <thead><tr><th>Fee</th><th>bps p.a.</th><th>Fixed $/yr</th></tr></thead>
+    <tbody id="feeInputs"></tbody>
+  </table>
+
+  <h2>Credit enhancement rules</h2>
+  <div class="field"><label for="ocTarget">Target OC before stepdown (% of original pool)</label><input id="ocTarget" type="number" step="0.1"></div>
+  <div class="field"><label for="ocPost">Target OC after stepdown (% of current pool)</label><input id="ocPost" type="number" step="0.1"></div>
+  <div class="field"><label for="ocFloor">OC floor (% of original pool)</label><input id="ocFloor" type="number" step="0.05"></div>
+  <div class="field"><label for="stepdown">Stepdown month</label><input id="stepdown" type="number" step="1"></div>
+  <div class="field wide"><label for="postRule">Principal after stepdown (trigger passing)</label><select id="postRule"><option value="pro_rata_all">Pay all classes pro-rata</option><option value="class_rules">Keep each class's pay rule</option></select></div>
+  <div class="field"><label for="trigger">Cum. loss trigger (%)</label><input id="trigger" type="number" step="0.1"></div>
+  <div class="field"><label for="lag">Recovery lag (months)</label><input id="lag" type="number" step="1" min="0"></div>
+
+  <h2>Scenarios</h2>
+  <table class="in-table">
+    <thead><tr><th></th><th>CPR</th><th>CDR</th><th>Sev.</th></tr></thead>
+    <tbody id="scenInputs"></tbody>
+  </table>
+  <div class="actions"><button id="reset">Reset to sample deal</button></div>
+</aside>
+
+<section class="content">
+  <p class="dealname" id="dealTitle"></p>
+  <div class="tabs" role="group" aria-label="Scenario" id="tabs"></div>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Capital stack at maturity</h3>
+      <div class="stack" id="stack" aria-label="Capital stack showing losses by class"></div>
+      <p class="note">Hatched area is principal written down under this scenario.</p>
+    </div>
+    <div>
+      <div class="card"><h3>Outstanding balance by class ($mm)</h3><div class="chart-box"><canvas id="balChart"></canvas></div></div>
+      <div class="card"><h3>Overcollateralization and cumulative loss (% of original pool)</h3><div class="chart-box"><canvas id="ocChart"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Scenario comparison</h3>
+    <div class="scroll"><table class="res" id="compare"></table></div>
+  </div>
+
+  <div class="card">
+    <h3>Cash flow detail</h3>
+    <div class="cf-bar">
+      <div class="tabs" role="group" aria-label="Cash flow view" id="cfTabs">
+        <button data-view="deal" aria-pressed="true">Deal</button>
+        <button data-view="collateral" aria-pressed="false">Collateral</button>
+        <button data-view="tranche" aria-pressed="false">Classes</button>
+        <button data-view="fees" aria-pressed="false">Fees</button>
+      </div>
+      <label for="cfClass" id="cfClassLbl" hidden>Class</label>
+      <select id="cfClass" hidden style="width:auto"></select>
+    </div>
+    <div class="cf-wrap"><table class="cf" id="cfTable"></table></div>
+    <p class="recon" id="recon"></p>
+    <div class="actions">
+      <button class="primary" id="csvView">Download this table (CSV)</button>
+      <button id="csvAll">Download all cash flows (CSV)</button>
+    </div>
+  </div>
+</section>
+</main>
+<footer>
+Waterfall order each period: fees, class interest, then principal, following each class's pay rule. Sequential classes are paid one after another in the order listed; consecutive pro-rata classes in the same pay group are paid pari passu, sharing interest shortfalls, principal and writedowns by balance. After the stepdown month, while the cumulative loss trigger passes, principal can either go pro-rata to all classes or keep the class rules; a breach always reverts to the class rules and locks the OC target. Excess spread covers losses and builds OC before any release to the residual. Defaulted loans stop paying interest, stay in the collateral balance until liquidation after the recovery lag, and the loss is realised at liquidation. There is no servicer advancing, fee and interest shortfalls are tracked but not carried forward, and each collateral loan is projected individually. Built by Anand Bhamri with Claude as a modelling and prototyping partner.
+</footer>
+
+<script>
+/* ======================= Sample deal ======================= */
+const SAMPLE={
+  dealName:'Sample RMBS 2026-1', fpd:'2026-10-25',
+  bal:500, wac:6.75, wam:354,
+  tranches:[{name:'A',bal:400,cpn:5.25,rule:'sequential',group:''},{name:'M1',bal:40,cpn:6.25,rule:'sequential',group:''},{name:'M2',bal:30,cpn:7.25,rule:'sequential',group:''},{name:'B',bal:22.5,cpn:8.50,rule:'sequential',group:''}],
+  fees:[{name:'Servicing',bps:25,fixed:0},{name:'Master servicing',bps:2,fixed:0},{name:'Trustee',bps:1,fixed:25000},{name:'Custodian',bps:0,fixed:15000}],
+  rules:{ocTarget:3.5,ocPost:7.0,ocFloor:0.5,stepdown:36,trigger:2.0,lag:6,postRule:'pro_rata_all'},
+  scens:[{name:'Base',cpr:10,cdr:0.5,sev:30},{name:'Moderate',cpr:8,cdr:2.5,sev:40},{name:'Severe',cpr:5,cdr:7,sev:55}]
+};
+const PALETTE=['#2F5496','#4A6FB0','#6E8CC4','#94ACD6','#C9A227','#B5832B','#8C6D46','#5E4B3C'];
+const clone=o=>JSON.parse(JSON.stringify(o));
+let tranches, fees, scens, loans=null, tapeName='', termsName='', active=0, results=[], charts={}, cfView='deal', cfClass=0;
+
+const $=id=>document.getElementById(id);
+const num=id=>parseFloat($(id).value)||0;
+const colorOf=i=>PALETTE[i%PALETTE.length];
+
+function loadSample(){
+  tranches=clone(SAMPLE.tranches); fees=clone(SAMPLE.fees); scens=clone(SAMPLE.scens);
+  loans=null; tapeName=''; termsName=''; active=0; cfClass=0;
+  $('dealName').value=SAMPLE.dealName; $('fpd').value=SAMPLE.fpd;
+  $('bal').value=SAMPLE.bal; $('wac').value=SAMPLE.wac; $('wam').value=SAMPLE.wam;
+  Object.entries(SAMPLE.rules).forEach(([k,v])=>$(k).value=v);
+  $('upMsg').textContent='';
+}
+
+function buildInputs(){
+  $('trancheInputs').innerHTML=tranches.map((t,i)=>`<tr>
+    <td><span class="swatch" style="background:${colorOf(i)}"></span>${t.name}</td>
+    <td><input type="number" step="0.5" value="${t.bal}" data-t="${i}" data-k="bal" aria-label="Class ${t.name} balance"></td>
+    <td><input type="number" step="0.05" value="${t.cpn}" data-t="${i}" data-k="cpn" aria-label="Class ${t.name} coupon"></td>
+    <td><select data-t="${i}" data-k="rule" aria-label="Class ${t.name} pay rule"><option value="sequential"${t.rule!=='pro_rata'?' selected':''}>Seq.</option><option value="pro_rata"${t.rule==='pro_rata'?' selected':''}>Pro-rata</option></select></td>
+    <td><input type="text" value="${t.group||''}" data-t="${i}" data-k="group" aria-label="Class ${t.name} pay group" ${t.rule==='pro_rata'?'':'disabled'}></td></tr>`).join('');
+  $('payOrder').innerHTML='<b>Principal order:</b> '+payGroups().map(g=>g.idx.length>1?'('+g.idx.map(i=>tranches[i].name).join(' + ')+' pro-rata)':tranches[g.idx[0]].name).join(' → ');
+  $('feeInputs').innerHTML=fees.map((f,i)=>`<tr><td>${f.name}</td>
+    <td><input type="number" step="0.5" value="${f.bps}" data-f="${i}" data-k="bps" aria-label="${f.name} bps per annum"></td>
+    <td><input type="number" step="1000" value="${f.fixed}" data-f="${i}" data-k="fixed" aria-label="${f.name} fixed dollars per year"></td></tr>`).join('');
+  $('scenInputs').innerHTML=scens.map((s,i)=>`<tr><td>${s.name}</td>
+    <td><input type="number" step="1" value="${s.cpr}" data-s="${i}" data-k="cpr" aria-label="${s.name} CPR"></td>
+    <td><input type="number" step="0.5" value="${s.cdr}" data-s="${i}" data-k="cdr" aria-label="${s.name} CDR"></td>
+    <td><input type="number" step="5" value="${s.sev}" data-s="${i}" data-k="sev" aria-label="${s.name} severity"></td></tr>`).join('');
+  $('tabs').innerHTML=scens.map((s,i)=>`<button aria-pressed="${i===active}" data-tab="${i}">${s.name}</button>`).join('');
+  $('cfClass').innerHTML=tranches.map((t,i)=>`<option value="${i}">Class ${t.name}</option>`).join('');
+  $('cfClass').value=Math.min(cfClass,tranches.length-1);
+  ['bal','wac','wam'].forEach(id=>$(id).disabled=!!loans);
+  if(loans){
+    const tot=loans.reduce((a,l)=>a+l.bal,0);
+    $('bal').value=(tot/1e6).toFixed(2);
+    $('wac').value=(loans.reduce((a,l)=>a+l.bal*l.rate,0)/tot).toFixed(3);
+    $('wam').value=Math.round(loans.reduce((a,l)=>a+l.bal*l.rem,0)/tot);
+    $('collNote').textContent=`Projected loan by loan from the uploaded tape (${loans.length.toLocaleString()} loans). Figures above are weighted averages.`;
+  } else $('collNote').textContent='Projected as a single representative loan. Upload a collateral tape to project loan by loan.';
+  $('srcTerms').textContent='Deal terms: '+(termsName||'sample deal');
+  $('srcTape').textContent='Collateral: '+(tapeName||'sample representative pool');
+}
+
+/* ======================= Payment groups ======================= */
+// Consecutive pro-rata classes with the same pay_group (blank matches blank) are paid pari passu.
+// Sequential classes are always paid on their own, in the order listed.
+function payGroups(){
+  const g=[];
+  tranches.forEach((t,i)=>{
+    const pr=t.rule==='pro_rata', label=(t.group||'').trim().toLowerCase(), last=g[g.length-1];
+    if(pr && last && last.pr && last.label===label) last.idx.push(i); else g.push({pr,label,idx:[i]});
+  });
+  return g;
+}
+const sumIdx=(arr,idx)=>idx.reduce((a,i)=>a+arr[i],0);
+function spread(amount,idx,weights,out){ // pro-rata within a group by weight
+  const w=sumIdx(weights,idx); idx.forEach(i=>out[i]+=w>0?amount*weights[i]/w:(i===idx[0]?amount:0)); }
+function allocPrincipal(pay,bals,groups,allProRata){
+  const out=bals.map(()=>0);
+  if(allProRata){ const tot=bals.reduce((a,b)=>a+b,0); bals.forEach((b,i)=>out[i]=tot>0?Math.min(b,pay*b/tot):0); return out; }
+  let left=pay;
+  for(const g of groups){ if(left<=0) break; const p=Math.min(sumIdx(bals,g.idx),left); spread(p,g.idx,bals,out); left-=p; }
+  return out;
+}
+function allocWritedown(deficit,bals,groups){
+  const out=bals.map(()=>0);
+  for(let k=groups.length-1;k>=0&&deficit>0.005;k--){ const g=groups[k], w=Math.min(sumIdx(bals,g.idx),deficit); spread(w,g.idx,bals,out); deficit-=w; }
+  return out;
+}
+
+/* ======================= Cash flow engine ======================= */
+function collateralLoans(){
+  if(loans) return loans.map(l=>({bal:l.bal,r:l.rate/100/12,rem:l.rem}));
+  return [{bal:num('bal')*1e6,r:num('wac')/100/12,rem:Math.max(1,Math.round(num('wam')))}];
+}
+function addMonths(iso,k){
+  const d=new Date(iso+'T00:00:00'); if(isNaN(d)) return '';
+  const day=d.getDate(); d.setDate(1); d.setMonth(d.getMonth()+k);
+  const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); d.setDate(Math.min(day,last));
+  return d.toISOString().slice(0,10);
+}
+
+function runDeal(sc){
+  const L=collateralLoans();
+  const orig=L.reduce((a,l)=>a+l.bal,0);
+  const smm=1-Math.pow(1-sc.cpr/100,1/12), mdr=1-Math.pow(1-sc.cdr/100,1/12), sev=sc.sev/100;
+  const tgt=num('ocTarget')/100, tgtPost=num('ocPost')/100, floor=num('ocFloor')/100*orig;
+  const stepM=num('stepdown'), trig=num('trigger')/100, lag=Math.max(0,Math.round(num('lag')));
+  const fpd=$('fpd').value, groups=payGroups(), postAll=$('postRule').value==='pro_rata_all';
+  const T=tranches.map(t=>({name:t.name,orig:t.bal*1e6,bal:t.bal*1e6,cpn:t.cpn/100/12,prin:0,int:0,wd:0,short:0,walNum:0,path:[],rows:[]}));
+  const F=fees.map(f=>({name:f.name,bps:f.bps/1e4/12,fixed:f.fixed/12,paid:0,short:0}));
+  const maxRem=L.reduce((a,l)=>Math.max(a,l.rem),0);
+  const pipeline=new Array(maxRem+lag+3).fill(0);
+  let perfBal=orig, pipeBal=0, cumLoss=0, prevTarget=Math.max(tgt*orig,floor), triggerHit=null, maxDiff=0;
+  const rows=[], ocPath=[], lossPath=[];
+
+  for(let m=1;m<=maxRem+lag+1;m++){
+    const begPerf=perfBal, begPipe=pipeBal, begPool=begPerf+begPipe;
+    if(begPool<1 && T.every(t=>t.bal<1)) break;
+    // --- Collateral, loan by loan
+    let def=0,intr=0,sched=0,prepay=0,endPerf=0;
+    for(const l of L){
+      if(l.bal<0.005) continue;
+      const d=l.bal*mdr, perf=l.bal-d, n=l.rem-m+1;
+      let s,i=perf*l.r;
+      if(n<=1) s=perf;
+      else { const pmt=l.r>0?perf*l.r/(1-Math.pow(1+l.r,-n)):perf/n; s=Math.min(perf,pmt-i); }
+      const p=(perf-s)*smm;
+      l.bal=perf-s-p;
+      def+=d; intr+=i; sched+=s; prepay+=p; endPerf+=l.bal;
+    }
+    pipeline[m+lag]+=def;
+    const liq=pipeline[m]; pipeline[m]=0;
+    const loss=liq*sev, rec=liq-loss;
+    perfBal=endPerf; pipeBal=begPipe+def-liq; cumLoss+=loss;
+    const endPool=perfBal+pipeBal;
+
+    let intAvail=intr, prinAvail=sched+prepay+rec;
+    // --- 1. Fees
+    const feeRow=F.map(f=>{const due=begPool*f.bps+(begPool>=1?f.fixed:0), paid=Math.min(due,Math.max(intAvail,0)); intAvail-=paid; f.paid+=paid; f.short+=due-paid; return {due,paid};});
+    // --- 2. Class interest, senior to junior
+    const tInt=T.map(t=>({due:t.bal*t.cpn,paid:0}));
+    for(const g of groups){ // pari passu within a pro-rata group
+      const due=g.idx.reduce((a,i)=>a+tInt[i].due,0), paid=Math.min(due,Math.max(intAvail,0)); intAvail-=paid;
+      g.idx.forEach(i=>{tInt[i].paid=due>0?paid*tInt[i].due/due:0; T[i].int+=tInt[i].paid; T[i].short+=tInt[i].due-tInt[i].paid;});
+    }
+    // --- 3. OC target
+    const failed=cumLoss/orig>trig; if(failed&&!triggerHit) triggerHit=m;
+    const stepped=m>=stepM && !failed;
+    let target=stepped?Math.min(Math.max(tgtPost*endPool,floor),tgt*orig):Math.max(prevTarget,floor);
+    target=Math.min(target,endPool); prevTarget=target;
+    const notesBeg=T.reduce((a,t)=>a+t.bal,0), required=Math.max(endPool-target,0);
+    let need=Math.max(notesBeg-required,0);
+    const fromPrin=Math.min(prinAvail,need); need-=fromPrin;
+    const fromXS=Math.min(Math.max(intAvail,0),need); intAvail-=fromXS;
+    const pay=fromPrin+fromXS;
+    const relPrin=prinAvail-fromPrin, relInt=Math.max(intAvail,0), released=relPrin+relInt;
+    // --- 4. Principal: class pay rules, or all pro-rata after a passing stepdown if selected
+    const begBals=T.map(t=>t.bal);
+    const alloc=allocPrincipal(pay,begBals,groups,stepped&&postAll);
+    const tPrin=T.map((t,i)=>{const p=Math.min(t.bal,alloc[i]); t.bal-=p; t.prin+=p; t.walNum+=p*m; return p;});
+    // --- 5. Writedowns: reverse order of groups, pro-rata within a group
+    const deficit=T.reduce((a,t)=>a+t.bal,0)-endPool;
+    const tWd=deficit>0.005?allocWritedown(deficit,T.map(t=>t.bal),groups):T.map(()=>0);
+    T.forEach((t,i)=>{const w=Math.min(t.bal,tWd[i]); t.bal-=w; t.wd+=w; tWd[i]=w;});
+    const notesEnd=T.reduce((a,t)=>a+t.bal,0);
+
+    // --- Record
+    const feesPaid=feeRow.reduce((a,f)=>a+f.paid,0), intPaid=tInt.reduce((a,x)=>a+x.paid,0), prinPaid=tPrin.reduce((a,x)=>a+x,0);
+    const cashIn=intr+sched+prepay+rec, cashOut=feesPaid+intPaid+prinPaid+released;
+    maxDiff=Math.max(maxDiff,Math.abs(cashIn-cashOut));
+    T.forEach((t,i)=>{t.path.push(t.bal/1e6); t.rows.push({beg:begBals[i],due:tInt[i].due,paid:tInt[i].paid,short:tInt[i].due-tInt[i].paid,prin:tPrin[i],wd:tWd[i],end:t.bal});});
+    ocPath.push((endPool-notesEnd)/orig*100); lossPath.push(cumLoss/orig*100);
+    rows.push({m,date:fpd?addMonths(fpd,m-1):'',begPool,begPerf,sched,prepay,def,liq,loss,rec,intr,endPerf:perfBal,pipe:pipeBal,endPool,
+      feeRow,feesPaid,intPaid,prinPaid,fromXS,released,wd:tWd.reduce((a,b)=>a+b,0),notesEnd,oc:endPool-notesEnd,cumLossPct:cumLoss/orig*100,failed,cashIn,cashOut});
+  }
+  return {orig,T,F,rows,ocPath,lossPath,cumLoss,triggerHit,maxDiff};
+}
+
+/* ======================= Rendering ======================= */
+const pct=v=>v.toFixed(2)+'%';
+const usd=v=>Math.round(v).toLocaleString('en-US');
+
+function render(){
+  const pool=loans?loans.reduce((a,l)=>a+l.bal,0):num('bal')*1e6;
+  const notes=tranches.reduce((a,t)=>a+t.bal*1e6,0), oc=pool-notes;
+  $('ocInit').value=`${(oc/1e6).toFixed(2)}  (${pool?(oc/pool*100).toFixed(2):'0.00'}%)`;
+  $('dealTitle').textContent=$('dealName').value||'Untitled deal';
+  if(oc<0) $('upMsg').className='msg err', $('upMsg').textContent=`Notes exceed collateral by $${usd(-oc)}. Check class balances against the pool.`;
+  results=scens.map(runDeal);
+  const R=results[active];
+  const firstLoss=R.T.find(t=>t.wd>1);
+  const A=R.T[0];
+  $('kpis').innerHTML=`
+    <div class="kpi"><b>${pct(R.cumLoss/R.orig*100)}</b><small>Cumulative collateral loss</small></div>
+    <div class="kpi"><b>${R.triggerHit?'Month '+R.triggerHit:'Never'}</b><small>Loss trigger breached</small></div>
+    <div class="kpi"><b>${A.prin>0?(A.walNum/A.prin/12).toFixed(2)+' yrs':'–'}</b><small>Class ${A.name} weighted average life</small></div>
+    <div class="kpi"><b class="${firstLoss?'bad':'pass'}">${firstLoss?'Class '+firstLoss.name:'None'}</b><small>Most senior class impaired</small></div>`;
+  // Capital stack
+  const segs=R.T.map((t,i)=>({label:t.name,h:t.orig,lost:t.wd,col:colorOf(i)}));
+  segs.push({label:'OC',h:Math.max(oc,0),lost:0,col:'#6B8F71'});
+  const tot=segs.reduce((a,s)=>a+s.h,0)||1;
+  $('stack').innerHTML=segs.map(s=>{const h=s.h/tot*100, lp=s.h?Math.min(s.lost/s.h*100,100):0;
+    return `<div class="seg" style="flex:0 0 ${h}%;background:${s.col}"><div class="lost" style="height:${lp}%"></div><span>${h>2.5?s.label+(lp>0.05?', '+lp.toFixed(0)+'% lost':''):''}</span></div>`}).join('');
+  // Charts
+  const labels=R.rows.map(r=>r.m);
+  drawChart('balChart',labels,R.T.map((t,i)=>({label:'Class '+t.name,data:t.path,backgroundColor:colorOf(i),borderColor:colorOf(i),fill:true,pointRadius:0,borderWidth:1})),true);
+  drawChart('ocChart',labels,[
+    {label:'OC',data:R.ocPath,borderColor:'#6B8F71',backgroundColor:'#6B8F71',pointRadius:0,borderWidth:2},
+    {label:'Cumulative loss',data:R.lossPath,borderColor:'#B23A3A',backgroundColor:'#B23A3A',pointRadius:0,borderWidth:2},
+    {label:'Loss trigger',data:labels.map(()=>num('trigger')),borderColor:'#5A6778',borderDash:[5,4],pointRadius:0,borderWidth:1}],false);
+  // Comparison
+  let h='<thead><tr><th>Class</th>'+scens.map(s=>`<th>${s.name} WAL</th><th>${s.name} loss</th>`).join('')+'</tr></thead><tbody>';
+  tranches.forEach((t,i)=>{h+=`<tr><td><span class="swatch" style="background:${colorOf(i)}"></span>${t.name}</td>`+results.map(r=>{const x=r.T[i];const w=x.prin>0?(x.walNum/x.prin/12).toFixed(2):'–';const l=x.orig?x.wd/x.orig*100:0;return `<td>${w}</td><td class="${l>0.01?'bad':''}">${l.toFixed(2)}%</td>`}).join('')+'</tr>';});
+  h+='<tr><td>Pool cum. loss</td>'+results.map(r=>`<td></td><td>${pct(r.cumLoss/r.orig*100)}</td>`).join('')+'</tr>';
+  h+='<tr><td>Total fees paid ($)</td>'+results.map(r=>`<td></td><td>${usd(r.F.reduce((a,f)=>a+f.paid,0))}</td>`).join('')+'</tr></tbody>';
+  $('compare').innerHTML=h;
+  renderCF();
+}
+
+function drawChart(id,labels,datasets,stacked){
+  if(charts[id]) charts[id].destroy();
+  if(typeof Chart==='undefined') return;
+  charts[id]=new Chart($(id),{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{labels:{boxWidth:12,font:{family:'IBM Plex Sans'}}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}`}}},
+    scales:{x:{title:{display:true,text:'Period'},ticks:{maxTicksLimit:12}},y:{stacked,beginAtZero:true}}}});
+}
+
+/* ---------- Cash flow tables ---------- */
+function cfDefs(R){
+  const P=[['Period',r=>r.m,'n'],['Date',r=>r.date,'s']];
+  if(cfView==='deal') return P.concat([
+    ['Collateral interest',r=>r.intr],['Collateral principal',r=>r.sched+r.prepay+r.rec],['Total fees',r=>r.feesPaid],
+    ['Class interest',r=>r.intPaid],['Class principal',r=>r.prinPaid],['Excess spread to notes',r=>r.fromXS],['Released to residual',r=>r.released],
+    ['Writedowns',r=>r.wd],['Notes outstanding',r=>r.notesEnd,'bal'],['OC',r=>r.oc,'bal'],['Cum. loss %',r=>r.cumLossPct,'pct'],['Trigger',r=>r.failed?'Fail':'Pass','s']]);
+  if(cfView==='collateral') return P.concat([
+    ['Beginning balance',r=>r.begPool,'bal'],['Scheduled principal',r=>r.sched],['Prepayments',r=>r.prepay],['New defaults',r=>r.def],
+    ['Liquidations',r=>r.liq],['Realised loss',r=>r.loss],['Recoveries',r=>r.rec],['Interest',r=>r.intr],
+    ['Performing balance',r=>r.endPerf,'bal'],['In liquidation',r=>r.pipe,'bal'],['Ending balance',r=>r.endPool,'bal']]);
+  if(cfView==='fees') return P.concat(R.F.map((f,i)=>[f.name,r=>r.feeRow[i].paid])).concat([['Total fees',r=>r.feesPaid],['Fee shortfall',r=>r.feeRow.reduce((a,f)=>a+f.due-f.paid,0)]]);
+  const i=cfClass, t=R.T[i];
+  return P.concat([['Beginning balance',(r,k)=>t.rows[k].beg,'bal'],['Interest due',(r,k)=>t.rows[k].due],['Interest paid',(r,k)=>t.rows[k].paid],
+    ['Interest shortfall',(r,k)=>t.rows[k].short],['Principal',(r,k)=>t.rows[k].prin],['Writedown',(r,k)=>t.rows[k].wd],
+    ['Ending balance',(r,k)=>t.rows[k].end,'bal'],['Total cash to class',(r,k)=>t.rows[k].paid+t.rows[k].prin]]);
+}
+function fmtCell(v,type){
+  if(type==='s'||type==='n') return v;
+  if(type==='pct') return v.toFixed(3);
+  return usd(v);
+}
+function renderCF(){
+  const R=results[active], defs=cfDefs(R);
+  const showClass=cfView==='tranche'; $('cfClass').hidden=!showClass; $('cfClassLbl').hidden=!showClass;
+  let h='<thead><tr>'+defs.map(d=>`<th>${d[0]}</th>`).join('')+'</tr></thead><tbody>';
+  h+=R.rows.map((r,k)=>'<tr>'+defs.map(d=>{const v=d[1](r,k);return `<td${d[0]==='Trigger'&&v==='Fail'?' class="neg"':''}>${fmtCell(v,d[2])}</td>`;}).join('')+'</tr>').join('');
+  h+='</tbody><tfoot><tr>'+defs.map((d,j)=>{
+    if(j===0) return '<td>Total</td>'; if(d[2]) return '<td></td>';
+    return `<td>${usd(R.rows.reduce((a,r,k)=>a+d[1](r,k),0))}</td>`;}).join('')+'</tr></tfoot>';
+  $('cfTable').innerHTML=h;
+  const ok=R.maxDiff<0.01;
+  $('recon').innerHTML=`<span class="${ok?'pass':'bad'}">${ok?'Reconciled':'Out of balance'}:</span> cash collected equals cash distributed (fees, class interest and principal, residual) in every period; largest difference $${R.maxDiff.toFixed(2)}.`;
+}
+function csvOf(defs,R){
+  const head=defs.map(d=>`"${d[0]}"`).join(',');
+  return [head].concat(R.rows.map((r,k)=>defs.map(d=>{const v=d[1](r,k);return typeof v==='number'?(d[2]==='n'?v:v.toFixed(2)):`"${v}"`;}).join(','))).join('\n');
+}
+function download(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+const slug=()=>($('dealName').value||'deal').toLowerCase().replace(/[^a-z0-9]+/g,'_')+'_'+scens[active].name.toLowerCase();
+
+$('csvView').onclick=()=>{const R=results[active];download(`${slug()}_${cfView==='tranche'?'class_'+tranches[cfClass].name:cfView}.csv`,csvOf(cfDefs(R),R));};
+$('csvAll').onclick=()=>{
+  const R=results[active], keep=cfView, keepC=cfClass, parts=[];
+  const add=(title,v,c)=>{cfView=v; if(c!==undefined) cfClass=c; parts.push(title+'\n'+csvOf(cfDefs(R),R));};
+  add('DEAL','deal'); add('COLLATERAL','collateral'); add('FEES','fees');
+  tranches.forEach((t,i)=>add('CLASS '+t.name,'tranche',i));
+  cfView=keep; cfClass=keepC;
+  download(`${slug()}_all_cashflows.csv`,parts.join('\n\n'));
+};
+
+/* ======================= Uploads ======================= */
+function parseCSV(text){
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else if(ch==='"') q=true; else if(ch===','){row.push(cur);cur='';}
+    else if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&text[i+1]==='\n') i++; row.push(cur); rows.push(row); row=[]; cur=''; }
+    else cur+=ch; }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return rows.filter(r=>r.some(c=>c.trim()!==''));
+}
+const say=(t,ok)=>{$('upMsg').className='msg '+(ok?'ok':'err'); $('upMsg').textContent=t;};
+const toNum=s=>parseFloat(String(s).replace(/[$,%\s]/g,''));
+
+const DEAL_FIELDS={deal_name:'dealName',first_payment_date:'fpd',target_oc_pre_pct:'ocTarget',target_oc_post_pct:'ocPost',oc_floor_pct:'ocFloor',
+  stepdown_month:'stepdown',cum_loss_trigger_pct:'trigger',recovery_lag_months:'lag',pool_balance_mm:'bal',wac_pct:'wac',remaining_term_months:'wam',
+  post_stepdown_pay:'postRule'};
+function normRule(v){ const x=String(v||'').trim().toLowerCase().replace(/[\s-]+/g,'_');
+  if(x===''||['sequential','seq','s'].includes(x)) return 'sequential';
+  if(['pro_rata','prorata','pr','pari_passu'].includes(x)) return 'pro_rata'; return null; }
+function normPost(v){ const x=String(v||'').trim().toLowerCase().replace(/[\s-]+/g,'_');
+  if(['pro_rata_all','pro_rata','prorata','all_pro_rata'].includes(x)) return 'pro_rata_all';
+  if(['class_rules','sequential','keep_class_rules','as_classes'].includes(x)) return 'class_rules'; return null; }
+
+$('upTerms').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  const rows=parseCSV(await f.text()); const head=(rows[0]||[]).map(h=>h.trim().toLowerCase());
+  const need=['type','name','amount','rate'], miss=need.filter(n=>!head.includes(n));
+  if(miss.length) return say(`Deal terms not loaded: missing column(s) ${miss.join(', ')}. Download the template for the expected layout.`);
+  const ix=Object.fromEntries(need.concat(['pay_rule','pay_group']).map(n=>[n,head.indexOf(n)]));
+  const newT=[], newF=[], unknown=[], errs=[], deal={};
+  rows.slice(1).forEach((r,k)=>{
+    const type=(r[ix.type]||'').trim().toLowerCase(), name=(r[ix.name]||'').trim(), amt=(r[ix.amount]||'').trim(), rate=(r[ix.rate]||'').trim();
+    if(type==='deal'){ const key=name.toLowerCase(); if(DEAL_FIELDS[key]) deal[key]=amt; else unknown.push(name); }
+    else if(type==='tranche'){ const b=toNum(amt), c=toNum(rate);
+      const rule=normRule(ix.pay_rule>=0?r[ix.pay_rule]:''), group=ix.pay_group>=0?(r[ix.pay_group]||'').trim():'';
+      if(!name||!(b>0)||isNaN(c)) errs.push(`row ${k+2}`);
+      else if(!rule) errs.push(`row ${k+2} (pay_rule "${r[ix.pay_rule]}" should be sequential or pro_rata)`);
+      else newT.push({name,bal:+(b/1e6).toFixed(6),cpn:c,rule,group:rule==='pro_rata'?group:''}); }
+    else if(type==='fee'){ const fx=toNum(amt)||0, bp=toNum(rate)||0; if(!name) errs.push(`row ${k+2}`); else newF.push({name,bps:bp,fixed:fx}); }
+    else errs.push(`row ${k+2} (type "${type}")`);
+  });
+  if(!newT.length) return say('Deal terms not loaded: no valid tranche rows found. Each class needs type "tranche", a name, an original balance in dollars and a coupon.');
+  if(deal.post_stepdown_pay!==undefined && !normPost(deal.post_stepdown_pay)) errs.push(`post_stepdown_pay "${deal.post_stepdown_pay}" (use pro_rata_all or class_rules)`);
+  const seen={}; let prev=null; newT.forEach(t=>{ if(t.rule!=='pro_rata'){prev=null;return;} const g=t.group.toLowerCase();
+    if(g && seen[g] && prev!==g) errs.push(`pay_group "${t.group}" must be on consecutive classes`); seen[g]=1; prev=g; });
+  if(errs.length) return say(`Deal terms not loaded: fix ${errs.slice(0,5).join(', ')}${errs.length>5?' and more':''}.`);
+  tranches=newT; fees=newF; cfClass=0; termsName=f.name;
+  Object.entries(deal).forEach(([k,v])=>{ const id=DEAL_FIELDS[k]; if(['bal','wac','wam'].includes(id)&&loans) return; $(id).value=id==='postRule'?normPost(v):(id==='dealName'||id==='fpd'?v:toNum(v)); });
+  buildInputs(); render();
+  say(`Loaded ${newT.length} classes and ${newF.length} fees from ${f.name}.`+(unknown.length?` Ignored unknown deal field(s): ${unknown.join(', ')}.`:''),true);
+};
+
+$('upTape').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  const rows=parseCSV(await f.text()); const head=(rows[0]||[]).map(h=>h.trim().toLowerCase());
+  const need=['loan_id','current_balance','note_rate','remaining_term'], miss=need.filter(n=>!head.includes(n));
+  if(miss.length) return say(`Collateral not loaded: missing column(s) ${miss.join(', ')}. Download the template for the expected layout.`);
+  const ix=Object.fromEntries(need.map(n=>[n,head.indexOf(n)]));
+  let out=[], skipped=0;
+  rows.slice(1).forEach(r=>{const b=toNum(r[ix.current_balance]), rt=toNum(r[ix.note_rate]), rem=Math.round(toNum(r[ix.remaining_term]));
+    if(b>0 && rt>=0 && rt<30 && rem>0 && rem<=480) out.push({bal:b,rate:rt,rem}); else skipped++; });
+  if(!out.length) return say('Collateral not loaded: no valid loans found. Balances must be positive, rates in percent and remaining terms in months.');
+  if(out.every(l=>l.rate<1)) out.forEach(l=>l.rate*=100); // rates given as decimals
+  loans=out; tapeName=f.name; buildInputs(); render();
+  say(`Loaded ${out.length.toLocaleString()} loans ($${usd(out.reduce((a,l)=>a+l.bal,0))}) from ${f.name}.`+(skipped?` Skipped ${skipped} row(s) with missing or invalid balance, rate or term.`:''),true);
+};
+
+$('tmplTerms').onclick=()=>{
+  const lines=['type,name,amount,rate,pay_rule,pay_group',
+    `deal,deal_name,"${SAMPLE.dealName}",,,`,`deal,first_payment_date,${SAMPLE.fpd},,,`,
+    ...Object.entries({target_oc_pre_pct:SAMPLE.rules.ocTarget,target_oc_post_pct:SAMPLE.rules.ocPost,oc_floor_pct:SAMPLE.rules.ocFloor,stepdown_month:SAMPLE.rules.stepdown,post_stepdown_pay:SAMPLE.rules.postRule,cum_loss_trigger_pct:SAMPLE.rules.trigger,recovery_lag_months:SAMPLE.rules.lag}).map(([k,v])=>`deal,${k},${v},,,`),
+    'tranche,A1,250000000,5.10,pro_rata,Senior','tranche,A2,150000000,5.40,pro_rata,Senior',
+    'tranche,M1,40000000,6.25,sequential,','tranche,M2,30000000,7.25,sequential,','tranche,B,22500000,8.50,sequential,',
+    ...SAMPLE.fees.map(f=>`fee,${f.name},${f.fixed},${f.bps},,`)];
+  download('deal_terms_template.csv',lines.join('\n'));
+};
+$('tmplTape').onclick=()=>download('collateral_tape_template.csv','loan_id,current_balance,note_rate,remaining_term\nLN100001,412500.00,6.875,352\nLN100002,289300.50,7.125,340\nLN100003,655000.00,6.500,358\n');
+
+/* ======================= Events ======================= */
+function buildInputsOrderOnly(){ $('payOrder').innerHTML='<b>Principal order:</b> '+payGroups().map(g=>g.idx.length>1?'('+g.idx.map(i=>tranches[i].name).join(' + ')+' pro-rata)':tranches[g.idx[0]].name).join(' → '); }
+let timer=null; const schedule=()=>{clearTimeout(timer); timer=setTimeout(render,loans?150:0);};
+document.addEventListener('input',e=>{
+  const el=e.target;
+  if(el.type==='file') return;
+  if(el.dataset.t!==undefined){ const k=el.dataset.k; tranches[+el.dataset.t][k]=(k==='rule'||k==='group')?el.value:(parseFloat(el.value)||0);
+    if(k==='rule'){ if(el.value!=='pro_rata') tranches[+el.dataset.t].group=''; buildInputs(); } else if(k==='group') buildInputsOrderOnly(); }
+  if(el.dataset.f!==undefined) fees[+el.dataset.f][el.dataset.k]=parseFloat(el.value)||0;
+  if(el.dataset.s!==undefined) scens[+el.dataset.s][el.dataset.k]=parseFloat(el.value)||0;
+  if(el.id==='cfClass'){cfClass=+el.value; renderCF(); return;}
+  schedule();
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-tab]'); if(b){active=+b.dataset.tab; document.querySelectorAll('[data-tab]').forEach(x=>x.setAttribute('aria-pressed',x===b)); render(); return;}
+  const v=e.target.closest('[data-view]'); if(v){cfView=v.dataset.view; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x===v)); renderCF();}
+});
+$('cfClass').onchange=e=>{cfClass=+e.target.value; renderCF();};
+$('postRule').onchange=()=>render();
+$('reset').onclick=()=>{loadSample(); buildInputs(); render();};
+loadSample(); buildInputs(); render();
+</script>
+</body>
+</html>

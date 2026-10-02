@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Loan Tape Analyser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --ink:#1B2A41; --muted:#5A6778; --paper:#F5F7FA; --panel:#FFFFFF; --rule:#D5DBE3; --soft:#EEF1F5;
+  --blue:#2F5496; --ok:#3E7B5A; --warn:#B7791F; --bad:#B23A3A;
+  --serif:'IBM Plex Serif',Georgia,'Times New Roman',serif;
+  --sans:'IBM Plex Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none !important}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 64px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans);font-variant-numeric:tabular-nums}
+header{padding:28px 32px 18px;background:var(--panel);border-bottom:1px solid var(--rule)}
+header h1{font:600 28px/1.2 var(--serif);margin:0 0 6px}
+header p{margin:0;color:var(--muted);max-width:80ch}
+header p.tagline{color:var(--ink);font-weight:500;margin:0 0 8px}
+nav.steps{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--rule);display:flex;gap:4px;padding:8px 32px;overflow-x:auto}
+nav.steps a{white-space:nowrap;text-decoration:none;color:var(--muted);font-weight:500;font-size:14px;padding:6px 12px;border-radius:4px}
+nav.steps a b{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:50%;background:var(--soft);color:var(--ink);font-size:12px;margin-right:6px}
+nav.steps a.done b{background:var(--ok);color:#fff}
+nav.steps a:hover{background:var(--soft);color:var(--ink)}
+.wrap{max-width:1320px;margin:0 auto;padding:22px 32px 48px}
+section.card{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:20px 22px;margin-bottom:22px}
+section.card>h2{font:600 19px var(--serif);margin:0 0 4px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 14px;max-width:90ch}
+h3{font:600 15px var(--serif);margin:18px 0 8px}
+button,.filebtn{border:1px solid var(--ink);background:#fff;color:var(--ink);padding:7px 13px;border-radius:4px;font:500 13.5px var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+button.primary,.filebtn.primary{background:var(--ink);color:#fff}
+button.small{padding:3px 8px;font-size:12.5px}
+button.link{border:0;background:none;color:var(--blue);text-decoration:underline;padding:2px 0}
+button:disabled{opacity:.45;cursor:not-allowed}
+.filebtn input{position:absolute;width:1px;height:1px;opacity:0}
+.filebtn:focus-within,:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=text],input[type=number],select{padding:5px 7px;border:1px solid var(--rule);border-radius:4px;font:inherit;font-size:14px;color:var(--ink);background:#fff;max-width:100%}
+label.inline{font-size:13.5px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.msg{font-size:13.5px;margin:10px 0 0}
+.msg.ok{color:var(--ok)}.msg.err{color:var(--bad)}.msg.warn{color:var(--warn)}
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+.stat{background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:10px 14px;min-width:150px}
+.stat b{display:block;font:600 20px var(--serif)}
+.stat small{color:var(--muted);font-size:12.5px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+.grid th,.grid td{padding:6px 9px;border-bottom:1px solid var(--soft);font-size:13px;text-align:left;white-space:nowrap;vertical-align:middle}
+.grid thead th{color:var(--muted);font-weight:500;border-bottom:1px solid var(--rule);background:#fff;position:sticky;top:0}
+.grid td.num,.grid th.num{text-align:right}
+.grid tr.dup td{background:#FBEAEA}
+.grid tr.ignored td{color:#9AA3AE}
+#mapTable select{width:230px}
+#mapTable td.note{min-width:200px;max-width:280px}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 6px;border-radius:3px;background:var(--soft);color:var(--ink)}
+.tag.std{background:#E3EAF6;color:var(--blue)}.tag.cus{background:#F3EFE2;color:#7A5A12}
+.note{color:var(--warn);font-size:12.5px;white-space:normal}
+.mapwrap{max-height:520px;overflow:auto;border:1px solid var(--rule);border-radius:4px}
+details{margin-top:12px}
+summary{cursor:pointer;color:var(--blue);font-weight:500;font-size:14px}
+.cols2{display:grid;grid-template-columns:260px 1fr;gap:20px;align-items:start}
+.list{border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+.list button.item{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--soft);border-radius:0;padding:9px 12px;font-weight:500}
+.list button.item[aria-current=true]{background:var(--ink);color:#fff}
+.list button.item small{display:block;font-weight:400;font-size:12px;opacity:.8}
+.editor{border:1px solid var(--rule);border-radius:6px;padding:16px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.colpick li{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--soft);font-size:13.5px}
+.colpick ul{list-style:none;margin:0;padding:0;max-width:520px}
+.colpick li span{flex:1}
+.tpl-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tpl-row input[type=text]{flex:1;min-width:240px;max-width:420px}
+nav.steps a.tplnav{border-right:1px solid var(--rule);border-radius:4px 0 0 4px;margin-right:6px;padding-right:14px;color:var(--ink)}
+.fcond{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 0;border-bottom:1px solid var(--soft)}
+.fcond .lead{width:56px;color:var(--muted);font-size:13px}
+.fcond input[type=number]{width:120px}.fcond input[type=text]{width:220px}
+.fcond details{margin:0;position:relative}
+.fcond details summary{border:1px solid var(--rule);border-radius:4px;padding:5px 9px;color:var(--ink);font-weight:400;list-style:none;min-width:200px;background:#fff}
+.fcond details summary::-webkit-details-marker{display:none}
+.fcond .vals{position:absolute;z-index:4;background:#fff;border:1px solid var(--rule);border-radius:4px;padding:8px;max-height:260px;overflow:auto;min-width:260px;box-shadow:0 4px 14px rgba(27,42,65,.12)}
+.fcond .vals label{display:flex;gap:6px;align-items:center;font-size:13px;padding:2px 0;white-space:nowrap}
+.fbad{font-size:12.5px;color:var(--warn)}
+.fstats{font-size:14px;margin:12px 0 0;padding:10px 12px;background:var(--paper);border-radius:4px}
+.mform{background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:14px;margin-top:14px}
+.na{color:#9AA3AE}
+.strat{margin:0 0 26px}
+.strat h3{margin:0 0 6px}
+.strat table td.bar{background-repeat:no-repeat;background-image:linear-gradient(#DCE5F3,#DCE5F3);background-size:var(--w) 64%;background-position:left center;min-width:110px}
+.strat tfoot td{font-weight:600;border-top:1px solid var(--ink);background:var(--paper)}
+.resbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+footer{padding:18px 32px;color:var(--muted);font-size:13px;border-top:1px solid var(--rule);background:var(--panel)}
+@media (max-width:860px){.cols2{grid-template-columns:1fr}.wrap{padding:16px}header{padding:22px 18px 14px}nav.steps{padding:8px 12px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Loan Tape Analyser</h1>
+  <p class="tagline">Tape cracking, calculated fields and stratifications for securitised loan pools</p>
+  <p>Load a loan tape from Excel or CSV, map its columns to standard field names, define aggregate measures such as SUM, AVG, COUNT and balance-weighted averages, and build the stratification tables you need. Add loan-level calculated fields here, or in Excel before loading. Everything runs in your browser, and the tape never leaves your computer.</p>
+</header>
+<nav class="steps" aria-label="Steps">
+  <a href="#s0" id="n0" class="tplnav">Templates</a>
+  <a href="#s1" id="n1"><b>1</b>Load tape</a>
+  <a href="#s2" id="n2"><b>2</b>Map fields</a>
+  <a href="#s3" id="n3"><b>3</b>Calculated fields</a>
+  <a href="#s4" id="n4"><b>4</b>Pool filter</a>
+  <a href="#s5" id="n5"><b>5</b>Measures</a>
+  <a href="#s6" id="n6"><b>6</b>Strats</a>
+  <a href="#s7" id="n7"><b>7</b>Results</a>
+</nav>
+<div class="wrap">
+
+<section class="card" id="s0">
+  <h2>Templates</h2>
+  <p class="sub">A template saves your whole setup: manual field mappings, calculated fields, pool filter, measures and strats. It holds no loan data. Set up one tape, save a template, then load it on the next tape to rebuild everything in one step. You can load a template before or after the tape.</p>
+  <div class="tpl-row">
+    <input type="text" id="tplName" placeholder="Template name, e.g. Non-QM Originator X" aria-label="Template name">
+    <button class="primary" id="tplSaveLib">Save in this browser</button>
+    <button id="tplDownload">Download as file</button>
+    <label class="filebtn">Load from file<input type="file" id="loadTpl" accept=".json"></label>
+  </div>
+  <p class="msg" id="tplMsg" role="status" aria-live="polite"></p>
+  <div class="fstats" id="sessionBar" hidden style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span id="sessionMsg" style="flex:1;min-width:260px"></span><button class="small" id="startFresh">Start a fresh setup</button></div>
+  <div id="tplLib" style="margin-top:12px"></div>
+  <p class="sub" style="margin:10px 0 0;font-size:13px">Templates saved in this browser stay on this computer and browser only, and are deleted if you clear browser data. Download a file to back one up or share it with a colleague.</p>
+</section>
+
+<section class="card" id="s1">
+  <h2>1. Load tape</h2>
+  <p class="sub">Excel (.xlsx, .xls) or CSV, one loan per row, column headers in the first row. Excel formulas are read as their calculated values, so save the file in Excel after adding calculated columns.</p>
+  <div class="row">
+    <label class="filebtn primary">Upload tape<input type="file" id="upTape" accept=".xlsx,.xls,.csv"></label>
+    <button id="loadSample">Load sample tape</button>
+    <button class="link" id="dlTemplate">Download standard tape template (Excel)</button>
+  </div>
+  <div class="row" id="sheetRow" hidden style="margin-top:10px">
+    <label class="inline">Worksheet<select id="sheetSel"></select></label>
+  </div>
+  <div class="row" style="margin-top:12px;gap:14px">
+    <label style="font-size:14px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="rememberTape"> Remember the tape in this browser, so it reloads automatically next time</label>
+    <button class="link" id="clearTape" hidden>Clear saved tape</button>
+  </div>
+  <p class="sub" style="font-size:13px;margin:4px 0 0">Off by default. When on, the loan data stays in this browser on this computer until you clear it or untick the box. Use it only on your own computer.</p>
+  <p class="msg" id="loadMsg" role="status" aria-live="polite"></p>
+  <div class="stats" id="loadStats"></div>
+</section>
+
+<section class="card" id="s2">
+  <h2>2. Map fields</h2>
+  <p class="sub">Columns are matched to standard field names automatically; change any mapping in the dropdown. Unmatched columns are kept as custom fields under a capitalised name, so they can still be stratified and aggregated. Percent fields supplied as decimals (0.75) are converted to percent (75).</p>
+  <div id="mapEmpty" class="sub">Load a tape to see its columns.</div>
+  <div class="mapwrap" id="mapWrap" hidden><table class="grid" id="mapTable"></table></div>
+  <p class="msg" id="mapMsg" role="status" aria-live="polite"></p>
+  <div class="row" id="mapReset" hidden><button class="link" id="resetMap">Reset all mappings to automatic</button></div>
+  <details>
+    <summary>Standard field dictionary</summary>
+    <div class="scroll" style="margin-top:10px"><table class="grid" id="dictTable"></table></div>
+  </details>
+</section>
+
+<section class="card" id="s3">
+  <h2>3. Calculated fields</h2>
+  <p class="sub">Add new columns or edit existing ones with Excel-style formulas, calculated loan by loan. Steps run in order, so a step can use fields created above it. Original values are kept: switch a step off or delete it and the column reverts to the uploaded tape.</p>
+  <div id="calcEmpty" class="sub">Load a tape to add calculated fields.</div>
+  <div class="scroll" id="calcListWrap" hidden><table class="grid" id="calcTable"></table></div>
+  <div class="mform" id="cform" hidden>
+    <h3 style="margin-top:0" id="cformTitle">Add a calculation</h3>
+    <div class="row" style="gap:18px;margin-bottom:10px">
+      <label style="font-size:14px"><input type="radio" name="cmode" value="new" checked> Add new column</label>
+      <label style="font-size:14px"><input type="radio" name="cmode" value="edit"> Edit existing column</label>
+    </div>
+    <div class="fgrid">
+      <label class="inline" id="cNameL">New field name<input type="text" id="cName" placeholder="e.g. CUR_LTV"></label>
+      <label class="inline" id="cTargetL" hidden>Column to edit<select id="cTarget"></select></label>
+      <label class="inline">Result type<select id="cType"><option value="auto">Automatic</option><option value="num">Number</option><option value="cat">Text / category</option><option value="date">Date</option></select></label>
+      <label class="inline">Insert field<select id="cInsField"><option value="">Choose…</option></select></label>
+      <label class="inline">Insert function<select id="cInsFn"><option value="">Choose…</option></select></label>
+    </div>
+    <label class="inline" style="margin-top:10px">Formula<textarea id="cFormula" rows="2" spellcheck="false" placeholder="e.g. PRIN_BAL / PROP_VALUE * 100" style="font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:7px 9px;border:1px solid var(--rule);border-radius:4px;width:100%;resize:vertical"></textarea></label>
+    <div class="row" style="margin-top:8px"><span class="sub" style="margin:0">Examples:</span><span id="cExamples" class="row"></span></div>
+    <div class="row" style="margin-top:12px">
+      <button id="cPreview">Preview</button><button class="primary" id="cSave">Add step</button><button id="cCancel" hidden>Cancel edit</button>
+    </div>
+    <p class="msg" id="cMsg" role="status" aria-live="polite"></p>
+    <div id="cPrev"></div>
+    <details><summary>Function reference</summary><div class="scroll" style="margin-top:10px"><table class="grid" id="fnTable"></table></div>
+      <p class="sub" style="margin-top:8px">Operators: + − * / ^ (power), &amp; (join text), = &lt;&gt; &lt; &lt;= &gt; &gt;=. Text goes in quotes, e.g. "Current". Field names are used as written (PRIN_BAL), or in brackets for any name: [PRIN_BAL]. Text comparisons ignore case, as in Excel. A blank input gives a blank result, and a row that can't be calculated (e.g. division by zero) is left blank and counted as an error.</p><p class="sub"><b>Aggregates:</b> SUM, AVG, MIN, MAX, MEDIAN and COUNT with a single field name work on the whole column, as an Excel column reference would, e.g. <code>IF(PRIN_BAL &gt; AVG(PRIN_BAL), "Above average", "At or below")</code>. With several values they work loan by loan, e.g. <code>MAX(FICO - 600, 0)</code>. GROUP_ functions return the figure for the loan's own group, e.g. <code>PRIN_BAL / GROUP_SUM(PRIN_BAL, STATE)</code>. Aggregates use every loan in the tape as it stands at that step, before the pool filter; loans with a blank group value get a blank result.</p></details>
+  </div>
+  <div class="row" style="margin-top:12px" id="calcLinks" hidden><button class="link" id="dlProcessed">Download processed tape with calculated fields (CSV)</button></div>
+</section>
+
+<section class="card" id="s4">
+  <h2>4. Pool filter</h2>
+  <p class="sub">Optional. Restrict the pool before anything is calculated, e.g. current loans only, or FICO of at least 660 excluding investor properties. Measures, strats and "% of pool" figures all use the filtered pool. Blank values only match "is blank".</p>
+  <div id="filterBody"></div>
+  <p class="fstats" id="filterStats" role="status" aria-live="polite" hidden></p>
+</section>
+
+<section class="card" id="s5">
+  <h2>5. Measures</h2>
+  <p class="sub">Aggregate calculations available as strat columns. Weighted averages are weighted by any numeric field, usually PRIN_BAL. A measure that needs a field missing from the tape is greyed out.</p>
+  <div class="scroll"><table class="grid" id="measTable"></table></div>
+  <div class="mform" id="mform">
+    <h3 style="margin-top:0" id="mformTitle">Add a measure</h3>
+    <div class="fgrid">
+      <label class="inline">Name<input type="text" id="mName" placeholder="e.g. WA Current LTV"></label>
+      <label class="inline">Operator<select id="mOp">
+        <option value="SUM">SUM: total</option>
+        <option value="AVG">AVG: simple average</option>
+        <option value="WA">WA: weighted average</option>
+        <option value="COUNT">COUNT: non-blank values</option>
+        <option value="COUNT_DISTINCT">COUNT DISTINCT: unique values</option>
+        <option value="MIN">MIN</option>
+        <option value="MAX">MAX</option>
+        <option value="MEDIAN">MEDIAN</option>
+        <option value="PCT">PCT: % of pool total</option>
+        <option value="RATIO">RATIO: measure ÷ measure</option>
+      </select></label>
+      <label class="inline" id="mFieldL">Field<select id="mField"></select></label>
+      <label class="inline" id="mWeightL">Weighted by<select id="mWeight"></select></label>
+      <label class="inline" id="mNumL">Numerator measure<select id="mNum"></select></label>
+      <label class="inline" id="mDenL">Denominator measure<select id="mDen"></select></label>
+      <label class="inline" id="mScaleL">Multiply result by<select id="mScale"><option value="1">1</option><option value="100">100 (show as %)</option></select></label>
+      <label class="inline">Format<select id="mFmt"><option value="number">Number</option><option value="currency">Currency ($)</option><option value="percent">Percent (%)</option></select></label>
+      <label class="inline">Decimals<input type="number" id="mDec" min="0" max="6" value="2"></label>
+      <label class="inline" id="mExL" style="justify-content:flex-end"><span><input type="checkbox" id="mEx"> Exclude zero values</span></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="mSave">Add measure</button>
+      <button id="mCancel" hidden>Cancel edit</button>
+    </div>
+    <p class="msg" id="mMsg" role="status" aria-live="polite"></p>
+  </div>
+</section>
+
+<section class="card" id="s6">
+  <h2>6. Strats</h2>
+  <p class="sub">Each strat groups the pool by one field. Choose distinct values (with an optional top-N and "Other" bucket), numeric breakpoints, or year for date fields, then pick and order its columns. Save the whole set as a template to reuse on the next tape.</p>
+  <div class="row" style="margin-bottom:14px">
+    <button id="addStrat">Add strat</button>
+    <button id="dupStrat">Duplicate</button>
+    <button id="delStrat">Delete</button>
+    <button id="resetStrats">Reset to standard pack</button>
+    <a href="#s0" style="font-size:14px;color:var(--blue);align-self:center">Save or load a template</a>
+  </div>
+  <div class="cols2">
+    <div class="list" id="stratList" role="list"></div>
+    <div class="editor" id="stratEditor"></div>
+  </div>
+  <p class="msg" id="stratMsg" role="status" aria-live="polite"></p>
+</section>
+
+<section class="card" id="s7">
+  <h2>7. Results</h2>
+  <div class="resbar">
+    <button class="primary" id="xlsxAll">Export all to Excel</button>
+    <button id="csvAll">Export all to CSV</button>
+  </div>
+  <p class="msg" id="resMsg" role="status" aria-live="polite"></p>
+  <div id="results"><p class="sub">Load a tape to see results.</p></div>
+</section>
+</div>
+<footer>Built by Anand Bhamri with Claude as a coding partner. The sample tape is synthetic. No data is uploaded anywhere; files are read in the browser.</footer>
+
+<script>
+/* ======================= Standard field dictionary ======================= */
+const STD=[
+ ['LOAN_ID','id','','Unique loan identifier','LN100001',['loan id','loan number','loan no','loan num','loanid','account number','loan_number','deal loan id']],
+ ['PRIN_BAL','num','money','Current (scheduled) principal balance','312,450.18',['current balance','current principal balance','current_balance','cur bal','curr bal','curr_bal','upb','unpaid principal balance','current upb','prin bal','principal balance','scheduled balance','cut-off balance','cutoff balance']],
+ ['ORIG_BAL','num','money','Original loan amount','350,000',['original balance','orig bal','original loan amount','loan amount','orig amount','original_balance','orig_balance','original principal balance','orig upb']],
+ ['NOTE_RATE','num','pct','Current note rate (%)','6.875',['note rate','current rate','interest rate','coupon','gross coupon','curr rate','current interest rate','rate','gross rate','current note rate']],
+ ['ORIG_RATE','num','pct','Original note rate (%)','6.875',['original rate','orig rate','original interest rate','original note rate']],
+ ['ORIG_TERM','num','months','Original term (months)','360',['original term','orig term','term','original amortization term','amort term']],
+ ['REM_TERM','num','months','Remaining term (months)','342',['remaining term','rem term','remaining_term','months remaining','stated remaining term','remaining months','rem_term_months']],
+ ['LOAN_AGE','num','months','Loan age / seasoning (months)','18',['loan age','age','seasoning','loan_age','months seasoned']],
+ ['ORIG_DATE','date','','Origination (note) date','2025-03-14',['origination date','orig date','note date','closing date','funding date']],
+ ['FIRST_PAY_DATE','date','','First payment date','2025-05-01',['first payment date','first pay date','fpd']],
+ ['MATURITY_DATE','date','','Maturity date','2055-04-01',['maturity date','maturity','mat date']],
+ ['FICO','num','score','Borrower credit score','742',['fico','credit score','fico score','orig fico','original fico','borrower fico','representative fico','qualifying fico']],
+ ['LTV','num','pct','Original loan-to-value (%)','80.00',['ltv','orig ltv','original ltv','oltv','orig_ltv','original loan to value']],
+ ['CLTV','num','pct','Original combined LTV (%)','85.00',['cltv','orig cltv','original cltv','ocltv','orig_cltv','combined ltv']],
+ ['CUR_LTV','num','pct','Current LTV (%)','76.40',['current ltv','cur ltv','curr ltv','mtm ltv','updated ltv']],
+ ['DTI','num','pct','Debt-to-income ratio (%)','38.2',['dti','debt to income','back end dti','backend dti','debt-to-income ratio']],
+ ['PROP_VALUE','num','money','Property value at origination','437,500',['property value','appraised value','appraisal value','orig value','original appraised value','prop value']],
+ ['STATE','cat','','Property state','CA',['state','property state','prop state','st','property_state']],
+ ['ZIP','cat','','Property ZIP code','94105',['zip','zip code','postal code','property zip','zipcode']],
+ ['PROP_TYPE','cat','','Property type','SFR',['property type','prop type','property_type','dwelling type']],
+ ['OCCUPANCY','cat','','Occupancy','Owner',['occupancy','occupancy type','occ','occ type','occupancy status']],
+ ['PURPOSE','cat','','Loan purpose','Purchase',['loan purpose','purpose','loan_purpose']],
+ ['DOC_TYPE','cat','','Documentation type','Full',['documentation','doc type','documentation type','doc','doc_type','documentation level']],
+ ['LIEN_POS','cat','','Lien position','1',['lien position','lien','lien pos','lien type']],
+ ['AMORT_TYPE','cat','','Fixed / ARM / product type','Fixed',['amortization type','amort type','product type','rate type','product','loan type','arm fixed']],
+ ['IO_FLAG','cat','','Interest-only flag','N',['interest only','io flag','io','interest only flag','io indicator']],
+ ['MARGIN','num','pct','ARM gross margin (%)','2.75',['margin','gross margin','arm margin']],
+ ['NUM_UNITS','num','','Number of units','1',['units','number of units','num units','no of units']],
+ ['DQ_STATUS','cat','','Delinquency status','Current',['delinquency status','dq status','delinquency','mba status','pay status','delinquency_status','payment status','dq']],
+ ['SERVICER','cat','','Servicer','Servicer A',['servicer','servicer name']],
+ ['ORIGINATOR','cat','','Originator','Lender B',['originator','originator name','seller','lender']],
+].map(([name,type,unit,desc,example,syn])=>({name,type,unit,desc,example,syn}));
+const norm=s=>String(s??'').trim().toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+STD.forEach(f=>f.keys=new Set([f.name,...f.syn.map(norm)]));
+const STDMAP=Object.fromEntries(STD.map(f=>[f.name,f]));
+
+/* ======================= Defaults ======================= */
+const DEFAULT_MEASURES=[
+ {id:'cnt',name:'Loan Count',op:'COUNT',field:'LOAN_ID',fmt:'number',dec:0},
+ {id:'bal',name:'Current Balance',op:'SUM',field:'PRIN_BAL',fmt:'currency',dec:0},
+ {id:'pbal',name:'% of Balance',op:'PCT',field:'PRIN_BAL',fmt:'percent',dec:2},
+ {id:'pcnt',name:'% of Count',op:'PCT',field:'LOAN_ID',fmt:'percent',dec:2},
+ {id:'obal',name:'Original Balance',op:'SUM',field:'ORIG_BAL',fmt:'currency',dec:0},
+ {id:'avgbal',name:'Avg Current Balance',op:'AVG',field:'PRIN_BAL',fmt:'currency',dec:0},
+ {id:'avgobal',name:'Avg Original Balance',op:'AVG',field:'ORIG_BAL',fmt:'currency',dec:0},
+ {id:'warate',name:'WA Note Rate',op:'WA',field:'NOTE_RATE',weight:'PRIN_BAL',fmt:'percent',dec:3},
+ {id:'wafico',name:'WA FICO',op:'WA',field:'FICO',weight:'PRIN_BAL',ex:true,fmt:'number',dec:0},
+ {id:'waltv',name:'WA LTV',op:'WA',field:'LTV',weight:'PRIN_BAL',fmt:'percent',dec:2},
+ {id:'wacltv',name:'WA CLTV',op:'WA',field:'CLTV',weight:'PRIN_BAL',fmt:'percent',dec:2},
+ {id:'wadti',name:'WA DTI',op:'WA',field:'DTI',weight:'PRIN_BAL',fmt:'percent',dec:2},
+ {id:'warem',name:'WA Remaining Term',op:'WA',field:'REM_TERM',weight:'PRIN_BAL',fmt:'number',dec:0},
+ {id:'waage',name:'WA Loan Age',op:'WA',field:'LOAN_AGE',weight:'PRIN_BAL',fmt:'number',dec:1},
+ {id:'minfico',name:'Min FICO',op:'MIN',field:'FICO',ex:true,fmt:'number',dec:0},
+ {id:'maxltv',name:'Max LTV',op:'MAX',field:'LTV',fmt:'percent',dec:2},
+ {id:'factor',name:'Pool Factor',op:'RATIO',num:'bal',den:'obal',scale:1,fmt:'number',dec:4},
+];
+const DEFAULT_COLS=['cnt','bal','pbal','avgbal','warate','wafico','waltv','wadti'];
+const DEFAULT_PACK=[
+ ['State','STATE','distinct',{topN:15,sort:'m:bal'}],
+ ['FICO','FICO','breaks',{breaks:'620, 660, 700, 740, 780'}],
+ ['Original LTV','LTV','breaks',{breaks:'60, 70, 75, 80, 85, 90'}],
+ ['Combined LTV','CLTV','breaks',{breaks:'60, 70, 75, 80, 85, 90'}],
+ ['DTI','DTI','breaks',{breaks:'20, 30, 36, 43, 50'}],
+ ['Note Rate','NOTE_RATE','breaks',{breaks:'5.5, 6, 6.5, 7, 7.5, 8'}],
+ ['Current Balance','PRIN_BAL','breaks',{breaks:'100000, 200000, 300000, 400000, 500000, 750000, 1000000'}],
+ ['Remaining Term','REM_TERM','breaks',{breaks:'120, 180, 240, 300, 360'}],
+ ['Loan Age','LOAN_AGE','breaks',{breaks:'6, 12, 24, 36, 60'}],
+ ['Origination Year','ORIG_DATE','year',{}],
+ ['Occupancy','OCCUPANCY','distinct',{sort:'m:bal'}],
+ ['Loan Purpose','PURPOSE','distinct',{sort:'m:bal'}],
+ ['Property Type','PROP_TYPE','distinct',{sort:'m:bal'}],
+ ['Documentation','DOC_TYPE','distinct',{sort:'m:bal'}],
+ ['Lien Position','LIEN_POS','distinct',{}],
+ ['Product Type','AMORT_TYPE','distinct',{sort:'m:bal'}],
+ ['Delinquency Status','DQ_STATUS','distinct',{}],
+];
+
+/* ======================= State ======================= */
+let raw=null;          // {file, wb?, sheet, headers[], rows[][]}
+let mapping=[];        // [{src, idx, target}] target: 'IGNORE' | 'CUSTOM' | std name
+let data=null;         // {rows:[{}], fields:{NAME:{type,unit,std,src,note}}, order:[]}
+let measures=JSON.parse(JSON.stringify(DEFAULT_MEASURES));
+let strats=[]; let stratsCustomised=false; let activeStrat=0; let editingMeasure=null;
+let results=[];        // computed strats
+let filter={logic:'AND',conds:[]}; let poolRows=null, poolIdx=null;
+let baseData=null, calcs=[], editingCalc=null;
+let mapOverrides={}; // normalised tape header -> target, set by hand or by a template
+const pool=()=>poolRows||(data?data.rows:[]);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>'u'+Math.random().toString(36).slice(2,9);
+function say(id,text,cls){const el=$(id); el.className='msg '+(cls||''); el.textContent=text;}
+
+/* ======================= Parsing ======================= */
+function parseCSV(text){
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else if(ch==='"') q=true; else if(ch===','){row.push(cur);cur='';}
+    else if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&text[i+1]==='\n') i++; row.push(cur); rows.push(row); row=[]; cur=''; }
+    else cur+=ch; }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return rows;
+}
+function toNumber(v){
+  if(v===null||v===undefined) return null;
+  if(typeof v==='number') return isFinite(v)?v:NaN;
+  if(v instanceof Date) return NaN;
+  let s=String(v).trim(); if(s==='') return null;
+  let neg=false; if(/^\(.*\)$/.test(s)){neg=true;s=s.slice(1,-1);}
+  s=s.replace(/[$,%\s]/g,''); if(s===''||s==='-') return null;
+  const n=Number(s); return isNaN(n)?NaN:(neg?-n:n);
+}
+function toDate(v){
+  if(v===null||v===undefined||v==='') return null;
+  if(v instanceof Date) return isNaN(v)?NaN:v;
+  if(typeof v==='number' && v>20000 && v<80000) return new Date(Math.round((v-25569)*864e5)); // Excel serial
+  const s=String(v).trim(); if(!s) return null;
+  let m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/); if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+  m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/); if(m) return new Date(+m[3],+m[1]-1,+m[2]); // US m/d/yyyy
+  return NaN;
+}
+const present=v=>v!==null&&v!==undefined&&v!=='';
+
+function ingest(rows2d,file,extra){
+  let h=rows2d.findIndex(r=>r&&r.some(c=>present(c)&&String(c).trim()!==''));
+  if(h<0) return say('loadMsg','No data found in this file.','err');
+  const headers=rows2d[h].map((c,i)=>present(c)?String(c).trim():`Column ${i+1}`);
+  const body=rows2d.slice(h+1).filter(r=>r&&r.some(c=>present(c)&&String(c).trim()!==''));
+  if(!body.length) return say('loadMsg','The header row was found but there are no loan rows under it.','err');
+  raw={file,headers,rows:body,...extra};
+  autoMap(); buildData();
+  say('loadMsg',`Loaded ${body.length.toLocaleString()} loans and ${headers.length} columns from ${file}${raw.sheet?' ('+raw.sheet+')':''}.`,'ok');
+  if($('rememberTape').checked) storeTape();
+  if(!$('sessionBar').hidden&&typeof restoredSetup!=='undefined') showSessionBar(restoredSetup);
+}
+
+$('upTape').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    if(/\.csv$/i.test(f.name)){ $('sheetRow').hidden=true; ingest(parseCSV(await f.text()),f.name,{}); return; }
+    if(typeof XLSX==='undefined') return say('loadMsg','The Excel reader did not load (check your connection). Save the tape as CSV and upload that instead.','err');
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array',cellDates:true});
+    const sel=$('sheetSel'); sel.innerHTML=wb.SheetNames.map(n=>`<option>${esc(n)}</option>`).join('');
+    // pick the sheet with the most rows by default
+    let best=wb.SheetNames[0],bestN=-1; wb.SheetNames.forEach(n=>{const r=XLSX.utils.decode_range(wb.Sheets[n]['!ref']||'A1:A1');const k=r.e.r-r.s.r;if(k>bestN){bestN=k;best=n;}});
+    sel.value=best; $('sheetRow').hidden=wb.SheetNames.length<2;
+    const load=n=>ingest(XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null}),f.name,{sheet:n});
+    sel.onchange=()=>load(sel.value); load(best);
+  }catch(err){ say('loadMsg','Could not read this file: '+err.message,'err'); }
+};
+
+/* ======================= Mapping ======================= */
+function autoMap(){
+  const taken=new Set(), res=raw.headers.map((h,idx)=>({src:h,idx,target:null,manual:false}));
+  res.forEach(m=>{ const o=mapOverrides[norm(m.src)]; if(o===undefined) return;            // manual / template mappings first
+    if(o==='IGNORE'||o==='CUSTOM'){m.target=o;m.manual=true;} else if(STDMAP[o]&&!taken.has(o)){m.target=o;m.manual=true;taken.add(o);} });
+  res.forEach(m=>{ if(m.target) return; const f=STD.find(s=>s.keys.has(norm(m.src))&&!taken.has(s.name));
+    if(f){taken.add(f.name); m.target=f.name;} else m.target='CUSTOM'; });
+  mapping=res;
+}
+function customName(m){ let n=norm(m.src)||('COL_'+(m.idx+1)); if(STDMAP[n]) n=n+'_SRC'; return n; }
+
+function buildData(){
+  if(!raw) return;
+  const fields={}, order=[], seen={}, dups=new Set();
+  mapping.forEach(m=>{ if(m.target==='IGNORE') return; const name=m.target==='CUSTOM'?customName(m):m.target;
+    if(seen[name]!==undefined){dups.add(m.idx); return;} seen[name]=m.idx; m.name=name; order.push(m); });
+  // infer types and parse
+  const rows=raw.rows.map(()=>({}));
+  order.forEach(m=>{
+    const std=STDMAP[m.target]; let type=std?std.type:null, note='', bad=0;
+    const vals=raw.rows.map(r=>r[m.idx]);
+    if(!type){ // infer for custom columns
+      const nb=vals.filter(present); const nums=nb.filter(v=>!isNaN(toNumber(v))).length; const dts=nb.filter(v=>v instanceof Date).length;
+      type=nb.length&&dts/nb.length>0.9?'date':nb.length&&nums/nb.length>0.9?'num':'cat';
+    }
+    let parsed;
+    if(type==='num'){ parsed=vals.map(v=>{const n=toNumber(v); if(Number.isNaN(n)){bad++;return null;} return n;});
+      if(std&&std.unit==='pct'){ const xs=parsed.filter(x=>x!==null).map(Math.abs).sort((a,b)=>a-b);
+        if(xs.length && xs[Math.floor(xs.length*0.95)]<=1.5 && xs[xs.length-1]>0){ parsed=parsed.map(x=>x===null?null:x*100); note='Decimal values converted to percent. '; } } }
+    else if(type==='date'){ parsed=vals.map(v=>{const d=toDate(v); if(Number.isNaN(d)){bad++;return null;} return d;}); }
+    else { parsed=vals.map(v=>present(v)?(v instanceof Date?v.toISOString().slice(0,10):String(v).trim()):null);
+      if(m.target==='ZIP') parsed=parsed.map(z=>z&&/^\d{1,4}$/.test(z)?z.padStart(5,'0'):z); }
+    if(bad) note+=`${bad.toLocaleString()} value${bad>1?'s':''} could not be read as ${type==='num'?'numbers':'dates'} and are treated as blank.`;
+    parsed.forEach((v,i)=>rows[i][m.name]=v);
+    fields[m.name]={type,unit:std?std.unit:'',std:!!std,src:m.src,note,profile:profileOf(parsed,type)};
+  });
+  baseData={rows,fields,order:order.map(m=>m.name),dups}; applyCalcs();
+  if(!stratsCustomised) strats=defaultPack();
+  activeStrat=Math.min(activeStrat,Math.max(strats.length-1,0));
+  renderAll();
+}
+function profileOf(vals,type){
+  const nb=vals.filter(present); const p={filled:nb.length/vals.length*100,distinct:new Set(nb.map(v=>v instanceof Date?+v:v)).size};
+  if((type==='num'||type==='date')&&nb.length){let lo=Infinity,hi=-Infinity; for(const v of nb){const x=+v; if(x<lo)lo=x; if(x>hi)hi=x;} p.min=type==='date'?new Date(lo):lo; p.max=type==='date'?new Date(hi):hi;}
+  if(type==='cat'||type==='id'){ const c={}; nb.forEach(v=>c[v]=(c[v]||0)+1); p.top=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]); }
+  return p;
+}
+const fmtProfileVal=(v,type)=>v===undefined?'':type==='date'?v.toISOString().slice(0,10):Number(v).toLocaleString(undefined,{maximumFractionDigits:3});
+
+function renderMapping(){
+  $('mapEmpty').hidden=!!raw; $('mapWrap').hidden=!raw; $('mapReset').hidden=!Object.keys(mapOverrides).length; if(!raw) return;
+  const opts=t=>`<option value="IGNORE"${t==='IGNORE'?' selected':''}>Ignore column</option><option value="CUSTOM"${t==='CUSTOM'?' selected':''}>Keep as custom field</option><optgroup label="Standard fields">`+
+    STD.map(f=>`<option value="${f.name}"${t===f.name?' selected':''}>${f.name}: ${esc(f.desc)}</option>`).join('')+'</optgroup>';
+  let h='<thead><tr><th>Tape column</th><th>Maps to</th><th>Field name</th><th>Type</th><th class="num">Populated</th><th class="num">Distinct</th><th>Range / top values</th><th>Notes</th></tr></thead><tbody>';
+  mapping.forEach(m=>{
+    const dup=baseData.dups.has(m.idx), ign=m.target==='IGNORE', f=!ign&&!dup?baseData.fields[m.name]:null, p=f?f.profile:null;
+    const rng=!p?'':(f.type==='num'||f.type==='date')?`${fmtProfileVal(p.min,f.type)} to ${fmtProfileVal(p.max,f.type)}`:(p.top||[]).map(esc).join(', ');
+    h+=`<tr class="${dup?'dup':''}${ign?' ignored':''}"><td>${esc(m.src)}</td><td><select data-map="${m.idx}" aria-label="Mapping for ${esc(m.src)}">${opts(m.target)}</select></td>
+      <td>${ign?'':dup?'<span class="note" style="color:var(--bad)">Duplicate: already mapped from another column; ignored</span>':`<span class="tag ${f.std?'std':'cus'}">${esc(m.name)}</span>`}</td>
+      <td>${f?f.type:''}${m.manual?' <span class="tag" title="Set by you or a template">manual</span>':''}</td><td class="num">${p?p.filled.toFixed(1)+'%':''}</td><td class="num">${p?p.distinct.toLocaleString():''}</td><td>${rng}</td><td class="note">${f?esc(f.note):''}</td></tr>`;
+  });
+  $('mapTable').innerHTML=h+'</tbody>';
+  const nstd=Object.values(baseData.fields).filter(f=>f.std).length, ncus=Object.values(baseData.fields).filter(f=>!f.std).length;
+  const missing=['LOAN_ID','PRIN_BAL'].filter(n=>!data.fields[n]);
+  say('mapMsg',`${nstd} standard and ${ncus} custom field${ncus===1?'':'s'} in use.`+(missing.length?` Map ${missing.join(' and ')} for the standard measures to work.`:'')+(baseData.dups.size?` ${baseData.dups.size} duplicate mapping${baseData.dups.size>1?'s':''} ignored.`:''),missing.length||baseData.dups.size?'warn':'ok');
+}
+function renderDict(){
+  $('dictTable').innerHTML='<thead><tr><th>Standard field</th><th>Type</th><th>Description</th><th>Example</th><th>Also recognised as</th></tr></thead><tbody>'+
+    STD.map(f=>`<tr><td><span class="tag std">${f.name}</span></td><td>${f.type}${f.unit==='pct'?' (%)':''}</td><td>${esc(f.desc)}</td><td>${esc(f.example)}</td><td style="white-space:normal;min-width:320px">${esc(f.syn.join(', '))}</td></tr>`).join('')+'</tbody>';
+}
+
+/* ======================= Measures ======================= */
+const byId=id=>measures.find(m=>m.id===id);
+function fieldsOf(m,depth=0){ if(depth>6) return []; if(m.op==='RATIO'){const a=byId(m.num),b=byId(m.den);return [...(a?fieldsOf(a,depth+1):['?']),...(b?fieldsOf(b,depth+1):['?'])];}
+  return [m.field,m.op==='WA'?m.weight:null].filter(Boolean); }
+function missingFields(m){ if(!data) return []; return fieldsOf(m).filter(f=>f==='?'||!data.fields[f]); }
+function describe(m){
+  const ex=m.ex?', excl. zeros':'';
+  if(m.op==='WA') return `WA(${m.field}) weighted by ${m.weight}${ex}`;
+  if(m.op==='RATIO'){const a=byId(m.num),b=byId(m.den); return `${a?a.name:'?'} ÷ ${b?b.name:'?'}${+m.scale===100?' × 100':''}`;}
+  if(m.op==='PCT') return `PCT(${m.field}): % of pool ${data&&data.fields[m.field]&&data.fields[m.field].type==='num'?'total':'count'}`;
+  return `${m.op.replace('_',' ')}(${m.field})${ex}`;
+}
+function numsOf(rows,f,ex){ const out=[]; for(const r of rows){const v=r[f]; if(typeof v==='number'&&(!ex||v!==0)) out.push(v);} return out; }
+let poolCache={};
+function poolTotal(f){ if(poolCache[f]!==undefined) return poolCache[f]; const t=data.fields[f];
+  const P=pool(); return poolCache[f]=t&&t.type==='num'?numsOf(P,f).reduce((a,b)=>a+b,0):P.filter(r=>present(r[f])).length; }
+function calc(m,rows,depth=0){
+  if(!m||depth>6||missingFields(m).length) return null;
+  const f=m.field;
+  switch(m.op){
+    case 'RATIO':{ const a=calc(byId(m.num),rows,depth+1), b=calc(byId(m.den),rows,depth+1); return a===null||!b?null:a/b*(+m.scale||1); }
+    case 'COUNT': { let c=0; for(const r of rows) if(present(r[f])&&(!m.ex||r[f]!==0)) c++; return c; }
+    case 'COUNT_DISTINCT': return new Set(rows.filter(r=>present(r[f])).map(r=>r[f] instanceof Date?+r[f]:r[f])).size;
+    case 'PCT': { const t=data.fields[f].type==='num'; const v=t?numsOf(rows,f).reduce((a,b)=>a+b,0):rows.filter(r=>present(r[f])).length; const tot=poolTotal(f); return tot?v/tot*100:null; }
+    case 'WA': { let n=0,d=0; for(const r of rows){const x=r[f],w=r[m.weight]; if(typeof x!=='number'||typeof w!=='number'||(m.ex&&x===0)) continue; n+=x*w; d+=w;} return d?n/d:null; }
+  }
+  const xs=numsOf(rows,f,m.ex);
+  if(m.op==='SUM') return xs.reduce((a,b)=>a+b,0);
+  if(!xs.length) return null;
+  if(m.op==='AVG') return xs.reduce((a,b)=>a+b,0)/xs.length;
+  if(m.op==='MIN') return xs.reduce((a,b)=>b<a?b:a,Infinity);
+  if(m.op==='MAX') return xs.reduce((a,b)=>b>a?b:a,-Infinity);
+  if(m.op==='MEDIAN'){ xs.sort((a,b)=>a-b); const k=xs.length>>1; return xs.length%2?xs[k]:(xs[k-1]+xs[k])/2; }
+  return null;
+}
+function fmt(v,m){ if(v===null||v===undefined||Number.isNaN(v)) return '–'; const d=+m.dec||0;
+  const s=Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+  return m.fmt==='currency'?(v<0?'-$'+s.slice(1):'$'+s):m.fmt==='percent'?s+'%':s; }
+
+function renderMeasures(){
+  let h='<thead><tr><th>Measure</th><th>Definition</th><th>Format</th><th class="num">Pool value</th><th></th></tr></thead><tbody>';
+  measures.forEach(m=>{ const miss=missingFields(m), na=data&&miss.length;
+    h+=`<tr${na?' class="ignored"':''}><td>${esc(m.name)}</td><td>${esc(describe(m))}${na?` <span class="note">needs ${esc(miss.filter(x=>x!=='?').join(', ')||'a valid measure')}</span>`:''}</td>
+      <td>${m.fmt}, ${m.dec} dp</td><td class="num">${data&&!na?fmt(calc(m,pool()),m):''}</td>
+      <td><button class="small" data-medit="${m.id}">Edit</button> <button class="small" data-mdel="${m.id}">Delete</button></td></tr>`; });
+  $('measTable').innerHTML=h+'</tbody>';
+  fillMeasureForm();
+}
+function fieldOptions(sel,filter,current){ const names=data?data.order.filter(n=>filter(data.fields[n])):STD.filter(f=>filter(f)).map(f=>f.name);
+  const list=[...new Set([...names,...(current&&!names.includes(current)?[current]:[])])];
+  sel.innerHTML=list.map(n=>`<option value="${n}"${n===current?' selected':''}>${n}${data&&data.fields[n]?'':' (not in tape)'}</option>`).join(''); }
+function fillMeasureForm(){
+  const m=editingMeasure?byId(editingMeasure):null, op=$('mOp').value;
+  fieldOptions($('mField'),f=>['SUM','AVG','WA','MIN','MAX','MEDIAN'].includes(op)?f.type==='num':true,$('mField').value||(m?m.field:'PRIN_BAL'));
+  fieldOptions($('mWeight'),f=>f.type==='num',$('mWeight').value||(m&&m.weight)||'PRIN_BAL');
+  const mo=sel=>measures.filter(x=>x.id!==editingMeasure).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  const keepN=$('mNum').value, keepD=$('mDen').value; $('mNum').innerHTML=mo(); $('mDen').innerHTML=mo();
+  if(keepN) $('mNum').value=keepN; if(keepD) $('mDen').value=keepD;
+  const vis={mFieldL:op!=='RATIO',mWeightL:op==='WA',mNumL:op==='RATIO',mDenL:op==='RATIO',mScaleL:op==='RATIO',mExL:['AVG','WA','MIN','MAX','MEDIAN','COUNT'].includes(op)};
+  Object.entries(vis).forEach(([id,v])=>$(id).hidden=!v);
+}
+$('mOp').onchange=()=>{ const op=$('mOp').value; if(op==='PCT'){$('mFmt').value='percent';$('mDec').value=2;} if(op==='COUNT'||op==='COUNT_DISTINCT'){$('mFmt').value='number';$('mDec').value=0;} fillMeasureForm(); };
+function resetMeasureForm(){ editingMeasure=null; $('mName').value=''; $('mOp').value='SUM'; $('mField').value=''; $('mWeight').value=''; $('mFmt').value='number'; $('mDec').value=2; $('mEx').checked=false; $('mScale').value='1';
+  $('mformTitle').textContent='Add a measure'; $('mSave').textContent='Add measure'; $('mCancel').hidden=true; fillMeasureForm(); }
+$('mCancel').onclick=()=>{resetMeasureForm(); say('mMsg','');};
+$('mSave').onclick=()=>{
+  const name=$('mName').value.trim(), op=$('mOp').value;
+  if(!name) return say('mMsg','Give the measure a name.','err');
+  if(measures.some(x=>x.name.toLowerCase()===name.toLowerCase()&&x.id!==editingMeasure)) return say('mMsg','A measure with this name already exists.','err');
+  const m={id:editingMeasure||uid(),name,op,fmt:$('mFmt').value,dec:Math.max(0,Math.min(6,+$('mDec').value||0))};
+  if(op==='RATIO'){ m.num=$('mNum').value; m.den=$('mDen').value; m.scale=+$('mScale').value; if(!m.num||!m.den||m.num===m.den) return say('mMsg','Pick two different measures for a ratio.','err'); }
+  else { m.field=$('mField').value; if(!m.field) return say('mMsg','Pick a field.','err'); }
+  if(op==='WA'){ m.weight=$('mWeight').value; if(!m.weight) return say('mMsg','Pick a weighting field.','err'); }
+  if(!$('mExL').hidden) m.ex=$('mEx').checked;
+  if(editingMeasure){ measures[measures.findIndex(x=>x.id===editingMeasure)]=m; say('mMsg',`Updated "${name}".`,'ok'); }
+  else { measures.push(m); say('mMsg',`Added "${name}". Add it to a strat in step 6.`,'ok'); }
+  resetMeasureForm(); renderMeasures(); renderStratEditor(); runAll();
+};
+document.addEventListener('click',e=>{
+  const ed=e.target.closest('[data-medit]'), del=e.target.closest('[data-mdel]');
+  if(ed){ const m=byId(ed.dataset.medit); editingMeasure=m.id; $('mName').value=m.name; $('mOp').value=m.op; fillMeasureForm();
+    if(m.field) $('mField').value=m.field; if(m.weight) $('mWeight').value=m.weight; if(m.num) $('mNum').value=m.num; if(m.den) $('mDen').value=m.den;
+    $('mScale').value=String(m.scale||1); $('mFmt').value=m.fmt; $('mDec').value=m.dec; $('mEx').checked=!!m.ex;
+    $('mformTitle').textContent='Edit measure: '+m.name; $('mSave').textContent='Save changes'; $('mCancel').hidden=false; $('mform').scrollIntoView({block:'nearest'}); }
+  if(del){ const id=del.dataset.mdel, m=byId(id); const users=measures.filter(x=>x.op==='RATIO'&&(x.num===id||x.den===id));
+    if(users.length) return say('mMsg',`"${m.name}" is used by ${users.map(u=>'"'+u.name+'"').join(', ')}. Delete or edit those first.`,'err');
+    measures=measures.filter(x=>x.id!==id); strats.forEach(s=>s.cols=s.cols.filter(c=>c!==id)); say('mMsg',`Deleted "${m.name}".`,'ok'); renderMeasures(); renderStratEditor(); runAll(); }
+});
+
+/* ======================= Formula engine (no eval) ======================= */
+class FErr extends Error{ constructor(msg,pos){ super(msg); this.pos=pos; } }
+const blank=v=>v===null||v===undefined||v==='';
+const ymdParts=d=>{const x=new Date(+d+432e5); return [x.getFullYear(),x.getMonth()+1,x.getDate()];};
+const dayNum=d=>{const [y,m,dd]=ymdParts(d); return Math.floor(Date.UTC(y,m-1,dd)/864e5);};
+const fromDayNum=n=>{const u=new Date(n*864e5); return new Date(u.getUTCFullYear(),u.getUTCMonth(),u.getUTCDate());};
+const ymd=d=>{const [y,m,dd]=ymdParts(d); return `${y}-${String(m).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;};
+function fNum(v){ if(blank(v)) return null; if(typeof v==='number') return v; if(typeof v==='boolean') return v?1:0; if(v instanceof Date) return dayNum(v);
+  const n=toNumber(v); if(Number.isNaN(n)) throw new FErr(`"${v}" is not a number`); return n; }
+function fStr(v){ if(blank(v)) return ''; if(v instanceof Date) return ymd(v); if(typeof v==='boolean') return v?'TRUE':'FALSE'; if(typeof v==='number') return String(+v.toFixed(10)); return String(v); }
+function fTrue(v){ if(blank(v)) return false; if(typeof v==='boolean') return v; if(typeof v==='number') return v!==0; const u=String(v).toUpperCase(); return u==='FALSE'?false:true; }
+function fDate(v){ if(blank(v)) return null; if(v instanceof Date) return v; const d=toDate(v); if(!d||Number.isNaN(d)) throw new FErr(`"${v}" is not a date`); return d; }
+const same=(x,y)=>typeof x==='number'&&typeof y==='number'?Math.abs(x-y)<1e-9:fStr(x).toUpperCase()===fStr(y).toUpperCase();
+function xround(x,n,mode){ const f=Math.pow(10,n), s=Math.sign(x), a=Math.abs(x)*f, e=1e-9;
+  const r=mode==='up'?Math.ceil(a-e):mode==='down'?Math.floor(a+e):Math.round(a+e); return s*r/f; }
+const FN={};
+const def=(name,min,max,sig,desc,fn)=>FN[name]={min,max,sig,desc,fn};
+const N1=fn=>a=>{const x=a[0](); return blank(x)?null:fn(fNum(x));};
+const S1=fn=>a=>{const x=a[0](); return blank(x)?null:fn(fStr(x));};
+const D1=fn=>a=>{const x=a[0](); return blank(x)?null:fn(fDate(x));};
+// Logic
+def('IF',2,3,'IF(condition, value_if_true, [value_if_false])','Returns one value if the condition is true, another if false',a=>fTrue(a[0]())?a[1]():(a[2]?a[2]():null));
+def('AND',1,30,'AND(cond1, cond2, ...)','TRUE if every condition is true',a=>a.every(f=>fTrue(f())));
+def('OR',1,30,'OR(cond1, cond2, ...)','TRUE if any condition is true',a=>a.some(f=>fTrue(f())));
+def('NOT',1,1,'NOT(condition)','Reverses TRUE and FALSE',a=>!fTrue(a[0]()));
+def('ISBLANK',1,1,'ISBLANK(value)','TRUE if the value is blank',a=>blank(a[0]()));
+def('BLANK',0,0,'BLANK()','A blank value, e.g. to clear bad data',()=>null);
+def('COALESCE',1,30,'COALESCE(value1, value2, ...)','First non-blank value',a=>{for(const f of a){const v=f(); if(!blank(v)) return v;} return null;});
+def('IN',2,60,'IN(value, option1, option2, ...)','TRUE if the value equals any option',a=>{const v=a[0](); return !blank(v)&&a.slice(1).some(f=>same(v,f()));});
+def('SWITCH',3,60,'SWITCH(value, match1, result1, ..., [default])','Maps codes to results, e.g. "I" to "Investor"',a=>{const v=a[0](), hasDef=(a.length-1)%2===1, end=hasDef?a.length-1:a.length;
+  for(let i=1;i<end;i+=2) if(!blank(v)&&same(v,a[i]())) return a[i+1](); return hasDef?a[a.length-1]():null;});
+// Maths
+def('ROUND',1,2,'ROUND(number, [digits])','Rounds half away from zero, as Excel does',a=>{const x=a[0](); return blank(x)?null:xround(fNum(x),a[1]?fNum(a[1]())||0:0);});
+def('ROUNDUP',1,2,'ROUNDUP(number, [digits])','Rounds away from zero',a=>{const x=a[0](); return blank(x)?null:xround(fNum(x),a[1]?fNum(a[1]())||0:0,'up');});
+def('ROUNDDOWN',1,2,'ROUNDDOWN(number, [digits])','Rounds toward zero',a=>{const x=a[0](); return blank(x)?null:xround(fNum(x),a[1]?fNum(a[1]())||0:0,'down');});
+def('INT',1,1,'INT(number)','Rounds down to an integer',N1(Math.floor));
+def('ABS',1,1,'ABS(number)','Absolute value',N1(Math.abs));
+def('SQRT',1,1,'SQRT(number)','Square root',N1(x=>{if(x<0) throw new FErr('square root of a negative number'); return Math.sqrt(x);}));
+def('POWER',2,2,'POWER(number, power)','Raises to a power',a=>{const x=a[0](),y=a[1](); return blank(x)||blank(y)?null:Math.pow(fNum(x),fNum(y));});
+def('MOD',2,2,'MOD(number, divisor)','Remainder, sign of the divisor (as Excel)',a=>{const x=a[0](),y=a[1](); if(blank(x)||blank(y)) return null; const d=fNum(y); if(d===0) throw new FErr('division by zero'); const n=fNum(x); return n-d*Math.floor(n/d);});
+def('LN',1,1,'LN(number)','Natural log',N1(x=>{if(x<=0) throw new FErr('log of a non-positive number'); return Math.log(x);}));
+def('EXP',1,1,'EXP(number)','e to a power',N1(Math.exp));
+def('MIN',1,30,'MIN(field) or MIN(value1, value2, ...)','One field name: smallest value in the column (numbers or dates). Several values: the smallest of them',a=>{const v=a.map(f=>f()).filter(x=>!blank(x)).map(fNum); return v.length?Math.min(...v):null;});
+def('MAX',1,30,'MAX(field) or MAX(value1, value2, ...)','One field name: largest value in the column. Several values: the largest of them',a=>{const v=a.map(f=>f()).filter(x=>!blank(x)).map(fNum); return v.length?Math.max(...v):null;});
+def('SUM',1,30,'SUM(field) or SUM(value1, value2, ...)','One field name: total of the column. Several values: their sum',a=>{const v=a.map(f=>f()).filter(x=>!blank(x)).map(fNum); return v.length?v.reduce((p,q)=>p+q,0):null;});
+const rowNums=a=>a.map(f=>f()).filter(x=>!blank(x)).map(fNum);
+def('AVG',1,30,'AVG(field) or AVG(value1, value2, ...)','One field name: average of the column, e.g. AVG(PRIN_BAL). Several values: their average',a=>{const v=rowNums(a); return v.length?v.reduce((p,q)=>p+q,0)/v.length:null;});
+def('AVERAGE',1,30,'AVERAGE(field) or AVERAGE(value1, ...)','Same as AVG',a=>FN.AVG.fn(a));
+def('MEDIAN',1,30,'MEDIAN(field) or MEDIAN(value1, ...)','One field name: median of the column. Several values: their median',a=>percentile(rowNums(a),0.5));
+def('COUNT',1,30,'COUNT(field) or COUNT(value1, ...)','One field name: number of loans with a value in the column. Several values: how many are non-blank',a=>a.filter(f=>!blank(f())).length);
+def('WAVG',2,2,'WAVG(field, weight_field)','Weighted average of the column, e.g. WAVG(LTV, PRIN_BAL)',()=>null);
+def('PERCENTILE',2,2,'PERCENTILE(field, k)','Column percentile, k from 0 to 1 (as Excel PERCENTILE.INC), e.g. PERCENTILE(PRIN_BAL, 0.99)',()=>null);
+def('GROUP_SUM',2,2,'GROUP_SUM(field, group_field)','Total of the field across loans in the same group, e.g. GROUP_SUM(PRIN_BAL, STATE)',()=>null);
+def('GROUP_AVG',2,2,'GROUP_AVG(field, group_field)','Average of the field across loans in the same group',()=>null);
+def('GROUP_COUNT',1,1,'GROUP_COUNT(group_field)','Number of loans in the same group',()=>null);
+def('GROUP_MIN',2,2,'GROUP_MIN(field, group_field)','Smallest value in the same group',()=>null);
+def('GROUP_MAX',2,2,'GROUP_MAX(field, group_field)','Largest value in the same group',()=>null);
+def('GROUP_WAVG',3,3,'GROUP_WAVG(field, weight_field, group_field)','Weighted average within the same group, e.g. GROUP_WAVG(LTV, PRIN_BAL, STATE)',()=>null);
+def('DIVIDE',2,3,'DIVIDE(numerator, denominator, [if_zero])','Division that returns blank (or if_zero) instead of an error when the denominator is 0',a=>{const x=a[0](),y=a[1](); if(blank(x)||blank(y)) return null; const d=fNum(y); return d===0?(a[2]?a[2]():null):fNum(x)/d;});
+// Text
+def('UPPER',1,1,'UPPER(text)','Upper case',S1(s=>s.toUpperCase()));
+def('LOWER',1,1,'LOWER(text)','Lower case',S1(s=>s.toLowerCase()));
+def('TRIM',1,1,'TRIM(text)','Removes extra spaces',S1(s=>s.trim().replace(/\s+/g,' ')));
+def('LEFT',1,2,'LEFT(text, [chars])','First characters',a=>{const x=a[0](); return blank(x)?null:fStr(x).slice(0,a[1]?fNum(a[1]()):1);});
+def('RIGHT',1,2,'RIGHT(text, [chars])','Last characters',a=>{const x=a[0](); if(blank(x)) return null; const n=a[1]?fNum(a[1]()):1; return n<=0?'':fStr(x).slice(-n);});
+def('MID',3,3,'MID(text, start, chars)','Characters from a position (1 = first)',a=>{const x=a[0](); return blank(x)?null:fStr(x).substr(fNum(a[1]())-1,fNum(a[2]()));});
+def('LEN',1,1,'LEN(text)','Number of characters',a=>{const x=a[0](); return blank(x)?0:fStr(x).length;});
+def('CONCAT',1,30,'CONCAT(text1, text2, ...)','Joins text (same as &)',a=>a.map(f=>fStr(f())).join(''));
+def('SUBSTITUTE',3,3,'SUBSTITUTE(text, old, new)','Replaces every occurrence of old with new',a=>{const x=a[0](); return blank(x)?null:fStr(x).split(fStr(a[1]())).join(fStr(a[2]()));});
+def('CONTAINS',2,2,'CONTAINS(text, find)','TRUE if text contains find (any case)',a=>{const x=a[0](); return !blank(x)&&fStr(x).toUpperCase().includes(fStr(a[1]()).toUpperCase());});
+def('VALUE',1,1,'VALUE(text)','Converts text to a number',a=>{const x=a[0](); return blank(x)?null:fNum(x);});
+// Dates
+def('DATE',3,3,'DATE(year, month, day)','Builds a date',a=>{const y=fNum(a[0]()),m=fNum(a[1]()),d=fNum(a[2]()); return y===null||m===null||d===null?null:new Date(y,m-1,d);});
+def('YEAR',1,1,'YEAR(date)','Year of a date',D1(d=>ymdParts(d)[0]));
+def('MONTH',1,1,'MONTH(date)','Month of a date (1 to 12)',D1(d=>ymdParts(d)[1]));
+def('DAY',1,1,'DAY(date)','Day of the month',D1(d=>ymdParts(d)[2]));
+def('EDATE',2,2,'EDATE(date, months)','Date a number of months later (or earlier)',a=>{const x=a[0](),n=a[1](); if(blank(x)||blank(n)) return null; const [y,m,d]=ymdParts(fDate(x)); const k=fNum(n);
+  const t=new Date(y,m-1+k,1); const last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate(); return new Date(t.getFullYear(),t.getMonth(),Math.min(d,last));});
+def('MONTHS_BETWEEN',2,2,'MONTHS_BETWEEN(start_date, end_date)','Whole months from start to end',a=>{const x=a[0](),z=a[1](); if(blank(x)||blank(z)) return null;
+  const [y1,m1,d1]=ymdParts(fDate(x)),[y2,m2,d2]=ymdParts(fDate(z)); return (y2-y1)*12+(m2-m1)-(d2<d1?1:0);});
+def('DAYS',2,2,'DAYS(end_date, start_date)','Days from start to end',a=>{const z=a[0](),x=a[1](); return blank(x)||blank(z)?null:dayNum(fDate(z))-dayNum(fDate(x));});
+def('TODAY',0,0,'TODAY()','Today\'s date',()=>{const t=new Date(); return new Date(t.getFullYear(),t.getMonth(),t.getDate());});
+
+function tokenize(src){
+  const t=[]; let i=0;
+  while(i<src.length){ const c=src[i];
+    if(/\s/.test(c)){i++;continue;}
+    if(/[0-9.]/.test(c)){ const m=src.slice(i).match(/^(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?/); if(!m) throw new FErr('Unexpected "."',i); t.push({k:'num',v:parseFloat(m[0]),p:i}); i+=m[0].length; continue; }
+    if(c==='"'||c==="'"){ let j=i+1,s=''; while(j<src.length){ if(src[j]===c){ if(src[j+1]===c){s+=c;j+=2;continue;} break; } s+=src[j++]; }
+      if(j>=src.length) throw new FErr('Text is missing its closing quote',i); t.push({k:'str',v:s,p:i}); i=j+1; continue; }
+    if(c==='['){ const j=src.indexOf(']',i); if(j<0) throw new FErr('Missing ] after field name',i); t.push({k:'id',v:norm(src.slice(i+1,j)),p:i,br:true}); i=j+1; continue; }
+    if(/[A-Za-z_]/.test(c)){ const m=src.slice(i).match(/^[A-Za-z_][A-Za-z0-9_]*/); t.push({k:'id',v:m[0].toUpperCase(),p:i}); i+=m[0].length; continue; }
+    const two=src.slice(i,i+2);
+    if(['<=','>=','<>','!=','=='].includes(two)){ t.push({k:'op',v:two==='!='?'<>':two==='=='?'=':two,p:i}); i+=2; continue; }
+    if('+-*/^&=<>'.includes(c)){ t.push({k:'op',v:c,p:i}); i++; continue; }
+    if('(),'.includes(c)){ t.push({k:c,p:i}); i++; continue; }
+    if(c===';'){ t.push({k:',',p:i}); i++; continue; } // European-style argument separator
+    throw new FErr(`Unexpected character "${c}"`,i);
+  }
+  t.push({k:'end',p:src.length}); return t;
+}
+const PREC={'=':1,'<>':1,'<':1,'<=':1,'>':1,'>=':1,'&':2,'+':3,'-':3,'*':4,'/':4,'^':5};
+function parseFormula(src){
+  let s=String(src||'').trim(); if(s.startsWith('=')) s=s.slice(1); if(!s.trim()) throw new FErr('Enter a formula',0);
+  const t=tokenize(s); let i=0; const peek=()=>t[i], next=()=>t[i++];
+  function primary(){ const k=next();
+    if(k.k==='num') return {t:'lit',v:k.v}; if(k.k==='str') return {t:'lit',v:k.v};
+    if(k.k==='op'&&k.v==='-') return {t:'neg',a:expr(5.5)}; if(k.k==='op'&&k.v==='+') return expr(5.5);
+    if(k.k==='('){ const e=expr(0); if(next().k!==')') throw new FErr('Missing closing )',k.p); return e; }
+    if(k.k==='id'){
+      if(!k.br&&peek().k==='('){ next(); const args=[]; if(peek().k!==')'){ do{ args.push(expr(0)); }while(peek().k===','&&next()); }
+        if(next().k!==')') throw new FErr(`Missing ) or , in ${k.v}( )`,k.p);
+        const f=FN[k.v]; if(!f) throw new FErr(`Unknown function ${k.v}`,k.p);
+        if(args.length<f.min||args.length>f.max) throw new FErr(`${k.v} needs ${f.min===f.max?f.min:f.min+' to '+(f.max>=30?'many':f.max)} argument${f.max===1?'':'s'}: ${f.sig}`,k.p);
+        return {t:'call',fn:k.v,args,p:k.p}; }
+      if(!k.br&&(k.v==='TRUE'||k.v==='FALSE')) return {t:'lit',v:k.v==='TRUE'};
+      return {t:'field',name:k.v,p:k.p}; }
+    throw new FErr(k.k==='end'?'Formula ends unexpectedly':`Unexpected "${k.v||k.k}"`,k.p);
+  }
+  function expr(minP){ let left=primary();
+    for(;;){ const o=peek(); if(o.k!=='op') break; const p=PREC[o.v]; if(p<=minP) break; next();
+      left={t:'bin',op:o.v,a:left,b:expr(o.v==='^'?p-0.5:p)}; }
+    return left; }
+  const ast=expr(0); const e=peek(); if(e.k!=='end') throw new FErr(`Unexpected "${e.v||e.k}" (missing operator or comma?)`,e.p);
+  return ast;
+}
+function binop(op,x,y){
+  if(op==='&') return fStr(x)+fStr(y);
+  if(PREC[op]===1){
+    if(blank(x)||blank(y)){ const both=blank(x)&&blank(y); return op==='='?both:op==='<>'?!both:false; }
+    let a,b;
+    if(x instanceof Date||y instanceof Date){ a=x instanceof Date?dayNum(x):fNum(x); b=y instanceof Date?dayNum(y):fNum(y); }
+    else if(typeof x==='string'&&typeof y==='string'){ a=x.toUpperCase(); b=y.toUpperCase(); }
+    else { try{ a=fNum(x); b=fNum(y); }catch(e){ a=fStr(x).toUpperCase(); b=fStr(y).toUpperCase(); } }
+    if(op==='=') return typeof a==='number'?Math.abs(a-b)<1e-9:a===b; if(op==='<>') return typeof a==='number'?Math.abs(a-b)>=1e-9:a!==b;
+    return op==='<'?a<b:op==='<='?a<=b:op==='>'?a>b:a>=b;
+  }
+  if(blank(x)||blank(y)) return null;
+  if(op==='-'&&x instanceof Date&&y instanceof Date) return dayNum(x)-dayNum(y);
+  if((op==='+'||op==='-')&&x instanceof Date) return fromDayNum(dayNum(x)+(op==='+'?1:-1)*fNum(y));
+  if(op==='+'&&y instanceof Date) return fromDayNum(dayNum(y)+fNum(x));
+  const a=fNum(x), b=fNum(y);
+  if(op==='/'&&b===0) throw new FErr('division by zero');
+  return op==='+'?a+b:op==='-'?a-b:op==='*'?a*b:op==='/'?a/b:Math.pow(a,b);
+}
+/* Column and group aggregates: computed once per step over every loan in the tape at that step (before the pool filter) */
+function percentile(xs,k){ if(!xs.length) return null; const s=[...xs].sort((a,b)=>a-b), pos=(s.length-1)*k, lo=Math.floor(pos), hi=Math.ceil(pos); return s[lo]+(s[hi]-s[lo])*(pos-lo); }
+function wavgRows(rows,f,w){ let n=0,d=0; for(const r of rows){ const x=r[f],y=r[w]; if(typeof x==='number'&&typeof y==='number'){n+=x*y;d+=y;} } return d?n/d:null; }
+function aggCol(op,rows,f,type){
+  if(op==='COUNT'){ let c=0; for(const r of rows) if(!blank(r[f])) c++; return c; }
+  if(type==='date'){ let lo=Infinity,hi=-Infinity; for(const r of rows){ const d=r[f]; if(d instanceof Date){ const x=dayNum(d); if(x<lo)lo=x; if(x>hi)hi=x; } } return lo===Infinity?null:fromDayNum(op==='MIN'?lo:hi); }
+  const xs=[]; for(const r of rows){ const v=r[f]; if(typeof v==='number') xs.push(v); }
+  if(op==='SUM') return xs.reduce((a,b)=>a+b,0);
+  if(!xs.length) return null;
+  if(op==='AVG') return xs.reduce((a,b)=>a+b,0)/xs.length;
+  if(op==='MIN') return xs.reduce((a,b)=>b<a?b:a,Infinity);
+  if(op==='MAX') return xs.reduce((a,b)=>b>a?b:a,-Infinity);
+  if(op==='MEDIAN') return percentile(xs,0.5);
+  return null;
+}
+const COL1=new Set(['SUM','AVG','AVERAGE','MIN','MAX','MEDIAN','COUNT']);
+const COLONLY=new Set(['WAVG','PERCENTILE','GROUP_SUM','GROUP_AVG','GROUP_COUNT','GROUP_MIN','GROUP_MAX','GROUP_WAVG']);
+const gkey=v=>blank(v)?null:v instanceof Date?ymd(v):String(v);
+function compileAggregate(n,avail,refs,ctx){
+  const fn=n.fn==='AVERAGE'?'AVG':n.fn;
+  const colForm=COL1.has(n.fn)&&n.args.length===1&&n.args[0].t==='field';
+  if(!colForm&&!COLONLY.has(fn)) return null;
+  if(!ctx||!ctx.rows) throw new FErr(`${n.fn} can't be used here`,n.p);
+  const ftype=f=>(ctx.fields[f]||{}).type;
+  const field=pos=>{ const a=n.args[pos]; if(!a||a.t!=='field') throw new FErr(`${n.fn}: argument ${pos+1} must be a field name, e.g. PRIN_BAL`,n.p);
+    if(!avail.has(a.name)) throw new FErr(`Unknown field ${a.name}`,a.p); refs.add(a.name); return a.name; };
+  const need=(f,ok)=>{ const t=ftype(f); if(!ok.includes(t)) throw new FErr(`${n.fn} needs a ${ok.includes('date')?'numeric or date':'numeric'} field, but ${f} is ${t==='cat'||t==='id'?'text':t}`,n.p); };
+  if(colForm){ const f=field(0); if(fn!=='COUNT') need(f,fn==='MIN'||fn==='MAX'?['num','date']:['num']); const v=aggCol(fn,ctx.rows,f,ftype(f)); return ()=>v; }
+  if(fn==='PERCENTILE'){ const f=field(0); need(f,['num']); let k;
+    try{ k=fNum(compileNode(n.args[1],new Set(),new Set(),ctx)({})); }catch(e){ k=null; }
+    if(k===null||k<0||k>1) throw new FErr('PERCENTILE needs a fixed k between 0 and 1, e.g. 0.9',n.p);
+    const xs=[]; for(const r of ctx.rows) if(typeof r[f]==='number') xs.push(r[f]); const v=percentile(xs,k); return ()=>v; }
+  if(fn==='WAVG'){ const f=field(0), w=field(1); need(f,['num']); need(w,['num']); const v=wavgRows(ctx.rows,f,w); return ()=>v; }
+  // GROUP_* functions
+  const g=field(fn==='GROUP_COUNT'?0:fn==='GROUP_WAVG'?2:1);
+  const f=fn==='GROUP_COUNT'?null:field(0), w=fn==='GROUP_WAVG'?field(1):null;
+  if(f) need(f,fn==='GROUP_MIN'||fn==='GROUP_MAX'?['num','date']:['num']); if(w) need(w,['num']);
+  const groups=new Map(); for(const r of ctx.rows){ const k=gkey(r[g]); if(k===null) continue; let a=groups.get(k); if(!a){a=[];groups.set(k,a);} a.push(r); }
+  const res=new Map(); for(const [k,rs] of groups) res.set(k,fn==='GROUP_COUNT'?rs.length:fn==='GROUP_WAVG'?wavgRows(rs,f,w):aggCol(fn.slice(6),rs,f,ftype(f)));
+  return r=>{ const k=gkey(r[g]); return k===null||!res.has(k)?null:res.get(k); };
+}
+function compileNode(n,avail,refs,ctx){
+  switch(n.t){
+    case 'lit': { const v=n.v; return ()=>v; }
+    case 'field': { if(!avail.has(n.name)) throw new FErr(`Unknown field ${n.name}`,n.p); refs.add(n.name); const k=n.name; return r=>{const v=r[k]; return v===undefined?null:v;}; }
+    case 'neg': { const a=compileNode(n.a,avail,refs,ctx); return r=>{const v=a(r); return blank(v)?null:-fNum(v);}; }
+    case 'bin': { const a=compileNode(n.a,avail,refs,ctx), b=compileNode(n.b,avail,refs,ctx), op=n.op; return r=>binop(op,a(r),b(r)); }
+    case 'call': { const agg=compileAggregate(n,avail,refs,ctx); if(agg) return agg;
+      const f=FN[n.fn], args=n.args.map(x=>compileNode(x,avail,refs,ctx)); return r=>f.fn(args.map(g=>()=>g(r))); }
+  }
+}
+
+/* ======================= Calculated fields ======================= */
+function evalStep(c,st,keepBefore){
+  const refs=new Set(), fn=compileNode(parseFormula(c.formula),new Set(st.order),refs,{rows:st.rows,fields:st.fields});
+  const tgt=c.target;
+  if(c.mode==='edit'&&!st.fields[tgt]) throw new Error(`${tgt} is not in this tape`);
+  if(c.mode==='new'){ if(!tgt) throw new Error('Name the new field'); if(st.fields[tgt]) throw new Error(`${tgt} already exists; choose "Edit existing column" to change it`); }
+  const n=st.rows.length, vals=new Array(n), errRows=[]; let errs=0, firstErr=null;
+  for(let i=0;i<n;i++){ try{ let v=fn(st.rows[i]); if(typeof v==='boolean') v=v?'TRUE':'FALSE'; if(typeof v==='number'&&!isFinite(v)) throw new FErr('result is not a finite number'); vals[i]=v; }
+    catch(e){ vals[i]=null; errs++; if(!firstErr) firstErr={row:i,msg:e.message}; if(errRows.length<4) errRows.push({i,msg:e.message}); } }
+  let type=c.type;
+  if(type==='auto'){ const nb=vals.filter(v=>!blank(v)); type=nb.length&&nb.every(v=>typeof v==='number')?'num':nb.length&&nb.every(v=>v instanceof Date)?'date':'cat';
+    if(!nb.length) type=st.fields[tgt]?st.fields[tgt].type:'num'; }
+  let bad=0;
+  for(let i=0;i<n;i++){ const v=vals[i]; if(blank(v)){vals[i]=null;continue;}
+    if(type==='num'){ const x=typeof v==='number'?v:v instanceof Date?NaN:toNumber(v); if(Number.isNaN(x)){vals[i]=null;bad++;} else vals[i]=x; }
+    else if(type==='date'){ const d=v instanceof Date?v:toDate(v); if(!d||Number.isNaN(d)){vals[i]=null;bad++;} else vals[i]=d; }
+    else vals[i]=v instanceof Date?ymd(v):typeof v==='number'?String(+v.toFixed(10)):String(v); }
+  const before=c.mode==='edit'?st.rows.map(r=>r[tgt]):null;
+  let changed=0; const changedRows=[]; if(before) for(let i=0;i<n;i++){ const a=before[i],b=vals[i]; const eq=blank(a)&&blank(b)||(!blank(a)&&!blank(b)&&(typeof a==='number'&&typeof b==='number'?Math.abs(a-b)<1e-9:fStr(a)===fStr(b))); if(!eq){ changed++; if(changedRows.length<5) changedRows.push(i); } }
+  for(let i=0;i<n;i++) st.rows[i][tgt]=vals[i];
+  const prev=st.fields[tgt];
+  st.fields[tgt]={type,unit:prev?prev.unit:(STDMAP[tgt]||{}).unit||'',std:!!STDMAP[tgt],src:prev?prev.src:'(calculated)',note:'',calc:true,profile:profileOf(vals,type)};
+  if(!st.order.includes(tgt)) st.order.push(tgt);
+  return {type,errs,firstErr,bad,changed,refs:[...refs],filled:vals.filter(v=>!blank(v)).length,before:keepBefore?before:null,vals:keepBefore?vals:null,errRows,changedRows};
+}
+function runCalcs(steps,record=true){
+  const st={rows:baseData.rows.map(r=>({...r})),fields:{...baseData.fields},order:[...baseData.order]};
+  for(const c of steps){ if(record){c.error=null; c.stats=null;} if(!c.on) continue;
+    try{ const r=evalStep(c,st,false); if(record) c.stats=r; }catch(e){ if(record) c.error=e.message; } }
+  return st;
+}
+function applyCalcs(){ if(!baseData){data=null;return;} const st=runCalcs(calcs); data={...st,dups:baseData.dups}; poolRows=null; poolIdx=null; }
+function afterCalcChange(){ applyCalcs(); renderCalcs(); renderFilter(); renderMeasures(); renderStratEditor(); runAll(); }
+
+const CALC_EXAMPLES=[
+  ['Current LTV','new','CUR_LTV','ROUND(DIVIDE(PRIN_BAL, PROP_VALUE) * 100, 2)'],
+  ['Loan age','new','LOAN_AGE','ORIG_TERM - REM_TERM'],
+  ['Clean zero FICO','edit','FICO','IF(FICO = 0, BLANK(), FICO)'],
+  ['Performing flag','new','PERF_FLAG','IF(DQ_STATUS = "Current", "Performing", "Delinquent")'],
+  ['Pay-down %','new','PAYDOWN_PCT','ROUND((1 - DIVIDE(PRIN_BAL, ORIG_BAL)) * 100, 2)'],
+  ['Origination year','new','ORIG_YEAR','YEAR(ORIG_DATE)'],
+  ['Vs average balance','new','PRIN_BAL2','IF(AVG(PRIN_BAL) > PRIN_BAL, PRIN_BAL, ORIG_BAL)'],
+  ['Share of state balance %','new','STATE_SHARE_PCT','ROUND(PRIN_BAL / GROUP_SUM(PRIN_BAL, STATE) * 100, 4)'],
+  ['LTV vs pool WA','new','LTV_VS_WA','ROUND(LTV - WAVG(LTV, PRIN_BAL), 2)'],
+  ['Top 1% balance flag','new','TOP1_FLAG','IF(PRIN_BAL >= PERCENTILE(PRIN_BAL, 0.99), "Top 1%", "Other")'],
+  ['Balance band','new','BAL_BAND','IF(PRIN_BAL >= 1000000, "1mm+", IF(PRIN_BAL >= 500000, "500k-1mm", "<500k"))'],
+];
+function curMode(){ return document.querySelector('input[name=cmode]:checked').value; }
+function setMode(m){ document.querySelectorAll('input[name=cmode]').forEach(r=>r.checked=r.value===m); $('cNameL').hidden=m!=='new'; $('cTargetL').hidden=m!=='edit'; }
+function stepStateBefore(k){ return runCalcs(calcs.slice(0,k),false); } // state available to step k (does not touch saved step status)
+function renderCalcs(){
+  $('calcEmpty').hidden=!!baseData; $('cform').hidden=!baseData; $('calcListWrap').hidden=!baseData||!calcs.length; $('calcLinks').hidden=!baseData;
+  if(!baseData) return;
+  $('calcTable').innerHTML='<thead><tr><th>#</th><th>On</th><th>Field</th><th>Action</th><th>Formula</th><th>Type</th><th>Result</th><th></th></tr></thead><tbody>'+
+    calcs.map((c,i)=>{ const st=c.stats; let res='';
+      if(!c.on) res='<span class="na">Off</span>';
+      else if(c.error) res=`<span class="note" style="color:var(--bad)">Not applied: ${esc(c.error)}</span>`;
+      else if(st) res=`${st.filled.toLocaleString()} of ${data.rows.length.toLocaleString()} filled`+(c.mode==='edit'?`, ${st.changed.toLocaleString()} changed`:'')+
+        (st.errs?`, <span style="color:var(--bad)">${st.errs.toLocaleString()} row error${st.errs>1?'s':''}</span> <span class="note">(${esc(st.firstErr.msg)})</span>`:'')+
+        (st.bad?`, <span class="note">${st.bad.toLocaleString()} not ${st.type==='num'?'numeric':'dates'}</span>`:'');
+      return `<tr${c.on?'':' class="ignored"'}><td>${i+1}</td><td><input type="checkbox" data-con="${i}"${c.on?' checked':''} aria-label="Step ${i+1} on"></td>
+        <td><span class="tag ${STDMAP[c.target]?'std':'cus'}">${esc(c.target)}</span></td><td>${c.mode==='edit'?'Edit':'New'}</td>
+        <td style="white-space:normal;min-width:260px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px">${esc(c.formula)}</td><td>${st?st.type:''}</td>
+        <td style="white-space:normal;min-width:200px">${res}</td>
+        <td><button class="small" data-cedit="${i}">Edit</button> <button class="small" data-cup="${i}"${i===0?' disabled':''} aria-label="Move up">↑</button> <button class="small" data-cdown="${i}"${i===calcs.length-1?' disabled':''} aria-label="Move down">↓</button> <button class="small" data-cdel="${i}">Delete</button></td></tr>`; }).join('')+'</tbody>';
+  // form selects reflect the state available to the step being added/edited
+  const k=editingCalc===null?calcs.length:calcs.findIndex(c=>c.id===editingCalc);
+  const st=stepStateBefore(k);
+  const keepT=$('cTarget').value; $('cTarget').innerHTML=st.order.map(n=>`<option>${n}</option>`).join(''); if(keepT&&st.order.includes(keepT)) $('cTarget').value=keepT;
+  $('cInsField').innerHTML='<option value="">Choose…</option>'+st.order.map(n=>`<option>${n}</option>`).join('');
+}
+const FN_CATS=[['Logic',['IF','AND','OR','NOT','IN','SWITCH','COALESCE','ISBLANK','BLANK']],
+  ['Column and group aggregates',['SUM','AVG','AVERAGE','MIN','MAX','MEDIAN','COUNT','WAVG','PERCENTILE','GROUP_SUM','GROUP_AVG','GROUP_COUNT','GROUP_MIN','GROUP_MAX','GROUP_WAVG']],
+  ['Maths',['ROUND','ROUNDUP','ROUNDDOWN','INT','ABS','DIVIDE','MOD','POWER','SQRT','LN','EXP']],
+  ['Text',['UPPER','LOWER','TRIM','LEFT','RIGHT','MID','LEN','CONCAT','SUBSTITUTE','CONTAINS','VALUE']],
+  ['Dates',['DATE','YEAR','MONTH','DAY','EDATE','MONTHS_BETWEEN','DAYS','TODAY']]];
+function renderFnRef(){
+  const listed=new Set(FN_CATS.flatMap(c=>c[1])), missing=Object.keys(FN).filter(n=>!listed.has(n)); if(missing.length) FN_CATS.push(['Other',missing]);
+  $('cInsFn').innerHTML='<option value="">Choose…</option>'+FN_CATS.map(([c,ns])=>`<optgroup label="${c}">${ns.map(n=>`<option>${n}</option>`).join('')}</optgroup>`).join('');
+  $('fnTable').innerHTML='<thead><tr><th>Function</th><th>What it does</th></tr></thead><tbody>'+FN_CATS.map(([c,ns])=>`<tr><td colspan="2" style="background:var(--paper);font-weight:600">${c}</td></tr>`+
+    ns.map(n=>FN[n]).map(f=>`<tr><td style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px">${esc(f.sig)}</td><td style="white-space:normal">${esc(f.desc)}</td></tr>`).join('')).join('')+'</tbody>';
+  $('cExamples').innerHTML=CALC_EXAMPLES.map((e,i)=>`<button class="small" data-cex="${i}">${esc(e[0])}</button>`).join('');
+}
+function insertAtCursor(text){ const ta=$('cFormula'), a=ta.selectionStart??ta.value.length, b=ta.selectionEnd??ta.value.length;
+  ta.value=ta.value.slice(0,a)+text+ta.value.slice(b); ta.focus(); ta.selectionStart=ta.selectionEnd=a+text.length; }
+function formStep(){ const mode=curMode(); return {id:editingCalc||uid(),mode,target:mode==='new'?norm($('cName').value):$('cTarget').value,formula:$('cFormula').value.trim(),type:$('cType').value,on:true}; }
+function previewStep(showTable){
+  if(!baseData) return null; const c=formStep();
+  const k=editingCalc===null?calcs.length:calcs.findIndex(x=>x.id===editingCalc);
+  const st=stepStateBefore(k); let r;
+  try{ r=evalStep(c,st,true); }catch(e){ const pos=e.pos!==undefined?` (at character ${e.pos+1})`:''; say('cMsg',e.message+pos,'err'); $('cPrev').innerHTML=''; return null; }
+  say('cMsg',`${c.target}: ${r.type==='num'?'number':r.type==='date'?'date':'text'} field, ${r.filled.toLocaleString()} of ${st.rows.length.toLocaleString()} rows filled`+(c.mode==='edit'?`, ${r.changed.toLocaleString()} value${r.changed===1?'':'s'} changed`:'')+
+    (r.errs?`, ${r.errs.toLocaleString()} rows could not be calculated (first: row ${r.firstErr.row+1}, ${r.firstErr.msg})`:'')+'.',r.errs?'warn':'ok');
+  if(showTable){
+    const show=v=>blank(v)?'<span class="na">blank</span>':v instanceof Date?ymd(v):typeof v==='number'?Number(v).toLocaleString('en-US',{maximumFractionDigits:6}):esc(v);
+    const cols=[...(st.fields.LOAN_ID&&!r.refs.includes('LOAN_ID')?['LOAN_ID']:[]),...r.refs.filter(x=>x!==c.target)];
+    const errMap=new Map(r.errRows.map(e=>[e.i,e.msg])), chg=new Set(r.changedRows);
+    const idx=[...new Set([...r.changedRows,...r.errRows.map(e=>e.i),...Array(Math.min(8,st.rows.length)).keys()])].slice(0,8).sort((a,b)=>a-b);
+    const flag=i=>errMap.has(i)?`<span class="note" style="color:var(--bad)">error: ${esc(errMap.get(i))}</span>`:chg.has(i)?'<span class="tag">changed</span>':'';
+    $('cPrev').innerHTML=`<div class="scroll" style="margin-top:8px"><table class="grid"><thead><tr><th>Row</th>${cols.map(x=>`<th>${x}</th>`).join('')}${c.mode==='edit'?`<th>${esc(c.target)} before</th>`:''}<th>${esc(c.target)}${c.mode==='edit'?' after':''}</th><th></th></tr></thead><tbody>`+
+      idx.map(i=>`<tr><td>${i+1}</td>${cols.map(x=>`<td>${show(st.rows[i][x])}</td>`).join('')}${c.mode==='edit'?`<td>${show(r.before[i])}</td>`:''}<td><b>${show(r.vals[i])}</b></td><td>${flag(i)}</td></tr>`).join('')+'</tbody></table></div><p class="sub" style="margin:6px 0 0">Rows that change or can\'t be calculated are shown first.</p>';
+  }
+  return r;
+}
+function resetCalcForm(){ editingCalc=null; setMode('new'); $('cName').value=''; $('cFormula').value=''; $('cType').value='auto'; $('cPrev').innerHTML='';
+  $('cformTitle').textContent='Add a calculation'; $('cSave').textContent='Add step'; $('cCancel').hidden=true; }
+document.addEventListener('change',e=>{
+  if(e.target.name==='cmode'){ setMode(e.target.value); return; }
+  if(e.target.id==='cInsField'&&e.target.value){ insertAtCursor(e.target.value); e.target.value=''; return; }
+  if(e.target.id==='cInsFn'&&e.target.value){ insertAtCursor(e.target.value+'('); e.target.value=''; return; }
+  const on=e.target.closest&&e.target.closest('[data-con]'); if(on){ calcs[+on.dataset.con].on=on.checked; afterCalcChange(); }
+});
+document.addEventListener('click',e=>{
+  const ex=e.target.closest('[data-cex]');
+  if(ex){ const [,mode,tgt,f]=CALC_EXAMPLES[+ex.dataset.cex]; setMode(mode); if(mode==='new') $('cName').value=tgt; else $('cTarget').value=tgt; $('cFormula').value=f; previewStep(true); return; }
+  if(e.target.id==='cPreview'){ previewStep(true); return; }
+  if(e.target.id==='cCancel'){ resetCalcForm(); renderCalcs(); say('cMsg',''); return; }
+  if(e.target.id==='cSave'){ const r=previewStep(true); if(!r) return; const c=formStep();
+    const wasEditing=!!editingCalc;
+    if(wasEditing){ const i=calcs.findIndex(x=>x.id===editingCalc); c.on=calcs[i].on; calcs[i]=c; } else calcs.push(c);
+    const msg=$('cMsg').textContent; resetCalcForm(); afterCalcChange(); say('cMsg',(wasEditing?'Step updated. ':'Step added. ')+msg,r.errs?'warn':'ok'); return; }
+  if(e.target.id==='dlProcessed'){ if(!data) return; const cell=v=>v instanceof Date?ymd(v):csvCell(v);
+    download(`${base()}_processed.csv`,[data.order.join(','),...data.rows.map(r=>data.order.map(k=>cell(r[k])).join(','))].join('\n')); return; }
+  const ed=e.target.closest('[data-cedit]'), up=e.target.closest('[data-cup]'), dn=e.target.closest('[data-cdown]'), del=e.target.closest('[data-cdel]');
+  if(ed){ const c=calcs[+ed.dataset.cedit]; editingCalc=c.id; renderCalcs(); setMode(c.mode); if(c.mode==='new') $('cName').value=c.target; else $('cTarget').value=c.target;
+    $('cFormula').value=c.formula; $('cType').value=c.type||'auto'; $('cformTitle').textContent=`Edit step ${+ed.dataset.cedit+1}: ${c.target}`; $('cSave').textContent='Save changes'; $('cCancel').hidden=false;
+    previewStep(true); $('cform').scrollIntoView({block:'nearest'}); return; }
+  if(up||dn){ const i=+(up||dn).dataset[up?'cup':'cdown'], j=up?i-1:i+1; [calcs[i],calcs[j]]=[calcs[j],calcs[i]]; afterCalcChange(); return; }
+  if(del){ const i=+del.dataset.cdel; if(calcs[i].id===editingCalc) resetCalcForm(); calcs.splice(i,1); afterCalcChange(); say('cMsg','Step deleted.','ok'); }
+});
+
+/* ======================= Pool filter ======================= */
+const OPS={num:[['ge','≥'],['gt','>'],['le','≤'],['lt','<'],['eq','='],['ne','≠'],['between','between'],['blank','is blank'],['notblank','is not blank']],
+  cat:[['in','is any of'],['notin','is none of'],['contains','contains'],['blank','is blank'],['notblank','is not blank']],
+  date:[['ge','on or after'],['le','on or before'],['between','between'],['blank','is blank'],['notblank','is not blank']]};
+const typeKey=t=>t==='num'?'num':t==='date'?'date':'cat';
+const dayKey=d=>{const x=new Date(+d+432e5); return x.getFullYear()*10000+(x.getMonth()+1)*100+x.getDate();}; // timezone-safe calendar day
+const isoKey=s=>+String(s).replace(/-/g,'');
+function condState(c){ const f=data&&data.fields[c.field]; if(!f) return 'missing'; const t=typeKey(f.type);
+  if(c.op==='blank'||c.op==='notblank') return 'ok';
+  if(t==='cat') return (c.op==='contains'?String(c.v1||'').trim():(c.vals||[]).length)?'ok':'incomplete';
+  if(t==='num'){ const a=parseFloat(c.v1), b=parseFloat(c.v2); return !isNaN(a)&&(c.op!=='between'||!isNaN(b))?'ok':'incomplete'; }
+  return c.v1&&(c.op!=='between'||c.v2)?'ok':'incomplete'; }
+function condTest(c){ const k=c.field, t=typeKey(data.fields[k].type);
+  if(c.op==='blank') return r=>!present(r[k]); if(c.op==='notblank') return r=>present(r[k]);
+  if(t==='num'){ const a=parseFloat(c.v1), b=parseFloat(c.v2), lo=Math.min(a,b), hi=Math.max(a,b);
+    const fn={eq:x=>Math.abs(x-a)<1e-9,ne:x=>Math.abs(x-a)>=1e-9,gt:x=>x>a,ge:x=>x>=a,lt:x=>x<a,le:x=>x<=a,between:x=>x>=lo&&x<=hi}[c.op];
+    return r=>typeof r[k]==='number'&&fn(r[k]); }
+  if(t==='date'){ const a=isoKey(c.v1), b=c.v2?isoKey(c.v2):a, lo=Math.min(a,b), hi=Math.max(a,b);
+    const fn={ge:x=>x>=a,le:x=>x<=a,between:x=>x>=lo&&x<=hi}[c.op]; return r=>r[k] instanceof Date&&fn(dayKey(r[k])); }
+  if(c.op==='contains'){ const q=String(c.v1).trim().toLowerCase(); return r=>present(r[k])&&String(r[k]).toLowerCase().includes(q); }
+  const set=new Set((c.vals||[]).map(String)); return c.op==='in'?r=>present(r[k])&&set.has(String(r[k])):r=>present(r[k])&&!set.has(String(r[k])); }
+function applyFilter(){
+  if(!data){poolRows=null;poolIdx=null;return;}
+  const act=filter.conds.filter(c=>condState(c)==='ok');
+  if(!act.length){poolRows=data.rows;poolIdx=null;return;}
+  const tests=act.map(condTest), keep=[], idx=[];
+  data.rows.forEach((r,i)=>{ if(filter.logic==='OR'?tests.some(t=>t(r)):tests.every(t=>t(r))){keep.push(r);idx.push(i);} });
+  poolRows=keep; poolIdx=idx;
+}
+function describeCond(c){ const t=typeKey(data.fields[c.field].type), op=(OPS[t].find(o=>o[0]===c.op)||['',c.op])[1];
+  if(c.op==='blank'||c.op==='notblank') return `${c.field} ${op}`;
+  if(c.op==='between') return `${c.field} between ${c.v1} and ${c.v2}`;
+  if(c.op==='in'||c.op==='notin'){ const v=c.vals; return `${c.field} ${op} ${v.length>4?v.slice(0,4).join(', ')+` +${v.length-4} more`:v.join(', ')}`; }
+  return `${c.field} ${op} ${c.v1}`; }
+function describeFilter(){ if(!data) return ''; const act=filter.conds.filter(c=>condState(c)==='ok'); return act.map(describeCond).join(filter.logic==='OR'?' OR ':' AND '); }
+function distinctValues(f){ const c=new Map(); for(const r of data.rows){const v=r[f]; if(present(v)) c.set(String(v),(c.get(String(v))||0)+1);}
+  return [...c.entries()].sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true})); }
+const valsSummary=c=>!c.vals.length?'Choose values…':c.vals.length<=3?c.vals.join(', '):`${c.vals.slice(0,3).join(', ')} +${c.vals.length-3} more`;
+function condRow(c,i){
+  const meta=data.fields[c.field], t=meta?typeKey(meta.type):'cat', st=condState(c);
+  const fopts=data.order.concat(meta?[]:[c.field]).map(n=>`<option${n===c.field?' selected':''}>${n}</option>`).join('');
+  const oopts=OPS[t].map(([v,l])=>`<option value="${v}"${v===c.op?' selected':''}>${l}</option>`).join('');
+  let val='';
+  if(meta&&c.op!=='blank'&&c.op!=='notblank'){
+    if(t==='num') val=`<input type="number" step="any" data-fi="${i}" data-fk="v1" value="${esc(c.v1)}" aria-label="Value">`+(c.op==='between'?` and <input type="number" step="any" data-fi="${i}" data-fk="v2" value="${esc(c.v2)}" aria-label="Upper value">`:'');
+    else if(t==='date') val=`<input type="date" data-fi="${i}" data-fk="v1" value="${esc(c.v1)}" aria-label="Date">`+(c.op==='between'?` and <input type="date" data-fi="${i}" data-fk="v2" value="${esc(c.v2)}" aria-label="End date">`:'');
+    else if(c.op==='contains') val=`<input type="text" data-fi="${i}" data-fk="v1" value="${esc(c.v1)}" placeholder="text to match" aria-label="Text to match">`;
+    else { const dv=distinctValues(c.field);
+      if(dv.length>200) val=`<input type="text" data-fi="${i}" data-fk="list" value="${esc(c.vals.join(', '))}" placeholder="comma-separated values" aria-label="Values, comma-separated" style="width:320px">`;
+      else val=`<details data-fd="${i}"><summary id="fsum${i}">${esc(valsSummary(c))}</summary><div class="vals">${dv.map(([v,n])=>`<label><input type="checkbox" data-fi="${i}" data-fval="${esc(v)}"${c.vals.includes(v)?' checked':''}> ${esc(v)} <span class="na">(${n.toLocaleString()})</span></label>`).join('')}</div></details>`; } }
+  const note=st==='missing'?'<span class="fbad">Field not in this tape; ignored</span>':st==='incomplete'?'<span class="fbad" id="fnote'+i+'">Incomplete; ignored</span>':'<span class="fbad" id="fnote'+i+'"></span>';
+  return `<div class="fcond"><span class="lead">${i===0?'Where':filter.logic==='OR'?'or':'and'}</span>
+    <select data-fi="${i}" data-fk="field" aria-label="Filter field">${fopts}</select>
+    <select data-fi="${i}" data-fk="op" aria-label="Filter operator">${oopts}</select>${val}
+    <button class="small" data-fdel="${i}" aria-label="Remove condition">Remove</button>${note}</div>`;
+}
+function renderFilter(){
+  const el=$('filterBody');
+  if(!data){ el.innerHTML='<p class="sub">Load a tape to filter the pool.</p>'; $('filterStats').hidden=true; return; }
+  el.innerHTML=`<div class="row" style="margin-bottom:6px"><span style="font-size:14px">Include loans matching</span>
+      <select id="fLogic" aria-label="Combine conditions"><option value="AND"${filter.logic==='AND'?' selected':''}>all conditions (AND)</option><option value="OR"${filter.logic==='OR'?' selected':''}>any condition (OR)</option></select></div>
+    ${filter.conds.map(condRow).join('')||'<p class="sub" style="margin:6px 0">No conditions: the whole tape is in the pool.</p>'}
+    <div class="row" style="margin-top:10px"><button id="fAdd">Add condition</button><button id="fClear"${filter.conds.length?'':' disabled'}>Clear filter</button>
+      <button class="link" id="fDlIn">Download pool loans (CSV)</button><button class="link" id="fDlOut">Download excluded loans (CSV)</button></div>`;
+}
+function updateFilterStats(){
+  const el=$('filterStats'); if(!data){el.hidden=true;return;} el.hidden=false;
+  const P=pool(), n=P.length, N=data.rows.length, hasBal=!!data.fields.PRIN_BAL;
+  const bal=rows=>numsOf(rows,'PRIN_BAL').reduce((a,b)=>a+b,0);
+  el.innerHTML=`<b>Pool:</b> ${n.toLocaleString()} of ${N.toLocaleString()} loans (${(N?n/N*100:0).toFixed(1)}%)`+
+    (hasBal?`, $${Math.round(bal(P)).toLocaleString()} of $${Math.round(bal(data.rows)).toLocaleString()} current balance (${(bal(data.rows)?bal(P)/bal(data.rows)*100:0).toFixed(1)}%)`:'')+
+    (n<N?`. ${(N-n).toLocaleString()} loans excluded.`:'.');
+  filter.conds.forEach((c,i)=>{ const note=$('fnote'+i); if(note) note.textContent=condState(c)==='incomplete'?'Incomplete; ignored':''; });
+}
+function newCond(){ const f=data.fields.DQ_STATUS?'DQ_STATUS':data.order.find(n=>data.fields[n].type==='cat')||data.order[0];
+  return {id:uid(),field:f,op:OPS[typeKey(data.fields[f].type)][0][0],v1:'',v2:'',vals:[]}; }
+function exportRows(include){
+  if(!data) return; const inSet=new Set(poolIdx||data.rows.map((_,i)=>i));
+  const rows=raw.rows.filter((_,i)=>include===inSet.has(i));
+  const cell=v=>v instanceof Date?v.toISOString().slice(0,10):csvCell(v);
+  download(`${base()}_${include?'pool':'excluded'}_loans.csv`,[raw.headers.map(csvCell).join(','),...rows.map(r=>raw.headers.map((_,j)=>cell(r[j])).join(','))].join('\n'));
+}
+document.addEventListener('click',e=>{
+  if(e.target.id==='fAdd'){ filter.conds.push(newCond()); renderFilter(); runAll(); }
+  else if(e.target.id==='fClear'){ filter.conds=[]; renderFilter(); runAll(); }
+  else if(e.target.id==='fDlIn') exportRows(true);
+  else if(e.target.id==='fDlOut') exportRows(false);
+  else { const d=e.target.closest('[data-fdel]'); if(d){ filter.conds.splice(+d.dataset.fdel,1); renderFilter(); runAll(); } }
+  // close any open value picker when clicking elsewhere
+  document.querySelectorAll('.fcond details[open]').forEach(dt=>{ if(!dt.contains(e.target)) dt.open=false; });
+});
+document.addEventListener('change',e=>{
+  if(e.target.id==='fLogic'){ filter.logic=e.target.value; renderFilter(); runAll(); return; }
+  const i=e.target.dataset&&e.target.dataset.fi; if(i===undefined) return; const c=filter.conds[+i];
+  if(e.target.dataset.fval!==undefined){ const v=e.target.dataset.fval; c.vals=e.target.checked?[...new Set([...c.vals,v])]:c.vals.filter(x=>x!==v);
+    $('fsum'+i).textContent=valsSummary(c); runAll(); return; }
+  const k=e.target.dataset.fk;
+  if(k==='field'){ c.field=e.target.value; c.op=OPS[typeKey(data.fields[c.field].type)][0][0]; c.v1=''; c.v2=''; c.vals=[]; renderFilter(); runAll(); }
+  else if(k==='op'){ c.op=e.target.value; renderFilter(); runAll(); }
+});
+document.addEventListener('input',e=>{
+  const i=e.target.dataset&&e.target.dataset.fi, k=e.target.dataset&&e.target.dataset.fk; if(i===undefined||!['v1','v2','list'].includes(k)) return;
+  const c=filter.conds[+i]; if(k==='list') c.vals=e.target.value.split(',').map(x=>x.trim()).filter(Boolean); else c[k]=e.target.value; runAll();
+});
+
+/* ======================= Strats ======================= */
+function newStrat(name,field,mode,o={}){ return {id:uid(),name,field,mode,breaks:o.breaks||'',topN:o.topN||0,sort:o.sort||'bucket',showMissing:true,total:true,cols:o.cols||DEFAULT_COLS.filter(id=>byId(id))}; }
+function defaultPack(){ const have=n=>!data||data.fields[n]; return DEFAULT_PACK.filter(p=>have(p[1])).map(p=>newStrat(...p)); }
+function renderStratList(){
+  $('stratList').innerHTML=strats.length?strats.map((s,i)=>`<button class="item" role="listitem" data-strat="${i}" aria-current="${i===activeStrat}">${esc(s.name)}<small>${esc(s.field)} · ${s.mode==='breaks'?'breakpoints':s.mode==='year'?'by year':'distinct values'}</small></button>`).join(''):'<p class="sub" style="padding:10px">No strats yet.</p>';
+}
+function renderStratEditor(){
+  renderStratList();
+  const s=strats[activeStrat]; if(!s){ $('stratEditor').innerHTML='<p class="sub">Add a strat to begin.</p>'; return; }
+  const fopts=(data?data.order:STD.map(f=>f.name)).concat(data&&s.field&&!data.fields[s.field]?[s.field]:[]);
+  const ftype=data&&data.fields[s.field]?data.fields[s.field].type:(STDMAP[s.field]||{}).type;
+  const sortOpts=`<option value="bucket"${s.sort==='bucket'?' selected':''}>Bucket order</option>`+s.cols.map(id=>byId(id)).filter(Boolean).map(m=>`<option value="m:${m.id}"${s.sort==='m:'+m.id?' selected':''}>${esc(m.name)}, highest first</option>`).join('');
+  $('stratEditor').innerHTML=`
+    <div class="fgrid">
+      <label class="inline">Strat name<input type="text" data-s="name" value="${esc(s.name)}"></label>
+      <label class="inline">Group by field<select data-s="field">${fopts.map(n=>`<option${n===s.field?' selected':''}>${n}</option>`).join('')}</select></label>
+      <label class="inline">Bucketing<select data-s="mode">
+        <option value="distinct"${s.mode==='distinct'?' selected':''}>Distinct values</option>
+        <option value="breaks"${s.mode==='breaks'?' selected':''}${ftype&&ftype!=='num'?' disabled':''}>Numeric breakpoints</option>
+        <option value="year"${s.mode==='year'?' selected':''}${ftype&&ftype!=='date'?' disabled':''}>Year (date fields)</option></select></label>
+      ${s.mode==='breaks'?`<label class="inline" style="grid-column:span 2">Breakpoints (comma-separated)<span class="row"><input type="text" data-s="breaks" value="${esc(s.breaks)}" style="flex:1;min-width:220px"><button class="small" id="suggest" type="button">Suggest</button></span></label>`:''}
+      ${s.mode==='distinct'?`<label class="inline">Show top N (0 = all)<input type="number" min="0" data-s="topN" value="${s.topN}"></label>`:''}
+      <label class="inline">Sort rows by<select data-s="sort">${sortOpts}</select></label>
+      <label class="inline" style="justify-content:flex-end"><span><input type="checkbox" data-s="showMissing"${s.showMissing?' checked':''}> Show blank values as "Missing"</span></label>
+      <label class="inline" style="justify-content:flex-end"><span><input type="checkbox" data-s="total"${s.total?' checked':''}> Total row</span></label>
+    </div>
+    ${s.mode==='breaks'?'<p class="sub" style="margin:8px 0 0">Breakpoints 620, 660 give buckets "&lt; 620", "620 to &lt; 660" and "≥ 660".</p>':''}
+    ${s.mode==='distinct'&&s.topN>0?'<p class="sub" style="margin:8px 0 0">Values outside the top N by balance (or count) are grouped as "Other".</p>':''}
+    <h3>Columns</h3>
+    <div class="colpick"><ul>${s.cols.map((id,i)=>{const m=byId(id); if(!m) return ''; const na=data&&missingFields(m).length;
+      return `<li><span${na?' class="na"':''}>${esc(m.name)}${na?' (field not in tape)':''}</span>
+        <button class="small" data-col-up="${i}" aria-label="Move ${esc(m.name)} up"${i===0?' disabled':''}>↑</button>
+        <button class="small" data-col-down="${i}" aria-label="Move ${esc(m.name)} down"${i===s.cols.length-1?' disabled':''}>↓</button>
+        <button class="small" data-col-del="${i}" aria-label="Remove ${esc(m.name)}">Remove</button></li>`;}).join('')}</ul>
+      <div class="row" style="margin-top:8px"><select id="addColSel" aria-label="Measure to add">${measures.filter(m=>!s.cols.includes(m.id)).map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select><button class="small" id="addCol">Add column</button></div>
+    </div>`;
+}
+document.addEventListener('click',e=>{
+  const it=e.target.closest('[data-strat]'); if(it){activeStrat=+it.dataset.strat; renderStratEditor(); return;}
+  const s=strats[activeStrat]; if(!s) return;
+  const up=e.target.closest('[data-col-up]'), dn=e.target.closest('[data-col-down]'), rm=e.target.closest('[data-col-del]');
+  if(up||dn||rm){ const i=+(up||dn||rm).dataset[up?'colUp':dn?'colDown':'colDel'];
+    if(up) [s.cols[i-1],s.cols[i]]=[s.cols[i],s.cols[i-1]]; if(dn) [s.cols[i+1],s.cols[i]]=[s.cols[i],s.cols[i+1]];
+    if(rm){ const id=s.cols[i]; s.cols.splice(i,1); if(s.sort==='m:'+id) s.sort='bucket'; }
+    stratsCustomised=true; renderStratEditor(); runAll(); }
+  if(e.target.id==='addCol'){ const v=$('addColSel').value; if(v){s.cols.push(v); stratsCustomised=true; renderStratEditor(); runAll();} }
+  if(e.target.id==='suggest'){ s.breaks=suggestBreaks(s.field); stratsCustomised=true; renderStratEditor(); runAll(); }
+});
+document.addEventListener('change',e=>{
+  const k=e.target.dataset&&e.target.dataset.s; if(!k) return; const s=strats[activeStrat];
+  let v=e.target.type==='checkbox'?e.target.checked:e.target.value; if(k==='topN') v=Math.max(0,parseInt(v)||0);
+  s[k]=v; stratsCustomised=true;
+  if(k==='field'){ const t=data&&data.fields[v]?data.fields[v].type:(STDMAP[v]||{}).type;
+    if(s.mode==='breaks'&&t!=='num') s.mode=t==='date'?'year':'distinct'; if(s.mode==='year'&&t!=='date') s.mode=t==='num'?'breaks':'distinct';
+    if(s.mode==='breaks'&&!s.breaks) s.breaks=suggestBreaks(v); }
+  if(k==='mode'&&v==='breaks'&&!s.breaks) s.breaks=suggestBreaks(s.field);
+  renderStratEditor(); runAll();
+});
+$('addStrat').onclick=()=>{ const f=data?data.order.find(n=>data.fields[n].type==='cat')||data.order[0]:'STATE'; strats.push(newStrat('New strat',f,'distinct',{sort:'m:bal'})); activeStrat=strats.length-1; stratsCustomised=true; renderStratEditor(); runAll(); };
+$('dupStrat').onclick=()=>{ const s=strats[activeStrat]; if(!s) return; const c=JSON.parse(JSON.stringify(s)); c.id=uid(); c.name+=' (copy)'; strats.splice(activeStrat+1,0,c); activeStrat++; stratsCustomised=true; renderStratEditor(); runAll(); };
+$('delStrat').onclick=()=>{ if(!strats.length) return; strats.splice(activeStrat,1); activeStrat=Math.max(0,activeStrat-1); stratsCustomised=true; renderStratEditor(); runAll(); };
+$('resetStrats').onclick=()=>{ strats=defaultPack(); activeStrat=0; stratsCustomised=false; renderStratEditor(); runAll(); say('stratMsg','Standard strat pack restored.','ok'); };
+
+function niceStep(x){ const p=Math.pow(10,Math.floor(Math.log10(x))); const r=x/p; return (r<=1?1:r<=2?2:r<=2.5?2.5:r<=5?5:10)*p; }
+function suggestBreaks(f){
+  if(!data||!data.fields[f]||data.fields[f].type!=='num') return '';
+  const xs=numsOf(data.rows,f).sort((a,b)=>a-b); if(xs.length<2) return '';
+  const lo=xs[Math.floor(xs.length*0.05)], hi=xs[Math.floor(xs.length*0.95)]; if(hi<=lo) return String(lo);
+  const step=niceStep((hi-lo)/6), out=[]; for(let b=Math.ceil(lo/step)*step;b<=hi+1e-9&&out.length<10;b+=step) out.push(+b.toFixed(6));
+  return out.join(', ');
+}
+
+/* ---------- Strat engine ---------- */
+const nf=v=>Number(v).toLocaleString('en-US',{maximumFractionDigits:4});
+function runStrat(s){
+  const meta=data.fields[s.field];
+  if(!meta) return {s,error:`Field ${s.field} is not in this tape.`};
+  const cols=s.cols.map(byId).filter(Boolean);
+  const groups=new Map(); const missing=[]; let mode=s.mode;
+  if(mode==='breaks'&&meta.type!=='num') mode='distinct'; if(mode==='year'&&meta.type!=='date') mode='distinct';
+  let bps=[]; if(mode==='breaks'){ bps=[...new Set(String(s.breaks).split(/[,;\s]+/).map(Number).filter(x=>!isNaN(x)))].sort((a,b)=>a-b); if(!bps.length) return {s,error:'Enter at least one breakpoint.'}; }
+  const add=(key,label,order,r)=>{ let g=groups.get(key); if(!g){g={label,order,rows:[]};groups.set(key,g);} g.rows.push(r); };
+  const P=pool();
+  for(const r of P){ const v=r[s.field];
+    if(!present(v)){ missing.push(r); continue; }
+    if(mode==='breaks'){ let i=bps.findIndex(b=>v<b); if(i<0) i=bps.length;
+      const label=i===0?`< ${nf(bps[0])}`:i===bps.length?`≥ ${nf(bps[i-1])}`:`${nf(bps[i-1])} to < ${nf(bps[i])}`; add(i,label,i,r); }
+    else if(mode==='year'){ const y=Math.floor(dayKey(v)/10000); add(y,String(y),y,r); }
+    else { const key=v instanceof Date?v.toISOString().slice(0,10):v; add(key,String(key),key,r); } }
+  let list=[...groups.values()];
+  if(mode==='distinct'){ const numeric=list.every(g=>typeof g.order==='number'); list.sort((a,b)=>numeric?a.order-b.order:String(a.order).localeCompare(String(b.order),undefined,{numeric:true})); list.forEach((g,i)=>g.order=i); }
+  if(mode==='distinct'&&s.topN>0&&list.length>s.topN){
+    const size=g=>data.fields.PRIN_BAL?numsOf(g.rows,'PRIN_BAL').reduce((a,b)=>a+b,0):g.rows.length;
+    const ranked=[...list].sort((a,b)=>size(b)-size(a)), keep=new Set(ranked.slice(0,s.topN));
+    const other={label:'Other',order:1e15,rows:[],other:true}; list=list.filter(g=>keep.has(g)||(other.rows.push(...g.rows),false)); list.push(other); }
+  const rows=list.map(g=>({label:g.label,order:g.order,other:g.other,n:g.rows.length,vals:cols.map(m=>calc(m,g.rows))}));
+  if(s.sort&&s.sort.startsWith('m:')){ const j=cols.findIndex(m=>'m:'+m.id===s.sort); if(j>=0) rows.sort((a,b)=>a.other!==b.other?(a.other?1:-1):(b.vals[j]??-Infinity)-(a.vals[j]??-Infinity)); }
+  else rows.sort((a,b)=>a.order-b.order);
+  if(missing.length&&s.showMissing) rows.push({label:'Missing',n:missing.length,vals:cols.map(m=>calc(m,missing)),missingRow:true});
+  const included=s.showMissing?P:P.filter(r=>present(r[s.field]));
+  const total=s.total?{label:'Total',n:included.length,vals:cols.map(m=>calc(m,included))}:null;
+  return {s,cols,rows,total,excluded:s.showMissing?0:missing.length};
+}
+
+function renderResults(){
+  if(!data){ $('results').innerHTML='<p class="sub">Load a tape to see results.</p>'; return; }
+  const poolMs=measures.filter(m=>!missingFields(m).length);
+  const fdesc=describeFilter();
+  let h=`<div class="strat"><h3>Pool summary</h3>${fdesc?`<p class="sub" style="margin:0 0 6px"><b>Filter:</b> ${esc(fdesc)} · ${pool().length.toLocaleString()} of ${data.rows.length.toLocaleString()} loans</p>`:''}${pool().length?'':'<p class="msg warn">No loans match the pool filter.</p>'}<div class="stats">${poolMs.map(m=>`<div class="stat"><b>${fmt(calc(m,pool()),m)}</b><small>${esc(m.name)}</small></div>`).join('')}</div></div>`;
+  results.forEach((r,ri)=>{
+    h+=`<div class="strat"><h3>${esc(r.s.name)}</h3>`;
+    if(r.error){ h+=`<p class="msg warn">${esc(r.error)}</p></div>`; return; }
+    h+=`<div class="scroll"><table class="grid"><thead><tr><th>${esc(r.s.field)}</th>${r.cols.map(m=>`<th class="num">${esc(m.name)}</th>`).join('')}</tr></thead><tbody>`;
+    const maxes=r.cols.map((m,j)=>m.op==='PCT'?Math.max(0,...r.rows.map(x=>x.vals[j]??0)):0);
+    r.rows.forEach(row=>{ h+=`<tr><td>${esc(row.label)}</td>${row.vals.map((v,j)=>{const m=r.cols[j]; const bar=m.op==='PCT'&&v!==null&&maxes[j]>0;
+      return `<td class="num${bar?' bar':''}"${bar?` style="--w:${(Math.max(0,v)/maxes[j]*100).toFixed(1)}%"`:''}>${fmt(v,m)}</td>`;}).join('')}</tr>`; });
+    h+='</tbody>'; if(r.total) h+=`<tfoot><tr><td>Total</td>${r.total.vals.map((v,j)=>`<td class="num">${fmt(v,r.cols[j])}</td>`).join('')}</tr></tfoot>`;
+    h+='</table></div>'+(r.excluded?`<p class="sub" style="margin:6px 0 0">${r.excluded.toLocaleString()} loans with a blank ${esc(r.s.field)} are excluded from this strat.</p>`:'')+`<div class="row" style="margin-top:8px"><button class="small" data-csv="${ri}">CSV</button></div></div>`;
+  });
+  $('results').innerHTML=h;
+}
+let runTimer=null;
+function runAll(){ clearTimeout(runTimer); runTimer=setTimeout(()=>{ saveSession(); if(!data){renderResults();return;} applyFilter(); poolCache={}; results=strats.map(runStrat); renderResults(); renderMeasures(); updateFilterStats(); updateNav(); },60); }
+
+/* ======================= Export ======================= */
+function stratAOA(r){ const aoa=[[r.s.name],[],[r.s.field,...r.cols.map(m=>m.name)]];
+  r.rows.forEach(x=>aoa.push([x.label,...x.vals])); if(r.total) aoa.push(['Total',...r.total.vals]); return aoa; }
+const csvCell=v=>v===null||v===undefined?'':typeof v==='number'?String(+v.toFixed(8)):`"${String(v).replace(/"/g,'""')}"`;
+/* File saves: in a published Artifact the viewer's downloads capability handles saves (with a confirmation);
+   elsewhere (opened as a file or on another host) fall back to an ordinary browser download. */
+const downloadsCap=(window.claude&&typeof window.claude.use==='function')?window.claude.use('downloads').catch(()=>null):Promise.resolve(null);
+function toast(text,cls){ let el=document.getElementById('saveToast');
+  if(!el){ el=document.createElement('div'); el.id='saveToast'; el.setAttribute('role','status'); el.setAttribute('aria-live','polite');
+    el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:20;background:var(--ink);color:#fff;padding:9px 16px;border-radius:6px;font-size:14px;max-width:90vw;box-shadow:0 4px 14px rgba(0,0,0,.2)';
+    document.body.appendChild(el); }
+  el.textContent=text; el.style.background=cls==='err'?'var(--bad)':'var(--ink)'; el.hidden=false; clearTimeout(el._t); el._t=setTimeout(()=>{el.hidden=true;},4500); }
+async function saveFile(name,data){
+  const cap=window.claude?await downloadsCap:null;
+  if(cap){
+    try{ await cap.save({filename:name,data}); }
+    catch(e){ const c=e&&e.code;
+      if(c==='declined') return;
+      if(c==='rate_limited') return toast('A save is already waiting for your confirmation.','err');
+      if(c==='too_large') return toast(`${name} is too large to save here.`,'err');
+      return toast(`Saving files isn't available in this view (${c||'unavailable'}).`,'err'); }
+    return;
+  }
+  const blob=data instanceof Blob?data:new Blob([data]); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
+const MIME={csv:'text/csv',json:'application/json',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'};
+function download(name,text,type){ const ext=name.split('.').pop().toLowerCase(); return saveFile(name,new Blob([text],{type:type||MIME[ext]||'text/plain'})); }
+function saveWorkbook(wb,name){ const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'}); return saveFile(name,new Blob([buf],{type:MIME.xlsx})); }
+const base=()=>(raw?raw.file.replace(/\.[^.]+$/,''):'tape').replace(/[^\w-]+/g,'_');
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-csv]'); if(!b) return; const r=results[+b.dataset.csv];
+  download(`${base()}_${r.s.name.replace(/[^\w-]+/g,'_')}.csv`,stratAOA(r).slice(2).map(row=>row.map(csvCell).join(',')).join('\n')); });
+$('csvAll').onclick=()=>{ if(!data) return; const hdr=[csvCell('Pool filter: '+(describeFilter()||'none')),csvCell(`Loans in pool: ${pool().length} of ${data.rows.length}`)].join('\n');
+  download(`${base()}_strats.csv`,hdr+'\n\n'+results.filter(r=>!r.error).map(r=>stratAOA(r).map(row=>row.map(csvCell).join(',')).join('\n')).join('\n\n')); };
+function xlFmt(m){ const d=+m.dec||0, dp=d?'.'+'0'.repeat(d):''; return m.fmt==='currency'?`$#,##0${dp}`:m.fmt==='percent'?`0${dp}%`:`#,##0${dp}`; }
+function sheetFromStrat(r){
+  const aoa=stratAOA(r).map((row,i)=>i<3?row:row.map((v,j)=>j===0||v===null?v:(r.cols[j-1].fmt==='percent'?v/100:v)));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  for(let i=3;i<aoa.length;i++) r.cols.forEach((m,j)=>{const c=ws[XLSX.utils.encode_cell({r:i,c:j+1})]; if(c&&c.t==='n') c.z=xlFmt(m);});
+  ws['!cols']=[{wch:Math.max(14,...aoa.slice(2).map(x=>String(x[0]??'').length+2))},...r.cols.map(m=>({wch:Math.max(12,m.name.length+2)}))];
+  return ws;
+}
+$('xlsxAll').onclick=()=>{
+  if(!data) return say('resMsg','Load a tape first.','err');
+  if(typeof XLSX==='undefined') return say('resMsg','The Excel writer did not load. Use "Export all to CSV" instead.','err');
+  const wb=XLSX.utils.book_new(), used=new Set();
+  const nameOf=n=>{ let s=n.replace(/[\[\]:*?\/\\]/g,'').slice(0,31)||'Sheet'; let k=2,b=s; while(used.has(s.toLowerCase())) s=b.slice(0,28)+' '+(k++); used.add(s.toLowerCase()); return s; };
+  const poolMs=measures.filter(m=>!missingFields(m).length);
+  const head=[['Pool summary'],[`Source: ${raw.file}${raw.sheet?' / '+raw.sheet:''}`],[`Pool filter: ${describeFilter()||'none'}`],[`Loans in pool: ${pool().length} of ${data.rows.length}`],[],['Measure','Value','Definition']];
+  const sum=XLSX.utils.aoa_to_sheet([...head,...poolMs.map(m=>{const v=calc(m,pool());return [m.name,v===null?null:(m.fmt==='percent'?v/100:v),describe(m)];})]);
+  poolMs.forEach((m,i)=>{const c=sum[XLSX.utils.encode_cell({r:head.length+i,c:1})]; if(c&&c.t==='n') c.z=xlFmt(m);}); sum['!cols']=[{wch:26},{wch:18},{wch:48}];
+  XLSX.utils.book_append_sheet(wb,sum,nameOf('Summary'));
+  results.filter(r=>!r.error).forEach(r=>XLSX.utils.book_append_sheet(wb,sheetFromStrat(r),nameOf(r.s.name)));
+  const map=XLSX.utils.aoa_to_sheet([['Tape column','Field name','Standard field?','Type','Populated %','Notes'],...mapping.filter(m=>m.target!=='IGNORE'&&!baseData.dups.has(m.idx)).map(m=>{const f=baseData.fields[m.name];return [m.src,m.name,f.std?'Yes':'Custom',f.type,+f.profile.filled.toFixed(1),f.note];})]);
+  map['!cols']=[{wch:30},{wch:16},{wch:14},{wch:8},{wch:12},{wch:60}]; XLSX.utils.book_append_sheet(wb,map,nameOf('Field Mapping'));
+  if(calcs.length){ const cs=XLSX.utils.aoa_to_sheet([['Step','Field','Action','Formula','Type','Status','Rows with a value','Row errors'],
+    ...calcs.map((c,i)=>[i+1,c.target,c.mode==='edit'?'Edit existing':'New column',c.formula,c.stats?c.stats.type:'',!c.on?'Off':c.error?'Not applied: '+c.error:'Applied',c.stats?c.stats.filled:null,c.stats?c.stats.errs:null])]);
+    cs['!cols']=[{wch:6},{wch:16},{wch:14},{wch:60},{wch:8},{wch:30},{wch:16},{wch:11}]; XLSX.utils.book_append_sheet(wb,cs,nameOf('Calculated Fields')); }
+  saveWorkbook(wb,`${base()}_strats.xlsx`);
+};
+$('dlTemplate').onclick=()=>{
+  if(typeof XLSX==='undefined') return say('loadMsg','The Excel writer did not load. Check your connection and try again.','err');
+  const wb=XLSX.utils.book_new();
+  const tape=XLSX.utils.aoa_to_sheet([STD.map(f=>f.name),STD.map(f=>f.example)]); tape['!cols']=STD.map(f=>({wch:Math.max(12,f.name.length+2)}));
+  XLSX.utils.book_append_sheet(wb,tape,'Tape');
+  const dict=XLSX.utils.aoa_to_sheet([['Field','Type','Description','Example','Also recognised as'],...STD.map(f=>[f.name,f.type+(f.unit==='pct'?' (%)':''),f.desc,f.example,f.syn.join(', ')])]);
+  dict['!cols']=[{wch:16},{wch:10},{wch:36},{wch:14},{wch:90}]; XLSX.utils.book_append_sheet(wb,dict,'Field Dictionary');
+  const ins=XLSX.utils.aoa_to_sheet([['How to use this template'],[],
+    ['1. One loan per row on the Tape sheet. Row 2 is an example; replace it with your loans.'],
+    ['2. Keep the standard column names. Columns you do not have can be deleted; extra columns are kept as custom fields.'],
+    ['3. Do field-level calculations here in Excel, e.g. CUR_LTV = PRIN_BAL / PROP_VALUE * 100, or LOAN_AGE = ORIG_TERM - REM_TERM.'],
+    ['4. Percent fields (NOTE_RATE, LTV, CLTV, CUR_LTV, DTI, MARGIN) can be 6.875 or 0.06875; decimals are converted automatically.'],
+    ['5. Save the file in Excel before uploading so formula results are stored.']]);
+  ins['!cols']=[{wch:110}]; XLSX.utils.book_append_sheet(wb,ins,'Instructions');
+  saveWorkbook(wb,'standard_loan_tape_template.xlsx');
+};
+
+/* ---------- Templates ---------- */
+const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+function currentTemplate(name){
+  return {app:'loan-tape-cracker',version:4,name,savedAt:new Date().toISOString(),mapping:{...mapOverrides},
+    calcs:calcs.map(({id,mode,target,formula,type,on})=>({id,mode,target,formula,type,on})),filter,measures,strats};
+}
+function summarise(t){ return [plural(Object.keys(t.mapping||{}).length,'mapping'),plural((t.calcs||[]).length,'calculated field'),plural(((t.filter||{}).conds||[]).length,'filter condition'),plural(t.measures.length,'measure'),plural(t.strats.length,'strat')].join(', '); }
+function validateTemplate(t){
+  if(!t||typeof t!=='object') throw new Error('not a template');
+  if(!Array.isArray(t.measures)||!Array.isArray(t.strats)) throw new Error('missing measures or strats');
+  if(!t.measures.every(m=>m&&m.id&&m.name&&m.op)||!t.strats.every(s=>s&&s.name&&s.field&&s.mode&&Array.isArray(s.cols))) throw new Error('unexpected structure');
+}
+function applyTemplate(t,label,quiet){
+  validateTemplate(t);
+  const okTarget=v=>v==='IGNORE'||v==='CUSTOM'||!!STDMAP[v];
+  mapOverrides=Object.fromEntries(Object.entries(t.mapping||{}).filter(([k,v])=>typeof k==='string'&&okTarget(v)));
+  calcs=(t.calcs||[]).filter(c=>c&&c.target&&c.formula).map(c=>({mode:'new',type:'auto',on:true,...c,id:c.id||uid()}));
+  filter=t.filter&&Array.isArray(t.filter.conds)?{logic:t.filter.logic==='OR'?'OR':'AND',conds:t.filter.conds.map(c=>({vals:[],v1:'',v2:'',...c,id:c.id||uid()}))}:{logic:'AND',conds:[]};
+  measures=t.measures; activeStrat=0;
+  if(t.stratsCustomised===false){ stratsCustomised=false; strats=defaultPack(); }
+  else { strats=t.strats.map(s=>({showMissing:true,total:true,topN:0,sort:'bucket',breaks:'',...s,id:s.id||uid()})); stratsCustomised=true; }
+  editingCalc=null; resetCalcForm(); resetMeasureForm();
+  if(raw){ autoMap(); buildData(); } else { renderMapping(); renderCalcs(); renderFilter(); renderMeasures(); renderStratEditor(); runAll(); }
+  if(t.name) $('tplName').value=t.name;
+  if(quiet) return;
+  let msg=`Loaded "${t.name||label}": ${summarise(t)}.`;
+  if(raw){ const notApplied=calcs.filter(c=>c.error).length, missingStrats=strats.filter(s=>!data.fields[s.field]).length;
+    if(notApplied||missingStrats) msg+=` On this tape, ${notApplied?plural(notApplied,'calculated field')+' could not be applied':''}${notApplied&&missingStrats?' and ':''}${missingStrats?plural(missingStrats,'strat')+' refer to fields not in the tape':''}; see the steps below.`;
+  } else msg+=' It will be applied when you load a tape.';
+  say('tplMsg',msg,'ok');
+}
+/* ---------- Session auto-save and optional saved tape ---------- */
+// Storage keys keep the tool's original internal name so templates and sessions saved before the rename still load.
+const SESSION_KEY='loanTapeCracker.session.v1', REMEMBER_KEY='loanTapeCracker.rememberTape', IDB_NAME='loanTapeCracker', IDB_STORE='tapes';
+function isDefaultSetup(t){ return !Object.keys(t.mapping||{}).length&&!(t.calcs||[]).length&&!((t.filter||{}).conds||[]).length&&
+  JSON.stringify(t.measures)===JSON.stringify(DEFAULT_MEASURES)&&t.stratsCustomised===false; }
+function saveSession(){ try{ localStorage.setItem(SESSION_KEY,JSON.stringify({...currentTemplate($('tplName').value.trim()),stratsCustomised,tapeFile:raw?raw.file:null})); }catch(e){} }
+function restoreSession(){
+  let t=null; try{ t=JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); }catch(e){ return null; }
+  if(!t) return null; try{ validateTemplate(t); }catch(e){ return null; }
+  if(isDefaultSetup(t)) return null;
+  applyTemplate(t,'last session',true); return t;
+}
+function showSessionBar(t){
+  if(!t){ $('sessionBar').hidden=true; return; }
+  const when=t.savedAt?new Date(t.savedAt).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}):'';
+  const parts=[Object.keys(t.mapping||{}).length?plural(Object.keys(t.mapping).length,'manual mapping'):'',(t.calcs||[]).length?plural(t.calcs.length,'calculated field'):'',
+    ((t.filter||{}).conds||[]).length?plural(t.filter.conds.length,'filter condition'):'',plural(t.measures.length,'measure'),t.stratsCustomised===false?'standard strats':plural(t.strats.length,'strat')].filter(Boolean).join(', ');
+  $('sessionMsg').innerHTML=`<b>Your last setup was restored</b>${t.name?` ("${esc(t.name)}")`:''}${when?`, saved ${esc(when)}`:''}: ${esc(parts)}.`+(raw?'':` Upload ${t.tapeFile?'<b>'+esc(t.tapeFile)+'</b> or another tape':'the tape'} to continue.`);
+  $('sessionBar').hidden=false;
+}
+function resetSetup(){
+  mapOverrides={}; calcs=[]; filter={logic:'AND',conds:[]}; measures=JSON.parse(JSON.stringify(DEFAULT_MEASURES)); stratsCustomised=false; activeStrat=0;
+  $('tplName').value=''; editingCalc=null; resetCalcForm(); resetMeasureForm();
+  if(raw){ autoMap(); buildData(); } else { strats=defaultPack(); renderMapping(); renderCalcs(); renderFilter(); renderMeasures(); renderStratEditor(); runAll(); }
+}
+$('startFresh').onclick=()=>{ resetSetup(); $('sessionBar').hidden=true; say('tplMsg','Started a fresh setup. Saved templates are unchanged.','ok'); };
+function idbOpen(){ return new Promise((res,rej)=>{ if(!window.indexedDB) return rej(new Error('not available')); const r=indexedDB.open(IDB_NAME,1);
+  r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error||new Error('blocked')); }); }
+async function idbDo(mode,fn){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,mode), st=tx.objectStore(IDB_STORE); const req=fn(st);
+  tx.oncomplete=()=>{ db.close(); res(req&&req.result); }; tx.onerror=tx.onabort=()=>{ db.close(); rej(tx.error||new Error('storage error')); }; }); }
+async function storeTape(){
+  if(!raw) return;
+  try{ await idbDo('readwrite',st=>st.put({file:raw.file,sheet:raw.sheet||null,headers:raw.headers,rows:raw.rows,savedAt:new Date().toISOString()},'lastTape'));
+    $('clearTape').hidden=false; }
+  catch(e){ say('loadMsg',`The tape is loaded, but this browser would not save it (${e.message||'storage blocked or full'}). It will need to be uploaded again next time.`,'warn'); }
+}
+async function clearStoredTape(){ try{ await idbDo('readwrite',st=>st.delete('lastTape')); }catch(e){} $('clearTape').hidden=true; }
+$('rememberTape').onchange=async e=>{
+  try{ localStorage.setItem(REMEMBER_KEY,e.target.checked?'1':'0'); }catch(err){}
+  if(e.target.checked){ if(raw){ await storeTape(); if(!$('clearTape').hidden) say('loadMsg',`${raw.file} is saved in this browser and will reload automatically next time.`,'ok'); }
+    else say('loadMsg','The next tape you load will be saved in this browser.','ok'); }
+  else { await clearStoredTape(); say('loadMsg','The saved tape has been removed from this browser. Your setup is still saved.','ok'); }
+};
+$('clearTape').onclick=async()=>{ await clearStoredTape(); say('loadMsg','The saved tape has been removed from this browser. It stays loaded until you close the page.','ok'); };
+async function restoreTape(){
+  let on=false; try{ on=localStorage.getItem(REMEMBER_KEY)==='1'; }catch(e){}
+  $('rememberTape').checked=on; if(!on) return false;
+  let t=null; try{ t=await idbDo('readonly',st=>st.get('lastTape')); }catch(e){ return false; }
+  if(!t||!Array.isArray(t.rows)||!Array.isArray(t.headers)) return false;
+  raw={file:t.file,headers:t.headers,rows:t.rows,...(t.sheet?{sheet:t.sheet}:{})}; $('sheetRow').hidden=true; $('clearTape').hidden=false;
+  autoMap(); buildData();
+  say('loadMsg',`Restored ${t.file} (${t.rows.length.toLocaleString()} loans) saved in this browser on ${new Date(t.savedAt).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}.`,'ok');
+  return true;
+}
+
+const LIB_KEY='loanTapeCracker.templates.v1';
+function libRead(){ try{ const v=JSON.parse(localStorage.getItem(LIB_KEY)||'{}'); return v&&typeof v==='object'?v:{}; }catch(e){ return null; } }
+function libWrite(obj){ try{ localStorage.setItem(LIB_KEY,JSON.stringify(obj)); return true; }catch(e){ return false; } }
+let armedSave=null, armedDelete=null;
+function renderLibrary(){
+  const lib=libRead(), el=$('tplLib');
+  if(lib===null){ el.innerHTML='<p class="msg warn">This browser is blocking local storage (for example in private browsing), so templates can only be saved as files.</p>'; $('tplSaveLib').disabled=true; return; }
+  const names=Object.keys(lib).sort((a,b)=>(lib[b].savedAt||'').localeCompare(lib[a].savedAt||''));
+  if(!names.length){ el.innerHTML='<p class="sub" style="margin:0">No templates saved in this browser yet.</p>'; return; }
+  el.innerHTML=`<div class="scroll"><table class="grid"><thead><tr><th>Saved template</th><th>Saved on</th><th>Contents</th><th></th></tr></thead><tbody>${names.map(n=>{const t=lib[n];
+    return `<tr><td><b>${esc(n)}</b></td><td>${t.savedAt?new Date(t.savedAt).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}):''}</td><td style="white-space:normal">${esc(summarise(t))}</td>
+      <td><button class="small primary" data-tload="${esc(n)}">Load</button> <button class="small" data-tdl="${esc(n)}">Download</button> <button class="small" data-tdel="${esc(n)}">${armedDelete===n?'Confirm delete':'Delete'}</button></td></tr>`;}).join('')}</tbody></table></div>`;
+}
+const fileSlug=n=>(n||'template').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')||'template';
+$('tplSaveLib').onclick=()=>{
+  const name=$('tplName').value.trim(); if(!name) return say('tplMsg','Give the template a name first.','err');
+  const lib=libRead(); if(lib===null) return say('tplMsg','Local storage is not available; use "Download as file" instead.','err');
+  if(lib[name]&&armedSave!==name){ armedSave=name; return say('tplMsg',`A template called "${name}" already exists. Click "Save in this browser" again to replace it.`,'warn'); }
+  lib[name]=currentTemplate(name); armedSave=null;
+  if(!libWrite(lib)) return say('tplMsg','Could not save: browser storage is full or blocked. Use "Download as file" instead.','err');
+  renderLibrary(); say('tplMsg',`Saved "${name}" in this browser: ${summarise(lib[name])}.`,'ok');
+};
+$('tplName').oninput=()=>{ armedSave=null; };
+$('tplDownload').onclick=()=>{ const name=$('tplName').value.trim()||'Loan tape template'; const t=currentTemplate(name);
+  download(`${fileSlug(name)}.json`,JSON.stringify(t,null,2),'application/json'); say('tplMsg',`Downloaded "${name}": ${summarise(t)}.`,'ok'); };
+$('loadTpl').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{ const t=JSON.parse(await f.text()); applyTemplate(t,f.name); }
+  catch(err){ say('tplMsg','Template not loaded: '+err.message+'. Use a file saved from this tool.','err'); } };
+document.addEventListener('click',e=>{
+  const ld=e.target.closest('[data-tload]'), dl=e.target.closest('[data-tdl]'), del=e.target.closest('[data-tdel]');
+  if(e.target.id==='resetMap'){ mapOverrides={}; if(raw){ autoMap(); buildData(); } renderMapping(); say('mapMsg','All columns mapped automatically again.','ok'); return; }
+  if(!ld&&!dl&&!del){ if(armedDelete&&!e.target.closest('#tplLib')){ armedDelete=null; renderLibrary(); } return; }
+  const lib=libRead()||{}, name=(ld||dl||del).dataset[ld?'tload':dl?'tdl':'tdel'], t=lib[name]; if(!t) return renderLibrary();
+  if(ld){ try{ applyTemplate(t,name); }catch(err){ say('tplMsg','Template not loaded: '+err.message,'err'); } }
+  if(dl) download(`${fileSlug(name)}.json`,JSON.stringify(t,null,2),'application/json');
+  if(del){ if(armedDelete!==name){ armedDelete=name; renderLibrary(); return; } delete lib[name]; libWrite(lib); armedDelete=null; renderLibrary(); say('tplMsg',`Deleted "${name}" from this browser.`,'ok'); }
+});
+
+/* ======================= Sample tape (originator-style headers) ======================= */
+function sampleTape(n=2000){
+  let seed=20261001; const r=()=>{seed=(seed*1664525+1013904223)%4294967296;return seed/4294967296;};
+  const norm01=()=>{let u=0;for(let i=0;i<6;i++)u+=r();return (u-3)/Math.sqrt(0.5);};
+  const pick=(arr,w)=>{let x=r()*w.reduce((a,b)=>a+b,0);for(let i=0;i<arr.length;i++){x-=w[i];if(x<=0)return arr[i];}return arr[arr.length-1];};
+  const states=['CA','TX','FL','NY','IL','WA','AZ','CO','NC','GA','NJ','VA','MA','OH','PA','MN','OR','NV','UT','MD'];
+  const sw=[22,11,10,7,5,6,5,5,4,4,4,4,3.5,2,2,1.5,1.5,1,1,1];
+  const head=['Loan Number','Property State','Property Type','Occupancy','Loan Purpose','Documentation','Credit Score','Original LTV','Original CLTV','DTI','Original Loan Amount','Current Principal Balance','Interest Rate','Original Term','Remaining Term','Origination Date','Delinquency Status','Lien Position','Servicer Name'];
+  const rows=[head];
+  for(let i=0;i<n;i++){
+    const fico=Math.round(Math.max(600,Math.min(820,748+norm01()*36))), ltv=Math.max(30,Math.min(95,74+norm01()*11));
+    const term=pick([360,360,360,180,240],[1,1,1,1,1]), age=Math.floor(r()*36);
+    const ob=Math.round(Math.exp(12.9+norm01()*0.42)/1000)*1000, cb=ob*(1-age*0.0024);
+    const rate=Math.max(5,Math.min(9.5,6.9-(fico-748)*0.006+(ltv-74)*0.01+norm01()*0.25));
+    const od=new Date(2026,8,1); od.setMonth(od.getMonth()-age);
+    rows.push([`LN${300000+i}`,pick(states,sw),pick(['SFR','PUD','Condo','2-4 Family'],[62,20,12,6]),pick(['Owner','Second Home','Investor'],[86,5,9]),
+      pick(['Purchase','Rate/Term Refi','Cash-Out Refi'],[58,22,20]),pick(['Full','Bank Statement','DSCR'],[80,12,8]),
+      i%397===5?'':fico,+(ltv/100).toFixed(4),+(Math.min(100,ltv+pick([0,0,0,5,10],[1,1,1,1,1]))/100).toFixed(4),+(Math.max(8,Math.min(55,36+norm01()*8))).toFixed(1),
+      ob,+cb.toFixed(2),+(rate/100).toFixed(5),term,term-age,od.toISOString().slice(0,10),pick(['Current','30','60','90+'],[955,30,10,5]),1,pick(['Servicer A','Servicer B','Servicer C'],[50,35,15])]);
+  }
+  return rows;
+}
+$('loadSample').onclick=()=>{ $('sheetRow').hidden=true; ingest(sampleTape(),'sample_originator_tape.csv',{}); };
+
+/* ======================= Wiring ======================= */
+document.addEventListener('change',e=>{ const sel=e.target.closest('[data-map]'); if(!sel) return; const m=mapping.find(x=>x.idx===+sel.dataset.map); m.target=sel.value; m.manual=true; mapOverrides[norm(m.src)]=sel.value; buildData(); });
+function updateNav(){ $('n1').classList.toggle('done',!!raw); $('n2').classList.toggle('done',!!data&&!!data.fields.LOAN_ID&&!!data.fields.PRIN_BAL);
+  $('n3').classList.toggle('done',!!data); $('n4').classList.toggle('done',!!data); $('n5').classList.toggle('done',!!data&&measures.some(m=>!missingFields(m).length));
+  $('n6').classList.toggle('done',!!data&&results.some(r=>!r.error)); $('n7').classList.toggle('done',!!data&&results.some(r=>!r.error)); }
+function renderAll(){
+  $('loadStats').innerHTML=raw?`<div class="stat"><b>${raw.rows.length.toLocaleString()}</b><small>Loans</small></div><div class="stat"><b>${raw.headers.length}</b><small>Columns</small></div><div class="stat"><b>${Object.values(baseData.fields).filter(f=>f.std).length}</b><small>Mapped to standard fields</small></div>`:'';
+  renderMapping(); renderCalcs(); renderFilter(); renderMeasures(); renderStratEditor(); runAll();
+}
+renderDict(); renderFnRef(); renderLibrary(); strats=defaultPack(); resetMeasureForm();
+const restoredSetup=restoreSession();
+renderCalcs(); renderFilter(); renderMeasures(); renderStratEditor(); renderResults();
+restoreTape().then(()=>showSessionBar(restoredSetup));
+</script>
+</body>
+</html>

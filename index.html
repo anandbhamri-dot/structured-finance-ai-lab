@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Anand Bhamri | Structured Finance AI Lab</title>
+<meta name="description" content="Structured finance analytics tools for RMBS and CLO, built by Anand Bhamri with Claude.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1B2A41;--muted:#5A6778;--paper:#F5F7FA;--rule:#D5DBE3;--blue:#2F5496;--gold:#C9A227;
+  --serif:'IBM Plex Serif',Georgia,serif;--sans:'IBM Plex Sans','Segoe UI',Roboto,Arial,sans-serif;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 var(--sans)}
+.wrap{max-width:880px;margin:0 auto;padding:56px 24px 64px}
+.stackmark{display:flex;height:12px;width:220px;margin-bottom:28px}
+.stackmark span{display:block}
+h1{font:600 clamp(30px,5vw,42px)/1.15 var(--serif);margin:0 0 14px}
+.lede{font-size:18px;color:var(--muted);max-width:62ch;margin:0 0 40px}
+.proj{display:grid;grid-template-columns:1fr auto;gap:6px 24px;padding:24px 0;border-top:1px solid var(--rule)}
+.proj:last-of-type{border-bottom:1px solid var(--rule)}
+.proj h2{font:600 21px/1.3 var(--serif);margin:0}
+.proj p{margin:0;color:var(--muted);grid-column:1;max-width:60ch}
+.proj .links{grid-row:1 / span 2;grid-column:2;display:flex;flex-direction:column;gap:8px;align-self:center;text-align:right}
+a{color:var(--blue);font-weight:500}
+a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.tech{font-size:13.5px;color:var(--ink);grid-column:1}
+.how{margin-top:44px;max-width:64ch}
+.how h2{font:600 19px var(--serif);margin:0 0 8px}
+.how p{color:var(--muted);margin:0 0 12px}
+footer{margin-top:40px;font-size:14px;color:var(--muted)}
+@media (max-width:640px){.proj{grid-template-columns:1fr}.proj .links{grid-row:auto;grid-column:1;flex-direction:row;text-align:left;gap:18px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stackmark" aria-hidden="true">
+    <span style="flex:80;background:#2F5496"></span><span style="flex:8;background:#5B7DB8"></span><span style="flex:6;background:#94ACD6"></span><span style="flex:4.5;background:#C9A227"></span><span style="flex:1.5;background:#6B8F71"></span>
+  </div>
+  <h1>Structured Finance AI Lab</h1>
+  <p class="lede">Working tools for securitized products analytics by Anand Bhamri, drawing on 16 years across CLO, ABS, RMBS and CMBS, and built with Claude as a modelling and coding partner.</p>
+
+  <section class="proj">
+    <h2>RMBS Waterfall & Stress Lab</h2>
+    <p>Monthly cash flow waterfall for a four-class deal with excess spread, overcollateralization, a stepdown date and a cumulative loss trigger. Compare base, moderate and severe scenarios and see which classes take losses.</p>
+    <span class="tech">HTML and JavaScript, runs in the browser</span>
+    <div class="links"><a href="rmbs-waterfall-lab/">Open model</a><a href="https://github.com/anandbhamri-dot/structured-finance-ai-lab/tree/main/rmbs-waterfall-lab">View code</a></div>
+  </section>
+  <section class="proj">
+    <h2>Loan Tape Analyser</h2>
+    <p>Load an Excel or CSV tape, map it to standard field names, add Excel-style calculated fields, filter the pool, define measures such as SUM, AVG, COUNT and balance-weighted averages, and build custom strats exported to Excel. A Python version adds data quality checks and a Claude-drafted collateral commentary.</p>
+    <span class="tech">HTML and JavaScript in the browser; Python, pandas, Claude API</span>
+    <div class="links"><a href="loan-tape-analyser/">Open dashboard</a><a href="https://github.com/anandbhamri-dot/structured-finance-ai-lab/tree/main/loan-tape-analyser">View code</a></div>
+  </section>
+
+  <div class="how">
+    <h2>How these were built</h2>
+    <p>I describe the deal mechanics, trigger definitions and test formulas the way I would brief a new analyst, use Claude to turn them into working code, then validate the results against hand calculations and my own expectations before iterating. All data here is synthetic.</p>
+  </div>
+  <footer>Anand Mohan Bhamri, Bangalore. <a href="mailto:anand.bhamri@gmail.com">anand.bhamri@gmail.com</a></footer>
+</div>
+</body>
+</html>
