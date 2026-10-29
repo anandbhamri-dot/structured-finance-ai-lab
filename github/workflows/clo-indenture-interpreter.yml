@@ -1,0 +1,30 @@
+name: CLO Indenture Interpreter
+
+on:
+  push:
+    paths: ['clo-indenture-interpreter/**', '.github/workflows/clo-indenture-interpreter.yml']
+  pull_request:
+    paths: ['clo-indenture-interpreter/**', '.github/workflows/clo-indenture-interpreter.yml']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clo-indenture-interpreter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: The committed page is built from the committed sources
+        run: node build.js && git diff --exit-code index.html
+      - name: Engine, reader, lessons and projection tests
+        run: npm test
+      - name: Full fuzz runs
+        run: npm run test:fuzz
+      - name: Browser tests
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+          npm run test:ui
