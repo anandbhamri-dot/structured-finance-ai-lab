@@ -1,0 +1,478 @@
+Page 1
+FICTIONAL SAMPLE DOCUMENT
+
+This is not a real indenture. It was written from scratch for the CLO Indenture Interpreter, as a
+test and demonstration document. Every name, figure and date in it is made up. It follows the
+general layout of a 2007-vintage US cash-flow CLO indenture so the page's text reader can be tried
+on it, and its terms match the built-in Example CLO I deal.
+
+INDENTURE
+
+dated as of August 14, 2007
+
+among
+
+Example CLO I, Ltd., as Issuer,
+
+Example CLO I, LLC, as Co-Issuer,
+
+and
+
+Example Trust Company, N.A., as Trustee
+
+with Example Credit Partners LLC as Collateral Manager
+
+U.S.$304,000,000 Class A Senior Floating Rate Notes Due 2021
+U.S.$30,000,000 Class B Senior Floating Rate Notes Due 2021
+U.S.$25,000,000 Class C Deferrable Mezzanine Floating Rate Notes Due 2021
+U.S.$13,000,000 Class D Deferrable Mezzanine Floating Rate Notes Due 2021
+U.S.$12,500,000 Class E Deferrable Junior Floating Rate Notes Due 2021
+U.S.$30,500,000 Subordinated Notes Due 2021
+
+Page 2
+ARTICLE I
+DEFINITIONS
+
+Section 1.1 Definitions. In this Indenture, the following terms have the meanings given below.
+Words in the singular include the plural and the other way round.
+
+"Administrative Expenses": The fees, expenses and indemnities owed by the Issuer or the Co-Issuer
+to the Trustee, the Collateral Administrator, the Administrator, the Rating Agencies, accountants,
+counsel and any other service provider, paid in the order set out in this definition: first to the
+Trustee and the Collateral Administrator, then to the Rating Agencies, and then to all others pro
+rata.
+
+"Aggregate Principal Balance": When used for all or part of the Collateral Obligations, the sum of
+their principal balances on the date of determination.
+
+"Business Day": Any day on which commercial banks in New York City are open for business.
+
+"CCC Collateral Obligation": A Collateral Obligation (other than a Defaulted Obligation) rated
+"Caa1" or below by Moody's or "CCC+" or below by S&P.
+
+"CCC Excess": The amount by which the Aggregate Principal Balance of all CCC Collateral Obligations
+exceeds 8.0% of the Collateral Principal Amount. The CCC Collateral Obligations with the lowest
+Market Value make up the CCC Excess, and each of them is carried in the Principal Collateral Value
+at the lesser of 70% of its principal balance and its Market Value.
+
+"Class A/B Interest Coverage Test": A test that is satisfied on any Measurement Date if the Class
+A/B Interest Coverage Ratio on that date is at least 118.00%. The Interest Coverage Tests apply from
+the Determination Date for the second Payment Date.
+
+"Class A/B Overcollateralization Test": A test that is satisfied on any Measurement Date if the
+Class A/B Overcollateralization Ratio on that date is at least 112.00%.
+
+"Class C Interest Coverage Test": A test that is satisfied on any Measurement Date if the Class C
+Interest Coverage Ratio on that date is at least 113.00%.
+
+"Class C Overcollateralization Test": A test that is satisfied on any Measurement Date if the Class
+C Overcollateralization Ratio on that date is at least 107.00%.
+
+Page 3
+"Class D Interest Coverage Test": A test that is satisfied on any Measurement Date if the Class D
+Interest Coverage Ratio on that date is at least 108.00%.
+
+"Class D Overcollateralization Test": A test that is satisfied on any Measurement Date if the Class
+D Overcollateralization Ratio on that date is at least 104.50%.
+
+"Class E Interest Coverage Test": A test that is satisfied on any Measurement Date if the Class E
+Interest Coverage Ratio on that date is at least 104.00%.
+
+"Class E Overcollateralization Test": A test that is satisfied on any Measurement Date if the Class
+E Overcollateralization Ratio on that date is at least 102.00%.
+
+"Closing Date": August 14, 2007.
+
+"Collateral Principal Amount": On any date, the Aggregate Principal Balance of the Collateral
+Obligations plus the Principal Proceeds held in the Collection Account.
+
+"Coverage Tests": The Overcollateralization Tests and the Interest Coverage Tests.
+
+"Defaulted Obligation": A Collateral Obligation on which a payment default has occurred and is
+continuing, or whose obligor is the subject of a bankruptcy proceeding. A Defaulted Obligation is
+carried in the Principal Collateral Value at the lesser of its Market Value and its recovery rate,
+and at zero once the Issuer has held it as a Defaulted Obligation for three years.
+
+"Discount Obligation": A loan bought for less than 80% of its principal balance (or less than 85% if
+it is rated below "B3" by Moody's), or any other Collateral Obligation bought for less than 75% (or
+less than 80% if rated below "B3"). It is carried at its purchase price until its Market Value has
+stayed above 90% for 30 consecutive days.
+
+"Effective Date": The earlier of (i) December 27, 2007 and (ii) the first day on which the Aggregate
+Principal Balance of the Collateral Obligations bought by the Issuer reaches the Target Par Amount.
+
+"Fee Basis Amount": On any Payment Date, the Collateral Principal Amount at the start of the related
+Collection Period, with Defaulted Obligations counted at their principal balance.
+
+Page 4
+"Incentive Management Fee": The fee payable to the Collateral Manager on each Payment Date once the
+Holders of the Subordinated Notes have received an Internal Rate of Return equal to 11%, equal to
+20% of any remaining Interest Proceeds and Principal Proceeds after the Subordinated Notes have
+received that return.
+
+"Interest Reinvestment Test": A test that is satisfied on any Measurement Date during the
+Reinvestment Period if the Class E Overcollateralization Ratio on that date is at least 102.80%.
+
+"Market Value": The bid price of a Collateral Obligation obtained from a recognised pricing service,
+as a percentage of its principal balance.
+
+"Maximum Weighted Average Rating Factor Test": A test that is satisfied on any Measurement Date if
+the Weighted Average Rating Factor does not exceed the number set out in the Collateral Quality
+Matrix in Schedule 1 for the row and column the Collateral Manager has chosen, adjusted by the
+Moody's Weighted Average Recovery Adjustment.
+
+"Minimum Diversity Test": A test that is satisfied on any Measurement Date if the Diversity Score is
+at least 48.
+
+"Minimum Weighted Average Coupon Test": A test that is satisfied on any Measurement Date if the
+Weighted Average Coupon of the fixed rate Collateral Obligations is at least 8.00%.
+
+"Minimum Weighted Average Spread Test": A test that is satisfied on any Measurement Date if the
+Weighted Average Spread is at least 2.10%.
+
+"Moody's Minimum Weighted Average Recovery Rate Test": A test that is satisfied on any Measurement
+Date if the Moody's Weighted Average Recovery Rate is at least 44.0%.
+
+"Non-Call Period": The period from the Closing Date to but excluding July 18, 2011, during which the
+Notes may not be redeemed at the option of the Holders of the Subordinated Notes.
+
+"Payment Date": The 18th day of January, April, July and October in each year (or the next Business
+Day if that day is not a Business Day), commencing in January 2008, and the Stated Maturity.
+
+Page 5
+"Principal Collateral Value": On any Measurement Date, the Aggregate Principal Balance of the
+Collateral Obligations, except that Defaulted Obligations, Discount Obligations and the CCC Excess
+are carried at the values given in their definitions, plus the Principal Proceeds in the Collection
+Account.
+
+"Reinvestment Period": The period from the Closing Date to and including the earliest of (i) July
+18, 2014, (ii) the date on which the Notes are accelerated and (iii) the date the Collateral Manager
+gives notice that it can no longer reinvest.
+
+"S&P CDO Monitor Test": A test run on S&P's CDO Monitor model; its result is given to the Trustee by
+the Collateral Manager.
+
+"Senior Collateral Management Fee": The fee payable to the Collateral Manager on each Payment Date,
+equal to (i) 0.075% per annum of the Fee Basis Amount for each Payment Date up to and including the
+Payment Date in July 2011 and (ii) 0.15% per annum of the Fee Basis Amount after that, computed on an
+Actual/360 basis.
+
+"Senior Deferred Structuring Fee": The fee payable to the Collateral Manager equal to 0.08% per annum
+of the Fee Basis Amount on each Payment Date on or prior to the Payment Date in July 2011.
+
+"Subordinated Collateral Management Fee": The fee payable to the Collateral Manager on each Payment
+Date equal to 0.30% per annum of the Fee Basis Amount, computed on an Actual/360 basis. The
+Collateral Manager may elect to defer all or part of it.
+
+"Target Par Amount": U.S.$400,000,000.
+
+"Weighted Average Life Test": A test that is satisfied on any Measurement Date if the weighted
+average life of the Collateral Obligations is on or before 9.5 years minus the time elapsed since
+the Effective Date.
+
+Page 6
+ARTICLE II
+THE NOTES
+
+Section 2.3 Authorized Amount; Stated Maturity; Denominations.
+
+(a) The Notes are limited to the aggregate principal amounts set out below.
+
+(b) The Notes are divided into the following Classes, with the characteristics set out below.
+
+Designation
+Class A Senior Notes
+Class B Senior Notes
+Class C Deferrable Mezzanine Notes
+Class D Deferrable Mezzanine Notes
+Class E Deferrable Junior Notes
+Subordinated Notes
+Original Principal Amount
+U.S.$304,000,000 U.S.$30,000,000 U.S.$25,000,000 U.S.$13,000,000 U.S.$12,500,000 U.S.$30,500,000
+Stated Maturity
+Payment Date in July 2021
+Interest Rate
+LIBOR + 0.27% LIBOR + 0.65% LIBOR + 1.35% LIBOR + 3.10% LIBOR + 5.25% N/A
+Interest Deferrable
+No No Yes Yes Yes N/A
+Ratings (Moody's / S&P)
+Aaa / AAA Aa2 / AA A2 / A Baa2 / BBB Ba2 / BB Not rated
+
+(c) Interest on each Class of Notes accrues on an Actual/360 basis at three-month LIBOR plus the
+spread shown above. If interest on a Class C, Class D or Class E Note is not paid in full on a
+Payment Date while a more senior Class is Outstanding, the shortfall is added to the principal of
+that Class as Deferred Interest and itself bears interest.
+
+Page 7
+ARTICLE V
+EVENTS OF DEFAULT
+
+Section 5.1 Events of Default. Each of the following is an "Event of Default":
+
+(a) a failure to pay interest on the Class A Notes or the Class B Notes when due, continuing for
+five Business Days;
+
+(b) a failure to pay principal of any Note at its Stated Maturity;
+
+(c) the Issuer becoming an investment company required to register under the Investment Company Act;
+
+(d) a material breach of a covenant of the Issuer, not cured within 30 days of notice; and
+
+(e) on any Measurement Date that the Class A Overcollateralization Ratio is less than 101.00%.
+
+Page 8
+ARTICLE IX
+REDEMPTION
+
+Section 9.2 Optional Redemption. After the Non-Call Period, the Holders of a majority of the
+Subordinated Notes may direct the Issuer to redeem the Notes in whole on any Payment Date, from the
+sale of the Collateral Obligations and other available funds, if the proceeds are enough to pay each
+Class of Notes in full.
+
+Section 9.6 Special Redemption. During the Reinvestment Period the Collateral Manager may, by notice
+to the Trustee, direct that Principal Proceeds it cannot reinvest on suitable terms be applied on the
+next Payment Date as a Special Redemption Amount in the Note Payment Sequence.
+
+Page 9
+ARTICLE XI
+APPLICATION OF MONIES
+
+Section 11.1 Disbursements of Monies from the Payment Account.
+
+(a) On each Payment Date (other than a Payment Date on which the Post-Acceleration Priority of
+Payments applies), the Trustee shall apply the amounts in the Payment Account as follows.
+
+(i) Interest Proceeds on deposit in the Payment Account shall be applied in the following order of
+priority (the "Priority of Interest Payments"):
+
+(A) to the payment of taxes and governmental fees owing by the Issuer or the Co-Issuer, if any;
+
+(B) to the payment of accrued and unpaid Administrative Expenses, in the order set out in the
+definition of that term; provided that the amount paid under this clause (B) on this Payment Date
+and on the three immediately preceding Payment Dates shall not exceed, in total, the sum of (x)
+0.05% of the Principal Collateral Value on the related Determination Date and (y) U.S.$150,000;
+
+(C) to the payment of any amounts scheduled to be paid to the Hedge Counterparties under the Hedge
+Agreements (other than amounts owed to a Hedge Counterparty that is the defaulting party);
+
+(D) to the payment, pari passu, of the accrued and unpaid Senior Collateral Management Fee and the
+Senior Deferred Structuring Fee;
+
+(E) to the payment of accrued and unpaid interest on the Class A Notes and, pro rata, of any Hedge
+Termination Payments other than Defaulted Hedge Termination Payments;
+
+(F) to the payment of accrued and unpaid interest on the Class B Notes;
+
+(G) if either of the Class A/B Coverage Tests is not satisfied on the related Determination Date,
+to make payments of principal of the Class A Notes and then the Class B Notes, to the extent
+necessary to cause each Class A/B Coverage Test to be satisfied on a pro forma basis;
+
+(H) to the payment of accrued and unpaid interest on the Class C Notes, including any Deferred
+Interest on the Class C Notes and interest on it;
+
+Page 10
+(I) if either of the Class C Coverage Tests is not satisfied on the related Determination Date, to
+make payments of principal of the Class A Notes, then the Class B Notes and then the Class C Notes
+(including Deferred Interest on the Class C Notes), to the extent necessary to cause each Class C
+Coverage Test to be satisfied on a pro forma basis;
+
+(J) to the payment of accrued and unpaid interest on the Class D Notes, including any Deferred
+Interest on the Class D Notes;
+
+(K) if either of the Class D Coverage Tests is not satisfied on the related Determination Date, to
+make payments of principal of the Class A Notes, then the Class B Notes, then the Class C Notes and
+then the Class D Notes, to the extent necessary to cause each Class D Coverage Test to be satisfied
+on a pro forma basis;
+
+(L) to the payment of accrued and unpaid interest on the Class E Notes, including any Deferred
+Interest on the Class E Notes;
+
+(M) if either of the Class E Coverage Tests is not satisfied on the related Determination Date, to
+make payments of principal of the Class E Notes only, to the extent necessary to cause each Class E
+Coverage Test to be satisfied on a pro forma basis;
+
+(N) if a Rating Confirmation Failure has occurred and is continuing, to make payments of principal
+of the Notes in the Note Payment Sequence until the ratings are confirmed;
+
+(O) to the payment of the accrued and unpaid Subordinated Collateral Management Fee, less any part
+of it the Collateral Manager elects to defer;
+
+(P) if the Interest Reinvestment Test is not satisfied on the related Determination Date, for
+deposit into the Collection Account as Principal Proceeds to buy additional Collateral Obligations,
+the lesser of (x) 50% of the remaining Interest Proceeds and (y) the amount needed to cause the
+Interest Reinvestment Test to be satisfied;
+
+(Q) to the payment of any Administrative Expenses not paid under clause (B) above because of the
+cap set out there, and then of any Defaulted Hedge Termination Payments;
+
+Page 11
+(R) to the Holders of the Subordinated Notes, until they have received an Internal Rate of Return
+of 11%; and
+
+(S) any remaining Interest Proceeds, 20% to the Collateral Manager as the Incentive Management Fee
+and 80% to the Holders of the Subordinated Notes.
+
+(ii) Principal Proceeds on deposit in the Payment Account shall be applied in the following order
+of priority (the "Priority of Principal Payments"):
+
+(A) to pay the amounts referred to in clauses (A) through (F) of the Priority of Interest Payments,
+in that order, to the extent not paid in full from Interest Proceeds, and subject to the cap in
+clause (B) of the Priority of Interest Payments;
+
+(B) if any Coverage Test is not satisfied on the related Determination Date after the application
+of Interest Proceeds, to make payments of principal of the Notes in the Note Payment Sequence,
+including Deferred Interest, until each Coverage Test is satisfied on a pro forma basis;
+
+(C) on any Special Redemption Date, the Special Redemption Amount to make payments of principal of
+the Notes in the Note Payment Sequence;
+
+(D) if a Rating Confirmation Failure is continuing, to make payments of principal of the Notes in
+the Note Payment Sequence until the ratings are confirmed;
+
+(E) during the Reinvestment Period, to the Collection Account as Principal Proceeds to buy
+additional Collateral Obligations;
+
+(F) after the Reinvestment Period, to make payments of principal of the Notes in the Note Payment
+Sequence;
+
+(G) to pay the amount referred to in clause (O) of the Priority of Interest Payments, to the extent
+not paid in full;
+
+(H) to the payment of any Administrative Expenses not paid in full under the Priority of Interest
+Payments, and then of any Defaulted Hedge Termination Payments;
+
+Page 12
+(I) after all the Rated Notes have been paid in full, to the Holders of the Subordinated Notes until
+they have received an Internal Rate of Return of 11%; and
+
+(J) any remaining Principal Proceeds, 20% to the Collateral Manager as the Incentive Management Fee
+and 80% to the Holders of the Subordinated Notes.
+
+(iii) After the Notes have been accelerated following an Event of Default, and at the Stated
+Maturity, Interest Proceeds and Principal Proceeds and all other amounts in the Payment Account
+shall be applied in the following order of priority (the "Post-Acceleration Priority of Payments"):
+
+(A) to fund any unfunded commitments under Revolving Collateral Obligations and Delayed Drawdown
+Collateral Obligations, and other funding obligations of the Issuer;
+
+(B) to pay the amounts referred to in clauses (A) and (B) of the Priority of Interest Payments,
+subject to the cap in clause (B);
+
+(C) to the payment of any Hedge Termination Payments other than Defaulted Hedge Termination
+Payments;
+
+(D) to the payment, pari passu, of the Senior Collateral Management Fee and the Senior Deferred
+Structuring Fee;
+
+(E) to the payment of interest on the Class A Notes and then of principal of the Class A Notes until
+paid in full;
+
+(F) to the payment of interest on the Class B Notes and then of principal of the Class B Notes until
+paid in full;
+
+(G) to the payment of interest on the Class C Notes (including Deferred Interest) and then of
+principal of the Class C Notes until paid in full;
+
+(H) to the payment of interest on the Class D Notes (including Deferred Interest) and then of
+principal of the Class D Notes until paid in full;
+
+(I) to the payment of interest on the Class E Notes (including Deferred Interest) and then of
+principal of the Class E Notes until paid in full;
+
+Page 13
+(J) to the payment of the Subordinated Collateral Management Fee and any Cumulative Deferred
+Management Fee;
+
+(K) to the payment of any Administrative Expenses not paid in full above, and then of any Defaulted
+Hedge Termination Payments;
+
+(L) to the Holders of the Subordinated Notes until they have received an Internal Rate of Return of
+11%; and
+
+(M) any remaining amounts, 20% to the Collateral Manager as the Incentive Management Fee and 80% to
+the Holders of the Subordinated Notes.
+
+(b) The "Note Payment Sequence" means payment of principal (and, for the deferrable Classes,
+Deferred Interest) first of the Class A Notes, then the Class B Notes, then the Class C Notes, then
+the Class D Notes and then the Class E Notes, each until paid in full.
+
+(c) Each Coverage Test is measured on a pro forma basis after the payments of principal made under
+the clause that refers to it, with the Interest Coverage Ratios recomputed on the reduced balances.
+
+Page 14
+ARTICLE XII
+SALE OF COLLATERAL OBLIGATIONS; PURCHASE OF ADDITIONAL COLLATERAL OBLIGATIONS
+
+Section 12.1 Eligibility Criteria. Each Collateral Obligation must, when bought, be a loan or bond
+denominated in U.S. Dollars, pay interest at least semi-annually, and mature no later than the
+Stated Maturity, except that up to 2% of the Collateral Principal Amount may mature after it.
+
+Section 12.2 Concentration Limitations.
+
+"Concentration Limitations": Limitations that are satisfied on any Measurement Date if, in the
+aggregate, the Collateral Obligations comply with all of the following, each measured as a
+percentage of the Collateral Principal Amount:
+
+(i) not more than 10.0% may consist of Collateral Obligations that pay interest less frequently
+than quarterly;
+
+(ii) not more than 10.0% may consist of Revolving Collateral Obligations and Delayed Drawdown
+Collateral Obligations;
+
+(iii) not more than 5.0% may consist of Fixed Rate Collateral Obligations;
+
+(iv) not less than 95.0% may consist of Senior Secured Loans or Second Lien Loans;
+
+(v) not more than 10.0% may consist of Second Lien Loans, Senior Unsecured Loans and High-Yield
+Bonds;
+
+(vi) not more than 15.0% may consist of Participation Interests;
+
+(vii) not more than 2.0% may be issued by any single obligor, except that up to four obligors may
+each represent up to 2.5%;
+
+Page 15
+(viii) not more than 10.0% may be issued by obligors in any one S&P Industry Classification, except
+that up to two industries may each represent up to 12.0%;
+
+(ix) not more than 8.0% may consist of Collateral Obligations rated "Caa1" or below by Moody's or
+"CCC+" or below by S&P;
+
+(x) not more than 5.0% may consist of DIP Collateral Obligations;
+
+(xi) not more than 5.0% may consist of Current Pay Obligations;
+
+(xii) not more than 5.0% may consist of PIK Obligations;
+
+(xiii) not more than 5.0% may be issued by obligors whose total potential indebtedness under their
+loan agreements is less than U.S.$100,000,000;
+
+(xiv) not more than 2.0% may consist of Zero Coupon Obligations;
+
+(xv) not more than 25.0% may consist of Cov-Lite Loans;
+
+(xvi) not more than 20.0% may consist of Synthetic Securities;
+
+(xvii) not more than 20.0% may be issued by obligors Domiciled outside the United States;
+
+(xviii) not more than 15.0% may be issued by Canadian obligors;
+
+(xix) not more than 5.0% may consist of Senior Unsecured Loans; and
+
+(xx) not more than 5.0% may consist of bonds.
+
+Page 16
+SCHEDULE 1
+COLLATERAL QUALITY MATRIX
+
+The Collateral Manager chooses one row (minimum Weighted Average Spread) and one column (minimum
+Diversity Score) of the matrix; the cell gives the maximum Weighted Average Rating Factor. The full
+matrix is held by the Trustee and is not reproduced in this sample.
+
+SCHEDULE 2
+RECOVERY RATES
+
+Moody's and S&P recovery rates follow the standard tables published by each Rating Agency at the
+Closing Date.
+
+[End of fictional sample document]

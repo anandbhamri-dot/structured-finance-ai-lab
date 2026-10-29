@@ -6,6 +6,7 @@ Working tools for securitized products analytics, built by **Anand Bhamri** usin
 
 | Project | What it does | Stack |
 |---|---|---|
+| [CLO Indenture Interpreter](clo-indenture-interpreter/) | Reads a CLO indenture in the browser and runs its Payment Date waterfall and collateral tests, with the working behind every figure; learns terms you teach it, ties out to a trustee report and projects the deal to maturity under Base, Stress and Severe scenarios | HTML / JavaScript |
 | [RMBS Waterfall & Stress Lab](rmbs-waterfall-lab/) | Monthly cash flow waterfall with excess spread, OC, stepdown and loss trigger across three stress scenarios | HTML / JavaScript |
 | [Loan Tape Analyser](loan-tape-analyser/) | Excel/CSV tape upload, standard field mapping, Excel-style calculated fields, pool filter, custom measures (SUM, AVG, COUNT, WA, PCT, RATIO) and strat builder with Excel export; Python version adds data quality checks and a Claude-drafted commentary | JavaScript; Python, pandas, Claude API |
 

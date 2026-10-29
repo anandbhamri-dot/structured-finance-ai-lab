@@ -1,0 +1,15 @@
+{
+  "name": "clo-indenture-interpreter",
+  "version": "1.0.0",
+  "description": "Reads a CLO indenture in the browser, runs its waterfall and collateral tests with the working behind every figure, ties out to a trustee report and projects the deal to maturity.",
+  "private": true,
+  "license": "MIT",
+  "author": "Anand Bhamri",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node tests/run.js",
+    "test:ui": "node tests/ui.test.js",
+    "test:fuzz": "FUZZ_STEP=1 FUZZ_N=600 node tests/spec-fuzz.test.js && FUZZ_N=600 node tests/lesson-fuzz.test.js"
+  },
+  "engines": { "node": ">=18" }
+}

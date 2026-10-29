@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Anand Bhamri | Structured Finance AI Lab</title>
-<meta name="description" content="Structured finance analytics tools for RMBS and CLO, built by Anand Bhamri with Claude.">
+<meta name="description" content="Structured finance analytics tools for CLO and RMBS, built by Anand Bhamri with Claude.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
@@ -42,6 +42,12 @@ footer{margin-top:40px;font-size:14px;color:var(--muted)}
   <h1>Structured Finance AI Lab</h1>
   <p class="lede">Working tools for securitized products analytics by Anand Bhamri, drawing on 16 years across CLO, ABS, RMBS and CMBS, and built with Claude as a modelling and coding partner.</p>
 
+  <section class="proj">
+    <h2>CLO Indenture Interpreter</h2>
+    <p>Drop in a CLO indenture and the page reads its notes, triggers, fees and every clause of the Priority of Payments, then runs the Payment Date waterfall and collateral tests with the working behind each figure. Teach it the terms it misses, tie the results out to a trustee report, and project the deal to maturity under Base, Stress and Severe scenarios. Comes with a fictional deal and sample indenture to try.</p>
+    <span class="tech">HTML and JavaScript, runs in the browser</span>
+    <div class="links"><a href="clo-indenture-interpreter/">Open interpreter</a><a href="https://github.com/anandbhamri-dot/structured-finance-ai-lab/tree/main/clo-indenture-interpreter">View code</a></div>
+  </section>
   <section class="proj">
     <h2>RMBS Waterfall & Stress Lab</h2>
     <p>Monthly cash flow waterfall for a four-class deal with excess spread, overcollateralization, a stepdown date and a cumulative loss trigger. Compare base, moderate and severe scenarios and see which classes take losses.</p>

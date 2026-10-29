@@ -1,0 +1,4 @@
+jan08      IP 13244385.90 | E-OC 104.3173 | M 0.00 | P 0.00 | equity 2679420.24 | incentive 0.00 | post E-OC 104.3173
+apr09      IP 3676396.88 | E-OC 101.6331 | M 1383137.00 | P 0.00 | equity 0.00 | incentive 0.00 | post E-OC 102.0000
+oct16      IP 2884650.42 | E-OC 120.5033 | M 0.00 | P 0.00 | equity 1162946.11 | incentive 290736.53 | post E-OC 122.2562
+apr09 +4%  IP 3504740.00 | E-OC 100.9097 | M 804165.07 | P 0.00 | equity 0.00 | incentive 0.00 | post E-OC 101.3194

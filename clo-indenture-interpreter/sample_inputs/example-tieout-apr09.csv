@@ -1,0 +1,65 @@
+key,item,group,model,trustee
+ip,Interest Proceeds,Collections and collateral,3676396.88,3675146.88
+pp,Principal Proceeds,Collections and collateral,3100000.00,3100000.00
+apb,Aggregate Principal Balance of the collateral,Collections and collateral,407500000.00,407500000.00
+pcv,Principal Collateral Value (OC numerator),Collections and collateral,390779200.27,390779200.27
+ccc,CCC Excess,Collections and collateral,18083352.00,18083352.00
+oc.AB,Class A/B OC ratio,"Coverage tests, before payments (%)",117.000,117.00
+ic.AB,Class A/B IC ratio,"Coverage tests, before payments (%)",272.030,272.03
+oc.C,Class C OC ratio,"Coverage tests, before payments (%)",108.852,108.85
+ic.C,Class C IC ratio,"Coverage tests, before payments (%)",241.544,241.54
+oc.D,Class D OC ratio,"Coverage tests, before payments (%)",105.048,105.05
+ic.D,Class D IC ratio,"Coverage tests, before payments (%)",219.994,219.99
+oc.E,Class E OC ratio,"Coverage tests, before payments (%)",101.633,101.663
+ic.E,Class E IC ratio,"Coverage tests, before payments (%)",194.947,194.95
+irt,Interest Reinvestment Test ratio,"Coverage tests, before payments (%)",101.633,101.63
+eod,Class A OC (Event of Default) ratio,"Coverage tests, before payments (%)",128.546,128.55
+q.warf,Moody's Maximum WARF,Collateral quality tests,2837,2837
+q.mwas,Moody's Weighted Average Spread,Collateral quality tests,2.627,2.627
+q.swas,S&P Minimum Average Spread,Collateral quality tests,2.522,2.522
+q.wal,Weighted Average Life,Collateral quality tests,4.19,4.19
+q.div,Moody's Diversity Score,Collateral quality tests,67.26,67.26
+q.mwarr,Moody's Minimum Weighted Average Recovery Rate,Collateral quality tests,47.100,47.100
+q.swarr,S&P Minimum Weighted Average Recovery Rate,Collateral quality tests,63.237,63.237
+wf.interest.A,(A) Taxes,"Interest waterfall, paid",0.00,0.00
+wf.interest.B,"(B) Administrative Expenses, capped","Interest waterfall, paid",55300.00,55385.40
+wf.interest.C,(C) Hedge Payment Amount,"Interest waterfall, paid",0.00,0.00
+wf.interest.D,(D) Senior management and structuring fees,"Interest waterfall, paid",159107.50,159107.50
+wf.interest.E,(E) Class A interest,"Interest waterfall, paid",1132400.00,1132400.00
+wf.interest.F,(F) Class B interest,"Interest waterfall, paid",140250.00,140250.00
+wf.interest.G,(G) Class A/B coverage cure,"Interest waterfall, paid",0.00,0.00
+wf.interest.H,"(H) Class C interest, then deferred","Interest waterfall, paid",160625.00,160625.00
+wf.interest.I,(I) Class C coverage cure,"Interest waterfall, paid",0.00,0.00
+wf.interest.J,"(J) Class D interest, then deferred","Interest waterfall, paid",140400.00,140400.00
+wf.interest.K,(K) Class D coverage cure,"Interest waterfall, paid",0.00,0.00
+wf.interest.L,"(L) Class E interest, then deferred","Interest waterfall, paid",202187.50,202187.50
+wf.interest.M,(M) Class E coverage cure,"Interest waterfall, paid",1383137.00,1383137.00
+wf.interest.O,(O) Subordinated management fee,"Interest waterfall, paid",302989.88,302989.88
+wf.interest.P,(P) Interest Reinvestment Test,"Interest waterfall, paid",0.00,0.00
+wf.interest.Q,(Q) Uncapped expenses,"Interest waterfall, paid",0.00,0.00
+wf.interest.R,(R) Subordinated Notes to 11% IRR,"Interest waterfall, paid",0.00,0.00
+wf.interest.S,(S) Residual split 80 / 20,"Interest waterfall, paid",0.00,0.00
+wf.principal.A,(A) Senior shortfalls from interest,"Principal waterfall, paid",0.00,0.00
+wf.principal.B,(B) Coverage cure from principal,"Principal waterfall, paid",0.00,0.00
+wf.principal.E,(E) Reinvest,"Principal waterfall, paid",3100000.00,3100000.00
+wf.principal.G,(G) Unpaid subordinated fee,"Principal waterfall, paid",0.00,0.00
+wf.principal.H,(H) Uncapped expenses,"Principal waterfall, paid",0.00,0.00
+n.A.int,Class A interest paid,Notes,1132400.00,1132400.00
+n.A.prin,Class A principal paid,Notes,0.00,0.00
+n.A.bal,Class A balance after payments,Notes,304000000.00,304000000.00
+n.B.int,Class B interest paid,Notes,140250.00,140250.00
+n.B.prin,Class B principal paid,Notes,0.00,0.00
+n.B.bal,Class B balance after payments,Notes,30000000.00,30000000.00
+n.C.int,Class C interest paid,Notes,160625.00,160625.00
+n.C.prin,Class C principal paid,Notes,0.00,0.00
+n.C.bal,Class C balance after payments,Notes,25000000.00,25000000.00
+n.C.def,Class C deferred interest after payments,Notes,0.00,0.00
+n.D.int,Class D interest paid,Notes,140400.00,140400.00
+n.D.prin,Class D principal paid,Notes,0.00,0.00
+n.D.bal,Class D balance after payments,Notes,13000000.00,13000000.00
+n.D.def,Class D deferred interest after payments,Notes,0.00,0.00
+n.E.int,Class E interest paid,Notes,202187.50,202187.50
+n.E.prin,Class E principal paid,Notes,1383137.00,1383137.00
+n.E.bal,Class E balance after payments,Notes,11116863.00,11116863.00
+n.E.def,Class E deferred interest after payments,Notes,0.00,0.00
+eq,Subordinated Notes distribution,Notes,0.00,0.00

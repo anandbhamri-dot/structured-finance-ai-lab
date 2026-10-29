@@ -1,0 +1,18 @@
+{
+ "format": "clo-reader-lessons",
+ "version": 1,
+ "note": "Example lessons for the reader. Import them on the Indenture rules tab (Teach the reader > Saved lessons > Import lessons).",
+ "values": [
+  { "field": "seniorFee", "term": "Base Management Fee", "from": "example" },
+  { "field": "eod", "phrase": "Aggregate Outstanding Amount of the Class A-1 Notes, to equal or exceed", "from": "example" },
+  { "field": "nonCall", "phrase": "During the period from the Closing Date to but excluding the", "from": "example" }
+ ],
+ "clauses": [
+  { "phrase": "rating agency surveillance charges", "type": "manual", "k": "any", "from": "example" },
+  { "phrase": "until the aggregate principal amount of the Subordinated Notes is reduced to zero", "type": "equityHurdle", "k": "any", "from": "example" }
+ ],
+ "conc": [
+  { "phrase": "S&P Rating derived from a Moody's Rating", "cat": "skip", "from": "example" },
+  { "phrase": "Credit Linked Instruments", "cat": "synthetic", "from": "example" }
+ ]
+}
