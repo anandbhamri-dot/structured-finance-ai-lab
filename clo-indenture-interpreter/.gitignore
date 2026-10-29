@@ -1,0 +1,4 @@
+node_modules/
+# real deal documents and anything derived from them stay on your machine
+tests/local/
+*.pages.json
