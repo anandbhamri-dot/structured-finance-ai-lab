@@ -278,6 +278,9 @@ function scenarios() {
   const t3 = makeTape({ seed: 2014, par: 256000000, vintage: 2013, matStart: 5, matSpread: 3, matMonths: 12, sizeMin: 0.0045, sizeRange: 1.1, covLite: 0.10, spreadBase: 2.75, spreadRange: 1.4, ratingW: [2, 14, 30, 34, 16, 4], price: (r) => 96.5 + r() * 3.5, purchase: (r) => 98.5 + r() * 1.5 });
   applyDefaults(t3, [{ share: 0.012, price: 55, date: '2016-05-10' }]);
 
+  // a Principal Balance column as a trustee report might give it: below par for a few loans whose capitalised
+  // interest the indenture leaves out. The engine reads par; the Calculations tab can put this in its place.
+  [[t1, 31], [t2, 25], [t3, 29]].forEach(([T, every]) => T.forEach((x, k) => { x.principalBalance = k % every === 7 && String(x.defaulted).toUpperCase() !== 'Y' ? Math.round(x.par * 0.96 / 1000) * 1000 : x.par; }));
   const hist2009 = subHistory([['2008-01-18', 2950000], ['2008-04-18', 2150000], ['2008-07-18', 2240000], ['2008-10-18', 2080000], ['2009-01-18', 1390000]]);
   const hist2016 = quarterlyHistory('2008-01-18', '2016-07-18', (d) => {
     if (d === '2008-01-18') return 2950000; if (d < '2009-01-01') return 2150000; if (d < '2010-01-01') return d < '2009-07-01' ? 0 : 650000;

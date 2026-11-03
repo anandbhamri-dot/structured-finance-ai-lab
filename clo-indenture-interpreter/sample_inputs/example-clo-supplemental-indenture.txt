@@ -1,0 +1,48 @@
+Page 1
+FICTIONAL SAMPLE DOCUMENT
+
+This is not a real supplemental indenture. It was written from scratch for the CLO Indenture
+Interpreter, to show a deal whose terms are spread over more than one document. Every name, figure
+and date in it is made up. Read it together with the fictional sample indenture for Example CLO I,
+listed above the indenture, so that its amendments take priority over the original definitions.
+
+FIRST SUPPLEMENTAL INDENTURE
+
+made on March 2, 2009
+
+among
+
+Example CLO I, Ltd., as Issuer,
+
+Example CLO I, LLC, as Co-Issuer,
+
+and
+
+Example Trust Company, N.A., as Trustee
+
+supplementing the Indenture made on August 14, 2007 among the same parties
+
+WHEREAS the Collateral Manager has asked the Issuer to relax two of the Collateral Quality Tests
+in light of the tighter spreads and the smaller number of obligors available in the loan market;
+
+WHEREAS the Holders of a majority of the Controlling Class have consented to the amendments below;
+
+NOW, THEREFORE, the parties agree as follows.
+
+Page 2
+Section 1. Amendments to Section 1.1 of the Indenture. With effect from the date of this
+Supplemental Indenture, the following definitions in Section 1.1 of the Indenture are amended and
+restated in full:
+
+"Minimum Diversity Test": A test that is satisfied on any Measurement Date if the Diversity Score is
+at least 45.
+
+"Minimum Weighted Average Spread Test": A test that is satisfied on any Measurement Date if the
+Weighted Average Spread is at least 2.00%.
+
+Section 2. Effect of this Supplemental Indenture. Except as amended above, the Indenture remains in
+full force and effect, and each reference in it to the Indenture is a reference to the Indenture as
+supplemented by this Supplemental Indenture.
+
+Section 3. Governing Law. This Supplemental Indenture is governed by the law of the State of New
+York.

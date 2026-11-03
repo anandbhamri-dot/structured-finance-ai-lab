@@ -409,6 +409,9 @@ function run(spec0, tape, inp) {
   const estInterest = r2(estParts.idx + estParts.spr + estParts.cpn);
   const interestProceeds = inp.interestProceeds != null && inp.interestProceeds !== '' ? +inp.interestProceeds : estInterest;
 
+  // figures a user calculation replaces (Calculations tab): where each came from, for the working
+  const SRC = inp.sourceOf || {}; const ent = k => SRC[k] || 'as entered';
+  const OV = inp.overrides || {}; const ovOf = k => OV[k] && OV[k].value != null && OV[k].value !== '' && isFinite(+OV[k].value) ? { value: r2(+OV[k].value), source: OV[k].source || 'a calculation' } : null;
   // fees & expenses due
   const feeBasis = inp.feeBasis != null && inp.feeBasis !== '' ? +inp.feeBasis : pb.pcvGeneral;
   const F = spec.fees;
@@ -424,11 +427,13 @@ function run(spec0, tape, inp) {
     subMgmtCurrent: F.subMgmt ? r2(feeBasis * F.subMgmt.bps / 1e4 * dcf) : 0,
     subMgmtPrior: r2((+inp.unpaidSubFee || 0) * (1 + eRate / 100 * dcf))
   };
+  const duesInterp = { seniorMgmt: dues.seniorMgmt - (+inp.unpaidSeniorFees || 0), structuring: dues.structuring, subMgmtCurrent: dues.subMgmtCurrent };
+  ['seniorMgmt', 'structuring', 'subMgmtCurrent'].forEach(k => { const o = ovOf(k); if (o) dues[k] = o.value + (k === 'seniorMgmt' ? (+inp.unpaidSeniorFees || 0) : 0); });
   // ---- manual amounts tagged to waterfall steps
   const manualNotes = [];
   const hasItem = (st, k) => (st.type === 'expense' || st.type === 'fees') && (st.type === 'fees' ? st.items || [] : st.items || [st.item]).includes(k);
   const RANKTXT = { before: 'paid before the clause\'s own amounts', prorata: 'pro rata with the clause\'s own amounts', after: 'paid after the clause\'s own amounts' };
-  const manualAll = (Array.isArray(inp.manual) ? inp.manual : []).map((m, i) => ({ n: i + 1, name: String(m.name || '').trim() || 'Manual amount ' + (i + 1), amount: r2(+m.amount || 0), wf: ['interest', 'principal', 'liquidation'].includes(m.wf) ? m.wf : 'interest', step: String(m.step == null ? '' : m.step), rank: ['before', 'prorata', 'after'].includes(m.rank) ? m.rank : 'after', paid: 0, status: '' }));
+  const manualAll = (Array.isArray(inp.manual) ? inp.manual : []).map((m, i) => ({ n: i + 1, name: String(m.name || '').trim() || 'Manual amount ' + (i + 1), amount: r2(+m.amount || 0), wf: ['interest', 'principal', 'liquidation'].includes(m.wf) ? m.wf : 'interest', step: String(m.step == null ? '' : m.step), rank: ['before', 'prorata', 'after'].includes(m.rank) ? m.rank : 'after', paid: 0, status: '', src: m.src ? String(m.src) : '' }));
   const manualAt = {}; const adminRows = [];
   manualAll.forEach(m => {
     if (!(m.amount > 0.005)) { m.status = 'No amount'; return; }
@@ -448,8 +453,9 @@ function run(spec0, tape, inp) {
   const origDues = Object.assign({}, dues);
 
   const cov = spec.coverage;
+  const pcvInterp = pb.pcvOC - (inp.principalCashInPCV === false ? principalCash : 0); const pcvOv = ovOf('pcvOC');
   const ctx = {
-    spec, notes, order, pcv: pb.pcvOC - (inp.principalCashInPCV === false ? principalCash : 0), pcvStart: pb.pcvOC - (inp.principalCashInPCV === false ? principalCash : 0), pcvLog: [], holdOut: 0, principalInPCV: inp.principalCashInPCV !== false, period, dcf, mode, inRP,
+    spec, notes, order, pcv: pcvOv ? pcvOv.value : pcvInterp, pcvStart: pcvOv ? pcvOv.value : pcvInterp, pcvLog: [], holdOut: 0, principalInPCV: inp.principalCashInPCV !== false, period, dcf, mode, inRP,
     icNum: 0, subPaidToday: 0, cmIncentive: 0, unpaidManual: {}, adminCapPaid: 0, adminExcessPaid: 0, adminCapPaidAll: 0, buckets: { regular: principalCash, reinvestOnly: 0 },
     unpaid: {}, cumDeferredFee: +inp.cumDeferredFee || 0, subFeeUnpaidOut: 0, currentDeferred: 0, recouped: 0, eod: [], reinvested: 0
   };
@@ -530,7 +536,8 @@ function run(spec0, tape, inp) {
     if (pb.haircut.discount) out.push(LN.sub('Less: Discount Obligations carried at purchase price', '', -pb.haircut.discount));
     if (pb.haircut.ccc) out.push(LN.sub('Less: CCC Excess of ' + fmt2(pb.cccExcess) + ' carried at lesser of ' + spec.haircuts.ccc.haircutPct + '% and market value', '', -pb.haircut.ccc));
     out.push(LN.sub(ctx.principalInPCV ? 'Plus: Principal Proceeds on deposit' : 'Principal Proceeds on deposit (excluded by your setting)', '', ctx.principalInPCV ? principalCash : 0));
-    out.push(LN.row('Principal Collateral Value on the Determination Date', '', ctx.pcvStart));
+    if (pcvOv) { out.push(LN.sub('Principal Collateral Value, as the interpreter works it out', '', pcvInterp)); out.push(LN.row('Principal Collateral Value on the Determination Date', pcvOv.source, ctx.pcvStart)); }
+    else out.push(LN.row('Principal Collateral Value on the Determination Date', '', ctx.pcvStart));
     ctx.pcvLog.forEach(x => out.push(LN.row(x.why, '', x.amt)));
     if (ctx.pcvLog.length) out.push(LN.row('Principal Collateral Value at this step', '', ctx.pcv));
     return out;
@@ -617,11 +624,11 @@ function run(spec0, tape, inp) {
     else if (k === 'revolverFunding') out.push(LN.row('Unfunded revolver and synthetic obligations', 'not modelled', 0));
     else if (k === 'admin') {
       if (adminRows.length) {
-        out.push(LN.sub('Administrative Expenses entered', 'as entered', adminEntered));
-        adminRows.forEach(m => out.push(LN.sub(m.name + ' (manual input ' + m.n + ')', 'as entered', m.amount)));
+        out.push(LN.sub('Administrative Expenses entered', ent('adminDue'), adminEntered));
+        adminRows.forEach(m => out.push(LN.sub(m.name + ' (manual input ' + m.n + ')', m.src || 'as entered', m.amount)));
         out.push(LN.row('Administrative Expenses due', adminSeq.map(x => fmt2(x.amount)).join(' + '), adminDue));
         out.push(LN.note('Paid in the order listed (the Administrative Expense Payment Sequence): the cap is used up from the top of the list, and anything above it is paid later at the uncapped step.'));
-      } else out.push(LN.row('Administrative Expenses due', 'as entered', adminDue));
+      } else out.push(LN.row('Administrative Expenses due', ent('adminDue'), adminDue));
       if (isFinite(adminCap)) {
         const C = F.adminCap; const pct = fmt2(pb.pcvGeneral) + ' × ' + fpct(C.bpsOfPCV / 100, 3);
         out.push(LN.sub(fpct(C.bpsOfPCV / 100, 3) + ' of Principal Collateral Value (par plus principal cash)', pct, r2(C.bpsOfPCV / 1e4 * pb.pcvGeneral)));
@@ -635,6 +642,12 @@ function run(spec0, tape, inp) {
       }
     } else if (k === 'adminExcess') out.push(LN.row('Administrative Expenses above the cap', fmt2(adminDue) + ' − ' + fmt2(origDues.admin), o));
     else if ((k === 'seniorMgmt' || k === 'structuring') && !F[k]) out.push(LN.note('The deal spec has no terms for this fee (fees.' + k + '), so nothing is due.'));
+    else if ((k === 'seniorMgmt' || k === 'structuring') && ovOf(k)) {
+      const f = F[k] || {}; const o = ovOf(k);
+      out.push(LN.row((f.label || (k === 'seniorMgmt' ? 'Senior management fee' : 'Structuring fee')) + ' due this period', o.source, o.value));
+      out.push(LN.note('Your ' + o.source + ' replaces the interpreter\'s figure of ' + fmt2(duesInterp[k]) + '. Its working is on the Calculations tab.'));
+      if (k === 'seniorMgmt' && +inp.unpaidSeniorFees) out.push(LN.row('Plus: senior fees unpaid from prior dates', 'as entered', +inp.unpaidSeniorFees));
+    }
     else if (k === 'seniorMgmt' || k === 'structuring') {
       const f = F[k]; const bps = bpsOn(f.schedule, pd);
       out.push(...feeBasisLines());
@@ -649,7 +662,7 @@ function run(spec0, tape, inp) {
     return out;
   };
   const feeBasisLines = () => {
-    if (inp.feeBasis != null && inp.feeBasis !== '') return [LN.sub('Fee Basis Amount', 'as entered', feeBasis)];
+    if (inp.feeBasis != null && inp.feeBasis !== '') return [LN.sub('Fee Basis Amount', ent('feeBasis'), feeBasis)];
     return [LN.sub('Aggregate par of the Collateral Debt Securities', '', pb.parTotal), LN.sub('Plus: Principal Proceeds held in Eligible Investments', '', principalCash), LN.sub('Fee Basis Amount', '', feeBasis)];
   };
   const interestLine = (c, alreadyPaid) => {
@@ -868,9 +881,10 @@ function run(spec0, tape, inp) {
         case 'subMgmtFee': {
           if (!F.subMgmt) { warnings.push(kindName + ' step ' + st.id + ' pays the Subordinated Management Fee, but the deal spec has no fees.subMgmt, so nothing is due there'); row.note = 'No Subordinated Management Fee in the deal spec'; CD.push(LN.note('The deal spec has no Subordinated Management Fee (fees.subMgmt), so nothing is due here.'), LN.total('Due under this step', 0)); break; }
           const curDue = dues.subMgmtCurrent, prior = dues.subMgmtPrior; const f = F.subMgmt;
-          const origCur = r2(feeBasis * f.bps / 1e4 * dcf); const origPrior = +inp.unpaidSubFee || 0; const priorGrown = r2(origPrior * (1 + eRate / 100 * dcf));
+          const subOv = ovOf('subMgmtCurrent'); const origCur = subOv ? subOv.value : r2(feeBasis * f.bps / 1e4 * dcf); const origPrior = +inp.unpaidSubFee || 0; const priorGrown = r2(origPrior * (1 + eRate / 100 * dcf));
           const feeLines = () => {
-            const o = [...feeBasisLines(), LN.row(f.label, fmt2(feeBasis) + ' × ' + fpct(f.bps / 100, 3) + ' × ' + dS, origCur)];
+            const o = subOv ? [LN.row(f.label + ' due this period', subOv.source, origCur), LN.note('Your ' + subOv.source + ' replaces the interpreter\'s figure of ' + fmt2(duesInterp.subMgmtCurrent) + '. Its working is on the Calculations tab.')]
+              : [...feeBasisLines(), LN.row(f.label, fmt2(feeBasis) + ' × ' + fpct(f.bps / 100, 3) + ' × ' + dS, origCur)];
             if (origPrior) o.push(LN.row('Unpaid from prior dates, with interest at the Class ' + f.unpaidAccruesAtClass + ' rate', fmt2(origPrior) + ' × (1 + ' + fpct(eRate) + ' × ' + dS + ')', priorGrown));
             if (kind !== 'interest' && origCur + priorGrown - (curDue + prior) > 0.005) o.push(LN.row('Less: paid or deferred by election at the interest step', '', -r2(origCur + priorGrown - curDue - prior)));
             return o;
@@ -1037,7 +1051,7 @@ function run(spec0, tape, inp) {
         const oDue = row.due, oPaid = row.paid;
         mAfter.forEach(m => payManual(m, m.amount));
         CD.push(LN.head('Manual inputs tagged to this step'));
-        mRows.forEach(m => CD.push(LN.sub(m.name + ' (manual input ' + m.n + ', ' + RANKTXT[m.rank] + ')', 'as entered', m.amount)));
+        mRows.forEach(m => CD.push(LN.sub(m.name + ' (manual input ' + m.n + ', ' + RANKTXT[m.rank] + ')', m.src || 'as entered', m.amount)));
         const mDue = sum(mRows, m => m.amount), mPaid = r2(sum(row.payees.filter(p => p.manual && !p.carried), p => p.amount));
         row.due = oDue + mDue; CD.push(LN.total('Due under this step, including manual inputs', row.due, fmt2(oDue) + ' + ' + fmt2(mDue)));
         if (simplePaid) { CP.push(LN.row('Paid under the clause', 'lesser of ' + fmt2(oDue) + ' due and ' + fmt2(ownStart) + ' cash', oPaid)); simplePaid = false; }
@@ -1071,7 +1085,7 @@ function run(spec0, tape, inp) {
     return ledger;
   }
 
-  const result = { period, paymentDate: pd, prevDate: prev, days: ndays, inRP, mode, libor, interestProceeds, estInterest, principalProceeds: principalCash, feeBasis, dues: Object.assign({}, dues), adminCap, adminDue, adminEntered, pf, pb, qm, quality, conc, preTests, preIRT, preEoD, icDeduct, warnings, manual: manualAll, manualNotes };
+  const result = { period, paymentDate: pd, prevDate: prev, days: ndays, inRP, mode, libor, interestProceeds, estInterest, principalProceeds: principalCash, feeBasis, pcvInterp, pcvStart: ctx.pcvStart, overridden: Object.keys(OV).filter(k => ovOf(k)).concat(Object.keys(SRC)), dues: Object.assign({}, dues), duesInterp, adminCap, adminDue, adminEntered, pf, pb, qm, quality, conc, preTests, preIRT, preEoD, icDeduct, warnings, manual: manualAll, manualNotes };
 
   if (mode === 'liquidation') {
     let cash = interestProceeds + principalCash + (+inp.liquidationProceeds || 0);
@@ -1106,7 +1120,7 @@ function run(spec0, tape, inp) {
   {
     const entered = inp.interestProceeds != null && inp.interestProceeds !== '';
     const ipl = [];
-    if (entered) ipl.push(LN.total('Interest Proceeds', interestProceeds, 'as entered'));
+    if (entered) ipl.push(LN.total('Interest Proceeds', interestProceeds, ent('interestProceeds')));
     else {
       const fl = ndF, fx = ndX; const flPar = estParts.flPar, flSp = estParts.flSp, fxPar = estParts.fxPar, fxCp = estParts.fxCp;
       const defd = pf.rows.filter(r => r.defaulted);
@@ -1122,7 +1136,7 @@ function run(spec0, tape, inp) {
       ipl.push(LN.total('Interest Proceeds', interestProceeds));
     }
     result.sourceCalc = { interest: ipl };
-    const ppl = [LN.row('Principal Proceeds in the Principal Collection Account', 'as entered', principalCash)];
+    const ppl = [LN.row('Principal Proceeds in the Principal Collection Account', ent('principalProceeds'), principalCash)];
     if (mode !== 'liquidation') {
       if (ctx.irtDiverted) ppl.push(LN.row('Plus: interest diverted under the ' + (cov.reinvestmentTest ? cov.reinvestmentTest.label : 'reinvestment test'), 'reinvestment only', ctx.irtDiverted));
       const movedFee = ctx.buckets.reinvestOnly - (ctx.irtDiverted || 0);
@@ -1131,7 +1145,7 @@ function run(spec0, tape, inp) {
       ppl.push(LN.total('Principal waterfall starts with', ctx.buckets.regular + ctx.buckets.reinvestOnly + (result.interestResidual || 0)));
     }
     result.sourceCalc.principal = ppl;
-    if (mode === 'liquidation') result.sourceCalc.liquidation = [LN.row('Interest Proceeds', entered ? 'as entered' : 'tape estimate', interestProceeds), LN.row('Principal Proceeds', 'as entered', principalCash), LN.row('Sale proceeds of the portfolio', 'as entered (defaults to par × price, capped at par)', +inp.liquidationProceeds || 0), LN.total('Liquidation cash', interestProceeds + principalCash + (+inp.liquidationProceeds || 0))];
+    if (mode === 'liquidation') result.sourceCalc.liquidation = [LN.row('Interest Proceeds', entered ? ent('interestProceeds') : 'tape estimate', interestProceeds), LN.row('Principal Proceeds', ent('principalProceeds'), principalCash), LN.row('Sale proceeds of the portfolio', 'as entered (defaults to par × price, capped at par)', +inp.liquidationProceeds || 0), LN.total('Liquidation cash', interestProceeds + principalCash + (+inp.liquidationProceeds || 0))];
   }
   // post-payment
   for (const c of order) {
@@ -1180,7 +1194,8 @@ function run(spec0, tape, inp) {
     if (cccA.length) pcvLines.push(LN.sub('Less: CCC Excess of ' + fmt2(pb.cccExcess) + ', carried at the lesser of ' + spec.haircuts.ccc.haircutPct + '% of par and market value', fmt2(sum(cccA, r => r.ocPB)) + ' − ' + fmt2(sum(cccA, r => r.par)), -pb.haircut.ccc));
     pcvLines.push(LN.row('Carrying value of the collateral', [fmt2(pb.parTotal)].concat(defd.length ? [fmt2(pb.haircut.defaulted)] : [], disc.length ? [fmt2(pb.haircut.discount)] : [], cccA.length ? [fmt2(pb.haircut.ccc)] : []).join(' − '), assetsCarried));
     pcvLines.push(LN.row(ctx.principalInPCV ? 'Plus: Principal Proceeds on deposit' : 'Principal Proceeds on deposit, excluded by your setting', ctx.principalInPCV ? '' : 'not counted', cashIn));
-    pcvLines.push(LN.total('Principal Collateral Value', ctx.pcvStart, fmt2(assetsCarried) + ' + ' + fmt2(cashIn)));
+    if (pcvOv) { pcvLines.push(LN.row('Principal Collateral Value, as the interpreter works it out', fmt2(assetsCarried) + ' + ' + fmt2(cashIn), pcvInterp)); pcvLines.push(LN.total('Principal Collateral Value', ctx.pcvStart, pcvOv.source)); pcvLines.push(LN.note('Your ' + pcvOv.source + ' replaces the interpreter\'s figure in every OC test. Its working is on the Calculations tab; the tables below show the interpreter\'s own figure.')); }
+    else pcvLines.push(LN.total('Principal Collateral Value', ctx.pcvStart, fmt2(assetsCarried) + ' + ' + fmt2(cashIn)));
     const elig = r => !r.defaulted && !r.discount;
     const bM = rows.filter(r => elig(r) && mIdx(r.moodysDPR) >= pf.cccM), bS = rows.filter(r => elig(r) && sIdx(r.spRating) >= pf.cccS);
     const useM = pb.cccAmtMoodys >= pb.cccAmtSP; const bucket = (useM ? bM : bS).slice().sort((a, b) => a.price - b.price);
@@ -1218,7 +1233,7 @@ function run(spec0, tape, inp) {
     // Interest coverage
     const entered = inp.interestProceeds != null && inp.interestProceeds !== '';
     const ipLines = (result.sourceCalc.interest || []).slice(0, -1);
-    const icNumLines = ipLines.concat([LN.row('Interest Proceeds', entered ? 'as entered' : 'tape estimate', interestProceeds)], icParts.map(x => LN.sub('Less: interest step ' + x.id + ', ' + x.label, '', -x.amount)), [LN.total('Numerator', ctx.icNum, fmt2(interestProceeds) + ' − ' + fmt2(icDeduct))]);
+    const icNumLines = ipLines.concat([LN.row('Interest Proceeds', entered ? ent('interestProceeds') : 'tape estimate', interestProceeds)], icParts.map(x => LN.sub('Less: interest step ' + x.id + ', ' + x.label, '', -x.amount)), [LN.total('Numerator', ctx.icNum, fmt2(interestProceeds) + ' − ' + fmt2(icDeduct))]);
     const icNumTables = [];
     if (icParts.length) icNumTables.push(TB('Deducted from Interest Proceeds', [['Step', 'text', x => x.id], ['Item', 'text', x => x.label], ['Amount', 'usd', x => x.amount, true]], icParts));
     if (!entered) {

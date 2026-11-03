@@ -11,8 +11,8 @@ function evalExpr(expr) {
   try { return Function('return (' + s + ')')(); } catch (e) { return undefined; }
 }
 let checked = 0, problems = 0, ties = 0; let lastTableSum = null;
-function audit(label, tape, inputs) {
-  const r = E.run(spec, tape, inputs);
+function audit(label, tape, inputs, runner) {
+  const r = runner ? runner(spec, tape, inputs) : E.run(spec, tape, inputs);
   const lists = Object.entries(r.waterfalls);
   if (r.sourceCalc) Object.entries(r.sourceCalc).forEach(([k, lines]) => lines.forEach(l => chk(label + ' source ' + k, l)));
   for (const [k, rows] of lists) for (const row of rows) {
@@ -48,7 +48,8 @@ function audit(label, tape, inputs) {
   }
   r.preTests.forEach((t, i) => { const ln = T.coverage[t.id].oc.num.lines.find(l => /OC ratio$/.test(l.label)); ties++; if (ln.value !== (t.oc.ratio === Infinity ? 'n/m (no notes outstanding)' : t.oc.ratio.toFixed(4) + '%')) { console.log('OC RATIO TIE', label, t.id, ln.value, t.oc.ratio); problems++; } });
   const pcvT = T.coverage[r.preTests[0].id].oc.num; const all = pcvT.tables[pcvT.tables.length - 1]; const ci = all.cols.findIndex(c => c.label === 'Carried at');
-  ties++; if (Math.abs(all.total[ci] + (inputs.principalCashInPCV === false ? 0 : r.principalProceeds) - pcvT.value) > 0.011) { console.log('PCV TABLE TIE', label, all.total[ci], pcvT.value); problems++; }
+  ties++; if (Math.abs(all.total[ci] + (inputs.principalCashInPCV === false ? 0 : r.principalProceeds) - r.pcvInterp) > 0.011) { console.log('PCV TABLE TIE', label, all.total[ci], r.pcvInterp); problems++; }
+  ties++; if (Math.abs(r.pcvStart - pcvT.value) > 0.011) { console.log('PCV START TIE', label, r.pcvStart, pcvT.value); problems++; }
   r.conc.forEach(c => { const x = T.conc[c.id]; ties++; if (Math.abs(x.num.value / x.den.value * 100 - c.value) > 1e-9) { console.log('CONC TIE', label, c.id); problems++; } });
   return r;
 }
@@ -102,4 +103,21 @@ mv.push(['oct16 manual liquidation', oct.tape, Object.assign({}, oct.inputs, { m
 for (const [l, t, i] of variants.concat(mv)) audit(l, t, i);
 // conservation: every manual amount is paid, short, or reported
 for (const [l, t, i] of mv) { const r = E.run(spec, t, i); r.manual.forEach(m => { ties++; if (!m.status) { console.log('NO STATUS', l, m.name); problems++; } if (m.paid > m.amount + 0.005) { console.log('OVERPAID', l, m.name, m.paid, m.amount); problems++; } }); }
+// user calculations replacing the interpreter's figures: the working must still re-evaluate and tie
+const CALC = require('../src/calc.js');
+const CALCS = [
+  { name: 'Fee_Basis_Amount_2', kind: 'deal', use: 'feeBasis', formula: 'SUM(par, NOT defaulted) + SUM(oc_balance, defaulted) + Principal_Proceeds' },
+  { name: 'PCV_2', kind: 'deal', use: 'pcvOC', formula: 'Principal_Collateral_Value - 2500000' },
+  { name: 'Senior_Fee_2', kind: 'deal', use: 'seniorMgmt', formula: 'ROUND(Fee_Basis_Amount_2 * 0.12% * Day_Count_Fraction, 2)' },
+  { name: 'Sub_Fee_2', kind: 'deal', use: 'subMgmtCurrent', formula: 'ROUND(Fee_Basis_Amount_2 * 0.25% * Day_Count_Fraction, 2)' },
+  { name: 'Principal_Balance', kind: 'loan', use: 'par', formula: 'IF(asset_type = "2L", par * 0.98, par)' }];
+const withCalcs = calcs => (s, t, i) => CALC.runWith(E, s, t, i, calcs).result;
+const MANF = MAN.slice(0, 4).concat([{ name: 'Fee on the new basis', formula: 'Fee_Basis_Amount_2 * 0.01% * Day_Count_Fraction', wf: 'interest', step: 'B' }, { name: 'Broken formula', formula: 'Nope * 2', wf: 'interest', step: 'B' }]);
+const cv = [['apr09 calculations', apr.tape, Object.assign({}, apr.inputs, { manual: MANF }), withCalcs(CALCS)],
+  ['oct16 calculations', oct.tape, Object.assign({}, oct.inputs, { manual: MANF }), withCalcs(CALCS)],
+  ['apr09 calculations, cash out of PCV', apr.tape, Object.assign({}, apr.inputs, { principalCashInPCV: false }), withCalcs(CALCS)],
+  ['apr09 calculations, proceeds and admin', apr.tape, apr.inputs, withCalcs([{ name: 'IP_2', kind: 'deal', use: 'interestProceeds', formula: 'Estimated_Interest_Proceeds * 0.97' }, { name: 'PP_2', kind: 'deal', use: 'principalProceeds', formula: '1250000' }, { name: 'Admin_2', kind: 'deal', use: 'adminDue', formula: '180000' }])],
+  ['oct16 calculations, liquidation', oct.tape, Object.assign({}, oct.inputs, { mode: 'liquidation', liquidationProceeds: 200e6 }), withCalcs(CALCS)]];
+for (const [l, t, i, run] of cv) audit(l, t, i, run);
 console.log('expressions re-evaluated:', checked, ' ties checked:', ties, ' problems:', problems);
+process.exit(problems ? 1 : 0);

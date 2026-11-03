@@ -4,7 +4,7 @@ function projState() {
   if (!state.proj.common) state.proj.common = projDefaults(deal(), state.result, state.inputs);
   return state.proj;
 }
-const projStamp = () => state.dealId + '|' + state.inputs.paymentDate + '|' + JSON.stringify(state.inputs.notes) + '|' + JSON.stringify(state.stress) + '|' + (state.tape ? state.tape.length : 0) + '|' + state.tapeSource;
+const projStamp = () => state.dealId + '|' + state.inputs.paymentDate + '|' + JSON.stringify(state.inputs.notes) + '|' + JSON.stringify(state.stress) + '|' + (state.tape ? state.tape.length : 0) + '|' + state.tapeSource + '|' + JSON.stringify(calcRows().filter(c => c.on !== false).map(c => [c.name, c.kind, c.formula, c.use]));
 const yrsFmt = x => x == null ? '—' : x.toFixed(2);
 function renderProjection() {
   const P = $('#p-projection'); if (!P) return; const r = state.result; if (!r) { P.innerHTML = ''; return; }
@@ -18,6 +18,8 @@ function renderProjection() {
     '<div class="field"><label for="pc_call">Call<small>Optional redemption: collateral sold, notes repaid</small></label><select id="pc_call" data-c="callDate"><option value="">No call</option>' + calls.map(d => '<option value="' + d + '"' + (C.callDate === d ? ' selected' : '') + '>' + esc(d) + '</option>').join('') + '</select></div>' +
     fld('callPrice', 'Sale price at a call or maturity (%)') + '</div></div>';
   const stale = S.res && S.stamp !== projStamp();
+  { const CI = state.calcInfo; const pj = CI ? CI.dealApplied.filter(x => x.applied && x.target.proj).map(x => esc(x.target.label) + ' (<code class="f">' + esc(x.name) + '</code>)') : []; const ln = CI ? CI.loanApplied.filter(x => x.n).map(x => esc(CALC.lc(x.target.label)) + ' from <code class="f">' + esc(x.name) + '</code>') : [];
+    if (pj.length || ln.length) h += '<div class="notice" style="margin-top:12px">Your calculations apply here: ' + (pj.length ? pj.join(', ') + ' on every projected Payment Date' : '') + (pj.length && ln.length ? '; ' : '') + (ln.length ? ln.join(', ') + ' on the starting tape' : '') + '.</div>'; }
   h += '<div class="toolbar" style="margin-top:12px"><button class="btn primary" type="button" id="projRun"' + (S.running ? ' disabled' : '') + '>' + (S.running ? 'Running…' : S.res ? 'Run again' : 'Run the projection') + '</button><span class="src" id="projMsg">' + (S.running ? 'Running ' + esc(S.running) + '…' : stale ? 'The inputs on the left have changed since this ran.' : S.res ? 'Ran ' + S.res.base.periods.length + ' Payment Dates per scenario.' : 'Usually a second or two.') + '</span></div></div>';
   if (S.res) h += projResultsHTML(S, s);
   P.innerHTML = h; bindProjection(P);
@@ -89,13 +91,14 @@ function bindProjChart(fig, o) {
   hit.addEventListener('touchstart', e => { if (e.touches[0]) show(e.touches[0]); }, { passive: true });
 }
 function runProjection() {
-  const S = projState(); const s = deal(); const tape = effectiveTape(); const I = clone(state.inputs); const first = state.result; const out = {}; let k = 0;
+  // the starting tape carries any loan-level replacements; fee and collateral-value replacements apply on every projected date
+  const S = projState(); const s = deal(); const tape = state.calcInfo ? state.calcInfo.tape : effectiveTape(); const I = clone(state.inputs); const first = state.result; const out = {}; let k = 0; const PE = CALC.projectionEngine(E, calcRows());
   S.running = S.sc[0].label; renderProjection();
   const next = () => {
     if (k >= S.sc.length) { S.res = out; S.running = false; S.stamp = projStamp(); renderProjection(); toast('Projection done'); return; }
     const sc = S.sc[k]; S.running = sc.label; const m = $('#projMsg'); if (m) m.textContent = 'Running ' + sc.label + '…';
     setTimeout(() => {
-      try { out[sc.id] = projectDeal(E, s, tape, I, Object.assign({}, S.common, sc), first); }
+      try { out[sc.id] = projectDeal(PE, s, tape, I, Object.assign({}, S.common, sc), first); }
       catch (e) { S.running = false; renderProjection(); const mm2 = $('#projMsg'); if (mm2) mm2.textContent = 'The projection stopped: ' + E.plainError(e) + '.'; return; }
       k++; next();
     }, 30);

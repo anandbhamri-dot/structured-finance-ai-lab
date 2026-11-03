@@ -28,6 +28,7 @@ let toastT; function toast(msg) {
 const BUILTIN = { example: DATA.EXAMPLE_CLO };
 // the fictional sample indenture and trustee figures from sample_inputs, so the page can be tried without a document
 const SAMPLE_INDENTURE = /*@text sample_inputs/example-clo-indenture.txt*/;
+const SAMPLE_SUPPLEMENT = /*@text sample_inputs/example-clo-supplemental-indenture.txt*/;
 const SAMPLE_TIEOUT = { date: '2009-04-18', csv: /*@text sample_inputs/example-tieout-apr09.csv*/ };
 const LS_KEY = 'clo-interpreter-deals-v1';
 function loadSavedDeals() { try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; } }
@@ -35,12 +36,15 @@ function saveDeals() { try { localStorage.setItem(LS_KEY, JSON.stringify(state.s
 const MAN_KEY = 'clo-interpreter-manual-v1';
 function loadManual() { try { const raw = localStorage.getItem(MAN_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; } }
 function saveManual() { try { localStorage.setItem(MAN_KEY, JSON.stringify(state.manualByDeal)); } catch (e) { /* storage unavailable: keep in memory */ } }
+const CALC_KEY = 'clo-interpreter-calcs-v1';
+function loadCalcs() { try { const raw = localStorage.getItem(CALC_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; } }
+function saveCalcs() { try { localStorage.setItem(CALC_KEY, JSON.stringify(state.calcsByDeal)); } catch (e) { /* storage unavailable: keep in memory */ } }
 const DW_KEY = 'clo-interpreter-docwords-v1';
 function loadDocWords() { try { const raw = localStorage.getItem(DW_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; } }
 function saveDocWords() { try { localStorage.setItem(DW_KEY, JSON.stringify(state.docWords)); } catch (e) { /* storage unavailable: keep in memory */ } }
 const SCEN = DATA.scenarios();
 const state = {
-  saved: loadSavedDeals(), docWords: loadDocWords(), manualByDeal: loadManual(), dealId: 'example', scenarioId: 'apr09', tape: null, tapeSource: '', inputs: null,
+  saved: loadSavedDeals(), docWords: loadDocWords(), manualByDeal: loadManual(), calcsByDeal: loadCalcs(), calcInfo: null, dealId: 'example', scenarioId: 'apr09', tape: null, tapeSource: '', inputs: null,
   stress: { extraDefaultPct: 0, notches: 0, priceShock: 0, defaultPrice: 45 }, tab: 'waterfall', wfView: 'interest', result: null, hist: [],
   interp: { pages: null, fileName: '', excerpts: null, status: '', log: [], spec: null, check: null, busy: false, ctl: null },
   caps: { sample: null, downloads: null }
@@ -81,9 +85,12 @@ function effectiveTape() { return DATA.applyStress(state.tape, state.stress, sta
 function run() {
   state.inputs.manual = manRows();
   try {
-    state.result = E.run(deal(), effectiveTape(), state.inputs);
-    state.error = null;
-  } catch (e) { state.error = e; console.error(e); }
+    // the user's calculations are worked out first; any that replace a figure are used in the run
+    const out = CALC.runWith(E, deal(), effectiveTape(), state.inputs, calcRows());
+    state.result = out.result; state.calcInfo = out.info; state.error = null;
+    if (out.info) manRows().forEach((m, i) => { if (CALC.isFormulaRow(m)) m.amount = out.info.manual[i].err ? 0 : out.info.manual[i].amount; });
+    const re = $('#railExp'); if (re) re.textContent = railExpText();
+  } catch (e) { state.error = e; state.calcInfo = null; console.error(e); }
   renderOutput();
 }
 
@@ -91,7 +98,8 @@ function run() {
 function renderMast() {
   const s = deal();
   $('#dealName').textContent = s.meta.name;
-  $('#dealDoc').innerHTML = 'Interpreted from the <b>' + esc(s.meta.document || 'deal documents') + '</b>' + (s.meta.manager ? ', managed by ' + esc(s.meta.manager) : '') + (s.meta.trustee ? ', ' + esc(s.meta.trustee) + ' as trustee' : '') + '.';
+  const DOCS = (s.meta.documents || []).map(d => d.name);
+  $('#dealDoc').innerHTML = (DOCS.length > 1 ? 'Interpreted from ' + DOCS.length + ' documents, <b>' + DOCS.slice(0, -1).map(esc).join('</b>, <b>') + '</b> and <b>' + esc(DOCS[DOCS.length - 1]) + '</b>' : 'Interpreted from the <b>' + esc(s.meta.document || 'deal documents') + '</b>') + (s.meta.manager ? ', managed by ' + esc(s.meta.manager) : '') + (s.meta.trustee ? ', ' + esc(s.meta.trustee) + ' as trustee' : '') + '.';
   const sel = $('#dealSel');
   const opts = [['example', 'Example CLO I (built in, fictional)']].concat(Object.keys(state.saved).map(k => [k, state.saved[k].meta.name + ' (interpreted)']));
   sel.innerHTML = opts.map(([v, l]) => '<option value="' + esc(v) + '"' + (v === state.dealId ? ' selected' : '') + '>' + esc(l) + '</option>').join('');
@@ -101,6 +109,8 @@ function renderMast() {
 function field(label, key, opts) {
   opts = opts || {}; const v = opts.get ? opts.get() : state.inputs[key];
   const id = 'f-' + (opts.id || key);
+  const cs = calcSource(key);
+  if (cs) return '<div class="field' + (opts.wide ? ' wide' : '') + '"><label for="' + id + '">' + label + '<small>From calculation ' + esc(cs.name) + '</small></label><input type="text" id="' + id + '" value="' + esc(fmtAmt(cs.value)) + '" disabled title="Worked out by the calculation ' + esc(cs.name) + ' on the Calculations tab"></div>';
   const shown = opts.kind === 'pct' ? (v == null ? '' : v) : (v == null || v === '' ? '' : fmtAmt(v));
   return '<div class="field' + (opts.wide ? ' wide' : '') + '"><label for="' + id + '">' + label + (opts.sub ? '<small>' + opts.sub + '</small>' : '') + '</label>' +
     '<input type="text" inputmode="decimal" id="' + id + '" data-key="' + esc(key) + '" data-kind="' + (opts.kind || 'amt') + '" value="' + esc(shown) + '"' + (opts.placeholder ? ' placeholder="' + esc(opts.placeholder) + '"' : '') + '></div>';
@@ -124,8 +134,7 @@ function renderRail() {
     '<label class="check"><input type="checkbox" id="cashPCV"' + (I.principalCashInPCV !== false ? ' checked' : '') + '> Principal cash counts in the OC numerator</label></div>';
   h += '<div class="grp"><h3>Notes outstanding <small>before this date</small></h3><div class="notes-grid"><span></span><span class="h">Principal</span><span class="h">Deferred interest</span>' +
     s.classes.map(c => '<span>' + esc(c.id) + '</span><input type="text" inputmode="decimal" aria-label="Class ' + esc(c.id) + ' principal" data-note="' + esc(c.id) + '" data-part="bal" value="' + fmtAmt(I.notes[c.id] ? I.notes[c.id].bal : c.balance) + '"><input type="text" inputmode="decimal" aria-label="Class ' + esc(c.id) + ' deferred interest" data-note="' + esc(c.id) + '" data-part="def" value="' + (c.deferrable ? fmtAmt(I.notes[c.id] ? I.notes[c.id].def : 0) : '') + '"' + (c.deferrable ? '' : ' disabled placeholder="n/a"') + '>').join('') + '</div></div>';
-  { const MR = manRows().filter(m => +m.amount > 0); const std = standardRows().filter(x => +I[x.field] > 0);
-    h += '<div class="grp"><h3>Expenses and fees</h3><p class="hint" style="margin-top:0">' + (MR.length + std.length) + ' manual amount' + (MR.length + std.length === 1 ? '' : 's') + ', ' + mm(sum(MR, m => +m.amount) + sum(std, x => +I[x.field])) + ' in total, each tagged to a waterfall step. Fee balances and the manager\'s elections are there too.</p><button class="btn small" type="button" id="toManual">Open Manual inputs</button></div>'; }
+  h += '<div class="grp"><h3>Expenses and fees</h3><p class="hint" style="margin-top:0" id="railExp">' + railExpText() + '</p><button class="btn small" type="button" id="toManual">Open Manual inputs</button></div>';
   h += '<div class="grp"><h3>Events</h3><label class="check"><input type="checkbox" id="rcfChk"' + (I.rcf ? ' checked' : '') + '> Rating Confirmation Failure continues</label>' +
     (Object.values(s.waterfalls || {}).some(W => (W || []).some(st => st.when === 'redemption')) ? '<label class="check"><input type="checkbox" id="redChk"' + (I.redemption ? ' checked' : '') + '> This Payment Date is a Redemption Date</label>' : '') +
     (I.rcf ? field('Paydown to reinstate ratings', 'rcfAmount') : '') + field('Special Redemption Amount', 'specialRedemption') +
@@ -140,6 +149,12 @@ function renderRail() {
   $('#railBody').innerHTML = h;
   bindRail();
   updatePeriodLine();
+}
+// the rail's count of manual amounts; formula amounts are known only after a run, so it is refreshed then too
+function railExpText() {
+  const I = state.inputs; const MR = manRows().filter(m => +m.amount > 0); const std = standardRows().filter(x => +(calcSource(x.field) ? calcSource(x.field).value : I[x.field]) > 0);
+  const tot = sum(MR, m => +m.amount) + sum(std, x => +(calcSource(x.field) ? calcSource(x.field).value : I[x.field]));
+  return (MR.length + std.length) + ' manual amount' + (MR.length + std.length === 1 ? '' : 's') + ', ' + mm(tot) + ' in total, each tagged to a waterfall step. Fee balances and the manager\'s elections are there too.';
 }
 function rng(key, label, min, max, step, f) {
   const v = state.stress[key] || 0;
@@ -199,10 +214,10 @@ function renderOutput() {
     $('#verdict').innerHTML = msg; $('#strip').innerHTML = '';
     $$('#tabs button').forEach(b => { const n = b.querySelector('.n'); if (n) n.remove(); });
     ['waterfall', 'tests', 'tieout', 'projection', 'notes', 'portfolio'].forEach(k => { const P = $('#p-' + k); if (P) P.innerHTML = '<p class="lead">Nothing to show until the deal runs.</p>'; });
-    renderRules(); renderManual(); return;
+    renderRules(); renderManual(); renderCalcs(); return;
   }
   renderVerdict(); renderStrip(); renderTabs();
-  renderWaterfall(); renderManual(); renderTests(); renderTieout(); renderProjection(); renderNotes(); renderPortfolio(); renderRules();
+  renderWaterfall(); renderManual(); renderCalcs(); renderTests(); renderTieout(); renderProjection(); renderNotes(); renderPortfolio(); renderRules();
 }
 
 function interestCures(r) { return (r.waterfalls.interest || []).filter(s => (s.type === 'cure') && s.paid > 0.5); }
@@ -285,7 +300,7 @@ function renderStrip() {
 
 function renderTabs() {
   const r = state.result;
-  const counts = { tests: r.preTests.filter(t => !t.pass).length + r.quality.filter(q => q.pass === false).length + r.conc.filter(c => c.pass === false).length, manual: (r.manual || []).filter(m => m.amount > 0.005 && !/^Paid in full|^Applies only/.test(m.status)).length, tieout: tieOffCount() };
+  const counts = { tests: r.preTests.filter(t => !t.pass).length + r.quality.filter(q => q.pass === false).length + r.conc.filter(c => c.pass === false).length, manual: (r.manual || []).filter(m => m.amount > 0.005 && !/^Paid in full|^Applies only/.test(m.status)).length + (state.calcInfo ? state.calcInfo.manual.filter(m => m.err).length : 0), tieout: tieOffCount(), calcs: calcErrCount() };
   $$('#tabs button').forEach(b => { const n = counts[b.dataset.tab]; const base = b.textContent.replace(/\d+$/, '').trim(); b.innerHTML = esc(base) + (n ? '<span class="n">' + n + '</span>' : ''); });
 }
 
@@ -364,8 +379,9 @@ function renderWaterfall() {
   if (r.mode !== 'liquidation') h += '<div class="seg" role="group" aria-label="Waterfall">' + ['interest', 'principal'].map(k => '<button type="button" data-wf="' + k + '" aria-pressed="' + (v === k) + '">' + (k === 'interest' ? 'Interest priority' : 'Principal priority') + '</button>').join('') + '</div>';
   else h += '<span class="src">Liquidation Priority of Payments: Interest and Principal Proceeds plus sale proceeds, combined.</span>';
   h += '<span class="src">Select any Due, Paid or Cash left amount to see the working behind it.</span>' + (state.caps.downloads ? '<button class="btn small" type="button" id="dlLedger">Download ledger CSV</button>' : '') + '</div>';
+  h += overrideBanner();
   const DW = state.docWords[state.dealId];
-  h += '<div class="docbar">' + (DW ? '<span>Each step shows its clause as printed in <b>' + esc(DW.file) + '</b>, ' + esc(DW.unit) + ' ' + DW.from + '\u2013' + DW.to + '.</span><button class="linkbtn" type="button" id="docClear">Remove</button>'
+  h += '<div class="docbar">' + (DW ? '<span>Each step shows its clause as printed in <b>' + esc(DW.file) + '</b>, ' + esc(DW.where || DW.unit + ' ' + DW.from + '\u2013' + DW.to) + '.</span><button class="linkbtn" type="button" id="docClear">Remove</button>'
     : '<span>Steps cite their clause in the ' + esc(s.meta.document || 'deal documents') + '. To see each clause\'s own wording beside it, add the document; it is read here in your browser.</span><label class="btn small" for="docFile">Add the document\u2026</label><input type="file" id="docFile" accept="application/pdf,.pdf,.htm,.html,text/html,.txt,text/plain" hidden>') + '<span class="src" id="docMsg" aria-live="polite"></span></div>';
   const residual = v === 'interest' ? r.interestResidual : r.residual;
   h += '<div class="alloc"><div class="head"><h3>Where the ' + titles[v] + ' went</h3><span class="tot"><button type="button" class="calc" data-src="' + v + '" aria-label="' + esc(titles[v]) + ' of ' + usd(total) + ': show the working">' + mm(total) + '</button>' + (v === 'principal' && r.ctx.irtDiverted ? ', of which ' + mm(r.ctx.irtDiverted) + ' was diverted from interest' : '') + '</span></div>' + allocation(rows, total, residual) + '</div>';
@@ -398,7 +414,7 @@ function renderWaterfall() {
     h += '<tr class="' + cls + '"><td class="step">' + esc(row.id) + '</td><td class="what">' + w + '</td><td class="num">' + link(row.due, 'due', usdz(row.due)) + '</td><td class="num">' + link(row.paid, 'paid', usdz(row.paid)) + '</td><td class="num sh">' + usdz(Math.max(0, row.due - row.paid)) + '</td><td class="rem"><div class="remv">' + link(row.after, 'paid', usd(row.after)) + '</div><div class="rembar' + (divert ? ' dv' : '') + '"><span style="width:' + remPct.toFixed(2) + '%"></span></div></td></tr>';
   }
   h += '</tbody></table></div>';
-  const P = $('#p-waterfall'); P.innerHTML = h;
+  const P = $('#p-waterfall'); P.innerHTML = h; bindBanner(P);
   $$('[data-wf]', P).forEach(b => b.onclick = () => { state.wfView = b.dataset.wf; renderWaterfall(); });
   const dl = $('#dlLedger', P); if (dl) dl.onclick = downloadLedger;
   const df = $('#docFile', P); if (df) df.onchange = e => { const f = e.target.files[0]; if (f) matchDocument(f); };
@@ -441,7 +457,23 @@ function openCalc(c) {
 }
 function renderCalc() {
   const c = state.calc, r = state.result, d = $('#calcd'); if (!c || !r) return;
+  d.classList.toggle('wide', !!c.cg); // a group's steps side by side need the room
   let h = '';
+  if (c.cg) {
+    const keys = calcRows().filter(x => x.group === c.cg && x.on !== false && x.name).map(x => x.name.toLowerCase());
+    const W = state.calcInfo && CALC.groupWorking(state.calcInfo, keys, c.cg); if (!W) { d.close(); return; }
+    h = '<header class="cd-head"><div><p class="cd-kicker">Your calculations: a group of ' + keys.length + ' step' + (keys.length === 1 ? '' : 's') + '</p><h2 id="calcTitle">' + esc(c.cg) + '</h2></div><button type="button" class="cd-x" aria-label="Close the working">×</button></header>' +
+      '<div class="cd-body"><div class="cd-lines">' + calcLinesHTML(W.lines) + '</div><p class="cd-fine">Each step\'s own working, with the columns it uses, opens from its value on the Calculations tab.</p></div>' +
+      '<footer class="cd-foot"><span></span><button type="button" class="btn small" id="cdCopy">Copy working</button><span></span></footer>';
+    d.innerHTML = h; bindCalc(c.cg, W.lines); return;
+  }
+  if (c.cv) {
+    const W = state.calcInfo && CALC.working(state.calcInfo, c.cv); if (!W) { d.close(); return; }
+    h = '<header class="cd-head"><div><p class="cd-kicker">' + (W.kind === 'loan' ? 'Your calculation: a loan column' : 'Your calculation: a deal figure') + '</p><h2 id="calcTitle">' + esc(W.title) + '</h2></div><button type="button" class="cd-x" aria-label="Close the working">×</button></header>' +
+      '<div class="cd-body"><div class="cd-lines">' + calcLinesHTML(W.lines) + '</div><p class="cd-fine">Worked out from the figures for this Payment Date. Edit the formula on the Calculations tab.</p></div>' +
+      '<footer class="cd-foot"><span></span><button type="button" class="btn small" id="cdCopy">Copy working</button><span></span></footer>';
+    d.innerHTML = h; bindCalc(W.title, W.lines); return;
+  }
   if (c.src) {
     const lines = (r.sourceCalc || {})[c.src] || [];
     h = '<header class="cd-head"><div><p class="cd-kicker">Cash at the start of the ' + esc(WF_NAME[c.src]) + '</p><h2 id="calcTitle">' + esc(SRC_NAME[c.src]) + '</h2></div><button type="button" class="cd-x" aria-label="Close the working">×</button></header>' +
@@ -495,6 +527,8 @@ function bindCalc(title, lines) {
   };
 }
 
+/*@include calc.js*/
+/*@include calc_ui.js*/
 /*@include manual_ui.js*/
 /*@include tieout_ui.js*/
 /*@include projection.js*/
@@ -592,7 +626,7 @@ function renderTests() {
   h += '<div class="sec"><h2>Portfolio Profile Test</h2><p class="lead">Percentages of Principal Collateral Value at par (' + mm(r.pb.pcvGeneral) + '). The indenture applies these when buying, requiring a breached limit to be maintained or improved.</p><div class="scroll"><table><thead><tr><th>Clause</th><th>Limit on</th><th class="num">Numerator</th><th class="num">Denominator</th><th class="num">Portfolio</th><th class="num">Limit</th><th>Result</th><th>Note</th><th>Source</th></tr></thead><tbody>';
   r.conc.forEach(c => { h += '<tr><td class="ref" style="color:var(--ink-2)">' + esc(c.id) + '</td><td>' + esc(c.label) + '</td><td class="num">' + tcLink('conc|' + c.id + '||num', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + tcLink('conc|' + c.id + '||den', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + pct(c.value) + '</td><td class="num">' + (c.op === '>=' ? '≥ ' : '≤ ') + pct(c.limit, c.limit % 1 ? 1 : 0) + '</td><td><span class="res ' + (c.pass ? 'pass' : 'fail') + '">' + (c.pass ? 'Pass' : 'Fail') + '</span></td><td class="small">' + esc(c.note || '') + '</td><td class="ref">' + esc(c.ref || '') + '</td></tr>'; });
   h += '</tbody></table></div></div>';
-  const P = $('#p-tests'); P.innerHTML = h; bindTestLinks(P);
+  const P = $('#p-tests'); P.innerHTML = overrideBanner() + h; bindTestLinks(P); bindBanner(P);
   $$('select[data-sel]', P).forEach(x => x.onchange = () => { state.inputs.selections[x.dataset.sel] = +x.value; run(); });
   $$('select[data-ext]', P).forEach(x => x.onchange = () => { state.inputs.selections.external = state.inputs.selections.external || {}; state.inputs.selections.external[x.dataset.ext] = x.value === '' ? null : x.value === '1'; run(); });
 }
@@ -651,16 +685,17 @@ function renderPortfolio() {
   h += '<div class="toolbar"><span class="src">' + esc(state.tapeSource) + '</span>' +
     '<label class="btn small" for="tapeFile">Upload tape CSV</label><input type="file" id="tapeFile" accept=".csv,text/csv" hidden>' +
     (state.caps.downloads ? '<button class="btn small" type="button" id="dlTape">Download tape CSV</button><button class="btn small" type="button" id="dlTemplate">Blank template</button>' : '') + '</div>';
-  h += '<p class="hint">Columns are matched by name (par, price, spread, moodysDPR, spRating, maturity, defaulted, covLite and so on). Missing optional columns default to "no". ' + (state.stress.extraDefaultPct || state.stress.notches || state.stress.priceShock ? '<b>The table shows the tape after your stress overlay.</b>' : '') + '</p>';
+  { const LA = state.calcInfo ? state.calcInfo.loanApplied.filter(x => x.n) : []; if (LA.length) h += '<div class="notice">' + LA.map(x => 'The ' + esc(CALC.lc(x.target.label)) + ' shown for ' + x.n + ' loan' + (x.n > 1 ? 's' : '') + ' comes from your calculation <code class="f">' + esc(x.name) + '</code>, not the tape.').join(' ') + ' <button class="linkbtn" type="button" data-gotab="calcs">Open Calculations</button></div>'; }
+  h += '<p class="hint">Columns are matched by name (par, price, spread, moodysDPR, spRating, maturity, defaulted, covLite and so on). Missing optional columns default to "no"; any other column is kept for the Calculations tab. ' + (state.stress.extraDefaultPct || state.stress.notches || state.stress.priceShock ? '<b>The table shows the tape after your stress overlay.</b>' : '') + '</p>';
   h += '<div class="scroll" style="max-height:560px"><table class="tape"><thead><tr><th>ID</th><th>Obligor</th><th>Industry</th><th>Type</th><th class="num">Par</th><th class="num">Price</th><th class="num">Spread</th><th>Moody\'s DPR / facility</th><th>S&amp;P</th><th>Rec.</th><th>Maturity</th><th>Flags</th><th class="num">OC balance</th><th>OC treatment</th></tr></thead><tbody>';
   rows.slice().sort((a, b) => (b.defaulted - a.defaulted) || ((b.cccAlloc || 0) - (a.cccAlloc || 0)) || (b.discount - a.discount) || (b.par - a.par)).forEach(x => {
     const flags = (x.defaulted ? '<span class="flag def">DEF</span>' : '') + (x.ccc ? '<span class="flag ccc">CCC</span>' : '') + (x.discount ? '<span class="flag dsc">DISC</span>' : '') + (x.covLite ? '<span class="flag cl">CL</span>' : '');
     h += '<tr><td>' + esc(x.id) + '</td><td>' + esc(x.obligor) + '</td><td>' + esc(x.mIndustry) + '</td><td>' + esc(x.assetType) + (x.rateType === 'FIXED' ? ' fixed' : '') + '</td><td class="num">' + usd(x.par) + '</td><td class="num">' + (+x.price).toFixed(2) + '</td><td class="num">' + (x.rateType === 'FIXED' ? pct(x.coupon, 2) + ' cpn' : pct(x.spread, 3)) + '</td><td>' + esc(x.moodysDPR) + ' / ' + esc(x.moodysFacility) + '</td><td>' + esc(x.spRating) + '</td><td>' + esc(x.spRecUsed) + '</td><td>' + esc(x.maturity) + '</td><td>' + flags + '</td><td class="num">' + usd(x.ocPB) + '</td><td class="small">' + esc(x.ocReason || 'Par') + '</td></tr>';
   });
   h += '</tbody></table></div>';
-  const P = $('#p-portfolio'); P.innerHTML = h;
+  const P = $('#p-portfolio'); P.innerHTML = h; bindBanner(P);
   $('#tapeFile', P).onchange = e => { const f = e.target.files[0]; if (f) readTapeFile(f); };
-  const d1 = $('#dlTape', P); if (d1) d1.onclick = () => saveFile('loan-tape.csv', toCSV(state.tape, TAPE_COLS));
+  const d1 = $('#dlTape', P); if (d1) d1.onclick = () => saveFile('loan-tape.csv', toCSV(state.tape, TAPE_COLS.concat(CALC.extraColumns(state.tape).map(c => c.raw))));
   const d2 = $('#dlTemplate', P); if (d2) d2.onclick = () => saveFile('loan-tape-template.csv', TAPE_COLS.join(',') + '\nL001,Example Holdings,Healthcare Education & Childcare,Healthcare Education & Childcare,US,SSL,FLOAT,2500000,98.5,99.75,2.75,0,B2,B1,B,3,2014-06-15,N,,N,450000000,Q,N,N,N,N,N,N,N,N\n');
 }
 function parseCSV(text) {
@@ -679,12 +714,15 @@ function readTapeFile(file) {
   fr.onload = () => {
     const rows = parseCSV(String(fr.result)); if (rows.length < 2) { toast('That file has no data rows.'); return; }
     const head = rows[0].map(x => x.toLowerCase().replace(/[^a-z0-9]/g, ''));
-    const map = {}; Object.entries(ALIASES).forEach(([k, al]) => { const i = head.findIndex(h => h === k.toLowerCase() || al.includes(h)); if (i >= 0) map[k] = i; });
+    const map = {}; const usedI = new Set();
+    Object.entries(ALIASES).forEach(([k, al]) => { let i = head.findIndex((h, j) => h === k.toLowerCase() && !usedI.has(j)); if (i < 0) for (const a of al) { i = head.findIndex((h, j) => h === a && !usedI.has(j)); if (i >= 0) break; } if (i >= 0) { map[k] = i; usedI.add(i); } });
+    // every other column is kept under its own name, for the Calculations tab
+    const extra = rows[0].map((x, j) => usedI.has(j) ? null : [j, CALC.snake(x)]).filter((x, j, A) => x && x[1] && !Object.prototype.hasOwnProperty.call(ALIASES, x[1]) && A.findIndex(y => y && y[1] === x[1]) === j);
     if (map.par == null) { toast('No par column found. Name it "par", "principal" or "balance".'); return; }
-    const tape = rows.slice(1).map((r, i) => { const o = {}; Object.entries(map).forEach(([k, j]) => { o[k] = r[j]; }); if (!o.id) o.id = 'R' + (i + 1); return o; }).filter(o => parseAmt(o.par) > 0).map(o => Object.assign(o, { par: parseAmt(o.par) }));
+    const tape = rows.slice(1).map((r, i) => { const o = {}; Object.entries(map).forEach(([k, j]) => { o[k] = r[j]; }); extra.forEach(([j, k]) => { if (!(k in o)) o[k] = r[j] == null ? '' : r[j]; }); if (!o.id) o.id = 'R' + (i + 1); return o; }).filter(o => parseAmt(o.par) > 0).map(o => Object.assign(o, { par: parseAmt(o.par) }));
     state.tape = tape; state.stress = { extraDefaultPct: 0, notches: 0, priceShock: 0, defaultPrice: 45 };
     const missing = ['price', 'spread', 'moodysDPR', 'spRating', 'maturity'].filter(k => map[k] == null);
-    state.tapeSource = 'Uploaded ' + file.name + ': ' + tape.length + ' positions, ' + Object.keys(map).length + ' columns recognised' + (missing.length ? '; missing ' + missing.join(', ') + ' (defaults used)' : '');
+    state.tapeSource = 'Uploaded ' + file.name + ': ' + tape.length + ' positions, ' + Object.keys(map).length + ' columns recognised' + (missing.length ? '; missing ' + missing.join(', ') + ' (defaults used)' : '') + (extra.length ? '; ' + extra.length + ' more kept for calculations (' + extra.slice(0, 4).map(x => x[1]).join(', ') + (extra.length > 4 ? ', …' : '') + ')' : '');
     renderRail(); run(); toast('Loaded ' + tape.length + ' positions from ' + file.name);
   };
   fr.readAsText(file);
@@ -758,7 +796,8 @@ function interpHTML() {
   h += '<div id="pasteBox" hidden style="margin-top:10px"><textarea id="pasteText" rows="6" placeholder="Paste the notes table, Priority of Payments and the coverage test, fee and quality test definitions"></textarea><button class="btn small" type="button" id="pasteUse" style="margin-top:6px">Use this text</button></div>';
   if (I.status) h += '<p class="small" style="margin:10px 0 0" id="interpStatus">' + esc(I.status) + '</p>';
   if (I.excerpts) {
-    h += '<p class="small" style="margin:10px 0 2px">' + esc(I.fileName) + ': ' + I.pages.length + ' pages. Sections found:</p><div class="excerpts">' + I.excerpts.map(x => '<span class="tag">' + esc(x.label) + ', p. ' + (x.from + 1) + (x.to > x.from ? '–' + (x.to + 1) : '') + '</span>').join('') + '</div>';
+    h += docListHTML();
+    h += '<p class="small" style="margin:10px 0 2px">' + (I.docs && I.docs.length > 1 ? I.pages.length + ' pages in all' : esc(I.fileName) + ': ' + I.pages.length + ' pages') + '. Sections found:</p><div class="excerpts">' + I.excerpts.map(x => '<span class="tag">' + esc(x.label) + ', ' + esc(pageRange(x.from + 1, x.to + 1)) + '</span>').join('') + '</div>';
     if (!I.excerpts.some(x => /Priority/.test(x.label))) h += '<div class="notice warn">No Priority of Payments section was found, so the waterfalls could not be read.' + (can ? ' Claude can still search the document.' : '') + '</div>';
     if (!I.spec && can) h += '<div class="toolbar"><button class="btn primary" type="button" id="interpGo"' + (I.busy ? ' disabled' : '') + '>' + (I.busy ? 'Interpreting…' : 'Interpret with Claude') + '</button>' + (I.busy ? '<button class="btn" type="button" id="interpStop">Stop</button>' : '') + '<span class="src">Runs on your Claude usage; usually one to three minutes.</span></div>';
   }
@@ -773,7 +812,7 @@ function interpHTML() {
       const STL = { found: 'Found', taught: 'Taught', entered: 'Entered by you', missing: 'Not found', estimated: 'Estimated', default: 'Standard value' };
       const tlink = f => { if (!f.teach || RR_DONE.includes(f.how) && f.how === 'found') return ''; const lab = RR_DONE.includes(f.how) ? 'Change' : 'Teach'; return ' <button class="linkbtn tl" type="button" ' + (f.teach === 'clause' ? 'data-tclause="' + esc(f.k + '|' + f.cid) + '"' : f.teach === 'concItem' ? 'data-tconc="' + esc(f.cid) + '"' : 'data-tfield="' + esc(f.teach) + '"') + ' aria-label="' + lab + ': ' + esc(f.field) + '">' + lab + '</button>'; };
       h += '<details class="readlist" id="readList"' + (I.readOpen != null ? (I.readOpen ? ' open' : '') : gaps ? ' open' : '') + '><summary>What was read, with pages' + (gaps ? ' <span class="tag warn" style="margin-left:6px">' + gaps + ' to check or enter</span>' : '') + '</summary><div class="scroll" style="margin-top:8px"><table><thead><tr><th>Item</th><th>Value</th><th>Page</th><th>Status</th></tr></thead><tbody>' +
-        order.filter(g => I.found.some(f => f.group === g)).map(g => '<tr class="grp"><td colspan="4"><b>' + esc(g) + '</b></td></tr>' + I.found.filter(f => f.group === g).map(f => '<tr' + (!RR_DONE.includes(f.how) ? ' class="gap"' : '') + '><td>' + esc(f.field) + '</td><td' + (f.snippet ? ' title="' + esc(f.snippet) + '"' : '') + '>' + esc(f.value) + '</td><td class="ref">' + (f.page ? esc(I.unit + ' ' + f.page) : '—') + '</td><td class="stc"><span class="res ' + (RR_DONE.includes(f.how) ? 'pass' : f.how === 'missing' ? 'fail' : 'na') + '">' + esc(STL[f.how] || f.how) + '</span>' + tlink(f) + '</td></tr>').join('')).join('') +
+        order.filter(g => I.found.some(f => f.group === g)).map(g => '<tr class="grp"><td colspan="4"><b>' + esc(g) + '</b></td></tr>' + I.found.filter(f => f.group === g).map(f => '<tr' + (!RR_DONE.includes(f.how) ? ' class="gap"' : '') + '><td>' + esc(f.field) + '</td><td' + (f.snippet ? ' title="' + esc(f.snippet) + '"' : '') + '>' + esc(f.value) + '</td><td class="ref">' + (f.page ? esc(pageLabel(f.page)) : '—') + '</td><td class="stc"><span class="res ' + (RR_DONE.includes(f.how) ? 'pass' : f.how === 'missing' ? 'fail' : 'na') + '">' + esc(STL[f.how] || f.how) + '</span>' + tlink(f) + '</td></tr>').join('')).join('') +
         '</tbody></table></div><p class="small" style="margin-top:6px">Hover a value to see the text it came from. Use <b>Teach</b> to show the reader where a value is; it will look there first on later documents too.</p></details>';
       if (I.how === 'rules' && I.items) h += teachHTML();
     }
@@ -785,6 +824,16 @@ function interpHTML() {
   if (!(I.spec && I.how === 'rules' && I.items && I.found && I.found.length)) h += teachHTML();
   return h;
 }
+// the documents in this reading, in the order the reader goes through them
+function docListHTML() {
+  const I = state.interp; const D = I.docs || []; if (!D.length) return '';
+  const un = (u, n) => (u === 'PDF p.' ? 'PDF page' : u === 'part' ? 'part' : 'page') + (n === 1 ? '' : 's');
+  let h = '<div class="doclist"><p class="small" style="margin:10px 0 4px"><b>' + (D.length > 1 ? D.length + ' documents in this reading.' : 'One document in this reading.') + '</b> ' + (D.length > 1 ? 'They are read in this order, so where two give the same term the first is normally used: put an amendment or supplemental indenture above the document it amends. Page references name the document.' : 'Where some of the deal\'s terms are in another document, such as the collateral management agreement or a supplemental indenture, add it to this reading.') + '</p><ol>';
+  h += D.map((d, i) => '<li><span class="dn">' + esc(d.name) + '</span><span class="small">' + d.pages.length + ' ' + un(d.unit, d.pages.length) + '</span>' + (D.length > 1 ? '<span class="cv-acts"><button type="button" class="ib" data-dup="' + i + '" aria-label="Move ' + esc(d.name) + ' up"' + (i ? '' : ' disabled') + '>↑</button><button type="button" class="ib" data-ddown="' + i + '" aria-label="Move ' + esc(d.name) + ' down"' + (i < D.length - 1 ? '' : ' disabled') + '>↓</button><button type="button" class="ib" data-ddel="' + i + '" aria-label="Remove ' + esc(d.name) + ' from the reading">×</button></span>' : '') + '</li>').join('');
+  const smp = D.some(d => /^example-clo-indenture/.test(d.name)) && !D.some(d => /^example-clo-supplemental/.test(d.name));
+  h += '</ol><div class="toolbar" style="margin:6px 0 0"><label class="btn small" for="addDocFile">Add another document</label><input type="file" id="addDocFile" accept="application/pdf,.pdf,.htm,.html,text/html,.txt,text/plain" hidden>' + (smp ? '<button class="btn small" type="button" id="trySupp">Add the sample supplemental indenture</button>' : '') + '</div></div>';
+  return h;
+}
 function bindInterp() {
   const B = $('#interpBox'); if (!B) return;
   const drop = $('#drop', B);
@@ -794,6 +843,10 @@ function bindInterp() {
   $('#pdfFile', B).onchange = e => { const f = e.target.files[0]; if (f) readDoc(f); };
   $('#pasteToggle', B).onclick = () => { $('#pasteBox', B).hidden = !$('#pasteBox', B).hidden; };
   $('#trySample', B).onclick = () => usePages(htmlToPages(SAMPLE_INDENTURE, false), 'example-clo-indenture.txt (fictional sample)', 'page');
+  const ad = $('#addDocFile', B); if (ad) ad.onchange = e => { const f = e.target.files[0]; if (f) readDoc(f, true); };
+  const ts = $('#trySupp', B); if (ts) ts.onclick = () => addPages(htmlToPages(SAMPLE_SUPPLEMENT, false), 'example-clo-supplemental-indenture.txt (fictional sample)', 'page', true);
+  $$('[data-dup],[data-ddown]', B).forEach(b => b.onclick = () => { const D = state.interp.docs; const i = +(b.dataset.dup || b.dataset.ddown); const j = b.dataset.dup != null ? i - 1 : i + 1; if (j < 0 || j >= D.length) return; [D[i], D[j]] = [D[j], D[i]]; applyDocs(); });
+  $$('[data-ddel]', B).forEach(b => b.onclick = () => { const D = state.interp.docs; const d = D.splice(+b.dataset.ddel, 1)[0]; applyDocs(); toast('Removed ' + d.name + ' from the reading.'); });
   $('#pasteUse', B).onclick = () => { const t = $('#pasteText', B).value.trim(); if (t.length < 500) { toast('Paste more of the document: at least the Priority of Payments and test definitions.'); return; } usePages(splitPasted(t), 'Pasted text', 'part'); };
   const go = $('#interpGo', B); if (go) go.onclick = () => interpret();
   const stop = $('#interpStop', B); if (stop) stop.onclick = () => { if (state.interp.ctl) state.interp.ctl.abort(); };
@@ -808,19 +861,19 @@ function logI(msg) { state.interp.log.push(msg); const lg = $('#interpLog'); if 
 function splitPasted(t) { const parts = t.split('\f'); if (parts.length > 1) return parts; const out = []; for (let i = 0; i < t.length; i += 3200) out.push(t.slice(i, i + 3200)); return out; }
 function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); }); }
 const isTextDoc = f => /\.(html?|txt)$/i.test(f.name) || /^text\/(html|plain)/.test(f.type);
-function readDoc(file) { return isTextDoc(file) ? readHtmlDoc(file) : readPdf(file); }
+function readDoc(file, add) { return isTextDoc(file) ? readHtmlDoc(file, add) : readPdf(file, add); }
 /*@include docpages.js*/
-async function readHtmlDoc(file) {
-  const I = state.interp; I.status = 'Reading ' + file.name + '…'; I.excerpts = null; I.spec = null; I.log = []; rerenderInterp();
+async function readHtmlDoc(file, add) {
+  const I = state.interp; I.status = (add ? 'Adding ' : 'Reading ') + file.name + '…'; if (!add) { I.excerpts = null; I.spec = null; I.log = []; } rerenderInterp();
   try {
     const raw = await file.text();
     const pages = htmlToPages(raw, /\.html?$/i.test(file.name) || /html/.test(file.type) || /<html|<body|<p[\s>]/i.test(raw.slice(0, 5000)));
-    if (pages.join('').length < 20000) { I.status = 'That file has too little text to be an indenture or offering memorandum.'; rerenderInterp(); return; }
-    usePages(pages, file.name, 'page');
+    if (pages.join('').length < (add ? 800 : 20000)) { I.status = add ? 'That file has too little text to add.' : 'That file has too little text to be an indenture or offering memorandum. If it is part of a deal whose main document you have read, use Add another document.'; rerenderInterp(); return; }
+    if (add) addPages(pages, file.name, 'page'); else usePages(pages, file.name, 'page');
   } catch (e) { I.status = 'Could not read the file: ' + e.message + '.'; rerenderInterp(); }
 }
-async function readPdf(file) {
-  const I = state.interp; I.status = 'Loading the PDF reader…'; I.excerpts = null; I.spec = null; I.log = []; rerenderInterp();
+async function readPdf(file, add) {
+  const I = state.interp; I.status = 'Loading the PDF reader…'; if (!add) { I.excerpts = null; I.spec = null; I.log = []; } rerenderInterp();
   try {
     if (!window.pdfjsLib) {
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js');
@@ -837,18 +890,22 @@ async function readPdf(file) {
     }
     const chars = sum(pages, x => x.length);
     if (chars < pdf.numPages * 200) { I.status = 'This PDF has little extractable text (it may be scanned). Paste the text instead.'; rerenderInterp(); return; }
-    usePages(pages, file.name, 'PDF p.');
+    if (add) addPages(pages, file.name, 'PDF p.'); else usePages(pages, file.name, 'PDF p.');
   } catch (e) { I.status = 'Could not read the PDF: ' + e.message + '. Try pasting the text instead.'; rerenderInterp(); }
 }
 function relabelRefs(o, unit) {
   if (Array.isArray(o)) { o.forEach(x => relabelRefs(x, unit)); return; }
   if (!o || typeof o !== 'object') return;
-  for (const k of Object.keys(o)) { if (k === 'ref' && typeof o[k] === 'string') o[k] = o[k].replace(/^(?:PDF )?p\. (\d+)$/, (m, n) => unit + ' ' + n); else relabelRefs(o[k], unit); }
+  for (const k of Object.keys(o)) { if (k === 'ref' && typeof o[k] === 'string') o[k] = o[k].replace(/^(?:PDF )?p\. (\d+)$/, (m, n) => typeof unit === 'function' ? unit(+n) : unit + ' ' + n); else relabelRefs(o[k], unit); }
 }
+// a page of the reading, named by its own document when there are several
+function pageLabel(n) { const I = state.interp; return I.set ? I.set.label(n) : (I.unit || 'p.') + ' ' + n; }
+function pageRange(a, b) { const I = state.interp; return I.set ? I.set.range(a, b) : (I.unit || 'p.') + ' ' + a + (b > a ? '\u2013' + b : ''); }
 // one reading of the loaded document with a set of lessons, completed with standard values where the document gave none
 function readOnce(lessons) {
-  const I = state.interp; const r = readDealText(I.pages, I.fileName, lessons); const filled = [];
-  relabelRefs(r.spec, I.unit); fillDefaults(r.spec, filled);
+  const I = state.interp; const r = readDealText(I.pages, I.fileName, lessons, I.set && I.set.multi ? I.set.keys : []); const filled = [];
+  relabelRefs(r.spec, pageLabel); fillDefaults(r.spec, filled);
+  if (I.docs && I.docs.length > 1) r.spec.meta.documents = I.docs.map(d => ({ name: d.name, pages: d.pages.length }));
   // values the document did not give, filled with standard ones: shown as gaps rather than only in the assumptions
   filled.forEach(f => { if (/^CCC/.test(f.field) && r.found.some(x => x.teach === 'ccc')) return; r.found.push({ group: 'Haircuts', field: f.field, value: f.value, page: null, how: 'default', snippet: '', teach: /^CCC/.test(f.field) ? 'ccc' : null }); });
   return r;
@@ -863,8 +920,12 @@ function readRules() {
     I.log = ['Read the deal terms from the document in ' + Math.max(1, Math.round(performance.now() - t0)) + ' ms, here in your browser, without Claude.'].concat(dm.note ? [dm.note] : []);
   } catch (e) { I.spec = null; I.status = 'The text rules could not read this document (' + e.message + ').' + (state.caps.sample ? ' You can ask Claude instead.' : ''); }
 }
-function usePages(pages, name, unit) {
-  const I = state.interp; I.pages = pages; I.fileName = name; I.unit = unit || 'p.'; I.terms = null; I.teach = null; I.wfLoc = locateWaterfall(pages); I.excerpts = findExcerpts(pages, I.wfLoc); I.status = ''; I.spec = null; I.log = [];
+// a new reading of one document; addPages puts another document of the same deal into it
+function usePages(pages, name, unit) { state.interp.docs = [{ name, pages, unit: unit || 'p.' }]; applyDocs(); }
+function addPages(pages, name, unit, first) { const I = state.interp; const d = { name, pages, unit: unit || 'p.' }; I.docs = I.docs || []; if (first) I.docs.unshift(d); else I.docs.push(d); applyDocs(); toast('Added ' + name + '. The reading now uses ' + I.docs.length + ' documents.'); }
+function applyDocs() {
+  const I = state.interp; I.set = docSet(I.docs); const pages = I.set.pages;
+  I.pages = pages; I.fileName = I.set.name; I.unit = I.docs.length === 1 ? I.docs[0].unit : 'p.'; I.terms = null; I.teach = null; I.wfLoc = locateWaterfall(pages); I.excerpts = findExcerpts(pages, I.wfLoc, I.set.multi ? I.set.docOf : null); I.status = ''; I.spec = null; I.log = [];
   readRules(); rerenderInterp();
 }
 /*@include docclauses.js*/
@@ -881,7 +942,8 @@ const PATTERNS = [
   { label: 'Concentration limits', re: /(Portfolio Profile Test|Concentration Limitations)[\s\S]{0,1500}\(i\)/i, span: 4, max: 1 },
   { label: 'Events of Default', re: /["\u201c]Event of Default["\u201d] is defined|Events of Default\.|["\u201c]Event of Default["\u201d]/, span: 2, max: 1 }
 ];
-function findExcerpts(pages, loc) {
+function findExcerpts(pages, loc, docOf) {
+  const same = (a, b) => !docOf || docOf(a + 1) === docOf(b + 1); // excerpts stay within one document
   const picked = []; const budget = 175000; let used = 0;
   if (loc) { picked.push({ label: 'Priority of Payments (operative text)', from: loc.from, to: loc.to }); used += sum(pages.slice(loc.from, loc.to + 1), x => x.length); }
   for (const p of PATTERNS) {
@@ -890,7 +952,7 @@ function findExcerpts(pages, loc) {
     for (let i = 0; i < lim && n < p.max; i++) {
       const txt = pages[i] + (pages[i + 1] ? pages[i + 1].slice(0, 1500) : '');
       if (!p.re.test(txt)) continue;
-      const from = i, to = Math.min(pages.length - 1, i + p.span - 1);
+      const from = i; let to = Math.min(pages.length - 1, i + p.span - 1); while (to > from && !same(from, to)) to--;
       if (picked.some(x => from >= x.from && to <= x.to)) { n++; continue; }
       const size = sum(pages.slice(from, to + 1), x => x.length);
       if (used + size > budget) break;
@@ -899,10 +961,10 @@ function findExcerpts(pages, loc) {
   }
   picked.sort((a, b) => a.from - b.from);
   const merged = [];
-  for (const x of picked) { const last = merged[merged.length - 1]; if (last && x.from <= last.to + 1) { last.to = Math.max(last.to, x.to); if (!last.label.includes(x.label)) last.label = /operative/.test(x.label) ? x.label + ' + ' + last.label : last.label + ' + ' + x.label; } else merged.push(Object.assign({}, x)); }
+  for (const x of picked) { const last = merged[merged.length - 1]; if (last && x.from <= last.to + 1 && same(last.to, x.from)) { last.to = Math.max(last.to, x.to); if (!last.label.includes(x.label)) last.label = /operative/.test(x.label) ? x.label + ' + ' + last.label : last.label + ' + ' + x.label; } else merged.push(Object.assign({}, x)); }
   return merged;
 }
-function excerptText() { const I = state.interp; return I.excerpts.map(x => '=== ' + (I.unit === 'PDF p.' ? 'PDF pages ' : I.unit === 'part' ? 'Parts ' : 'Pages ') + (x.from + 1) + '–' + (x.to + 1) + ' (' + x.label + ') ===\n' + I.pages.slice(x.from, x.to + 1).map((t, k) => '[' + I.unit + ' ' + (x.from + k + 1) + ']\n' + t).join('\n')).join('\n\n'); }
+function excerptText() { const I = state.interp; const multi = I.set && I.set.multi; return (multi ? 'The deal\'s terms are in ' + I.docs.length + ' documents, read in this order: ' + I.docs.map(d => d.name).join('; ') + '. Where two give the same term, the earlier one governs. Pages are numbered across all of them; each page marker also names its document.\n\n' : '') + I.excerpts.map(x => '=== ' + (multi ? 'Pages ' : I.unit === 'PDF p.' ? 'PDF pages ' : I.unit === 'part' ? 'Parts ' : 'Pages ') + (x.from + 1) + '–' + (x.to + 1) + ' (' + x.label + ') ===\n' + I.pages.slice(x.from, x.to + 1).map((t, k) => '[' + (multi ? 'page ' + (x.from + k + 1) + ' = ' + pageLabel(x.from + k + 1) : I.unit + ' ' + (x.from + k + 1)) + ']\n' + t).join('\n')).join('\n\n'); }
 function exampleSpec() { const s = clone(DATA.EXAMPLE_CLO); delete s.ratingFactors; delete s.recovery; s.concentrations = s.concentrations.slice(0, 10); s.assumptions = s.assumptions.slice(0, 3); return JSON.stringify(s); }
 const SCHEMA_DOC = `Return ONE JSON object (no prose, no code fence) with these keys. Dates are yyyy-mm-dd. Percentages are numbers in percent (111.8 means 111.80%). Money is in dollars.
 meta: {name, manager, trustee, document, closingDate, firstPaymentDate, paymentFrequencyMonths, paymentDay, statedMaturity, reinvestmentPeriodEnd (the last Payment Date inside the Reinvestment Period), nonCallEnd, effectiveDate (estimate if not fixed, and say so in assumptions), targetPar, dayCount, index, effectiveDateNote?}
@@ -951,15 +1013,15 @@ function docMatch(spec) {
   let n = 0, m = 0;
   ['interest', 'principal', 'liquidation'].forEach(k => {
     const steps = spec.waterfalls[k] || []; const got = words[k] || {};
-    steps.forEach(st => { m++; if (got[st.id]) { n++; got[st.id].page = I.unit + ' ' + got[st.id].page; } });
+    steps.forEach(st => { m++; if (got[st.id]) { n++; got[st.id].page = pageLabel(got[st.id].page); } });
     const miss = steps.filter(st => !got[st.id]).map(st => st.id);
     if (miss.length && Object.keys(got).length) res.warns.push('Not found in the document\'s ' + name[k] + ' Priority of Payments: step' + (miss.length > 1 ? 's ' : ' ') + miss.join(', ') + '. Check the clause letters.');
     const L = loc.anchors[k] ? docLetters(loc, k) : [];
     const ids = steps.map(st => wfShortId(st.id)); const absent = L.filter(x => !ids.includes(x));
     if (L.length >= 3 && absent.length) res.warns.push('The document\'s ' + name[k] + ' Priority of Payments has clauses ' + L[0] + '\u2013' + L[L.length - 1] + ', but the spec has no step for ' + absent.join(', ') + '.');
   });
-  res.words = Object.assign({ file: I.fileName, from: loc.from + 1, to: loc.to + 1, unit: I.unit }, words);
-  res.note = 'Matched ' + n + ' of ' + m + ' steps to the clauses printed on ' + I.unit + ' ' + (loc.from + 1) + '\u2013' + (loc.to + 1) + '.';
+  res.words = Object.assign({ file: I.set && I.set.multi ? I.docs[I.set.docOf(loc.from + 1)].name : I.fileName, from: loc.from + 1, to: loc.to + 1, unit: I.unit, where: pageRange(loc.from + 1, loc.to + 1) }, words);
+  res.note = 'Matched ' + n + ' of ' + m + ' steps to the clauses printed on ' + pageRange(loc.from + 1, loc.to + 1) + '.';
   return res;
 }
 /*@include filldefaults.js*/
@@ -998,12 +1060,23 @@ async function interpret(fix) {
 }
 
 // ---------------- tabs & boot
-function selectTab(t) { state.tab = t; $$('#tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t))); $$('.panel').forEach(p => { p.hidden = p.id !== 'p-' + t; }); }
+// The tab bar stays at the top of the window. Each tab remembers how far down you were, so switching back
+// returns you there; a tab you have not scrolled opens at its top, just under the bar.
+const tabScroll = {};
+function tabsTop() { const a = $('#tabsAnchor'); return a ? Math.round(a.getBoundingClientRect().top + window.scrollY) : 0; }
+function selectTab(t) {
+  const prev = state.tab, was = window.scrollY, top = tabsTop(); const down = was >= top - 2; // the bar is at the top of the window
+  if (prev && prev !== t && down) tabScroll[prev] = was;
+  state.tab = t; $$('#tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t))); $$('.panel').forEach(p => { p.hidden = p.id !== 'p-' + t; });
+  if (prev !== t && down) window.scrollTo(0, Math.max(top, tabScroll[t] || top));
+  const nav = $('#tabs'), on = $('#tabs button[aria-selected="true"]'); if (on) { const r = on.getBoundingClientRect(), n = nav.getBoundingClientRect(); if (r.left < n.left) nav.scrollLeft -= n.left - r.left + 12; else if (r.right > n.right) nav.scrollLeft += r.right - n.right + 12; } // on a phone the bar scrolls sideways
+}
+if ('IntersectionObserver' in window && $('#tabsAnchor')) new IntersectionObserver(es => { $('#tabs').classList.toggle('stuck', !es[0].isIntersecting); }).observe($('#tabsAnchor'));
 $$('#tabs button').forEach(b => b.addEventListener('click', () => selectTab(b.dataset.tab)));
 $('#tabs').addEventListener('keydown', e => { const tabs = $$('#tabs button'); const i = tabs.findIndex(b => b.dataset.tab === state.tab); if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; selectTab(n.dataset.tab); n.focus(); } });
 $('#dealSel').onchange = e => loadDeal(e.target.value);
 $('#calcd').addEventListener('click', e => { if (e.target === $('#calcd')) $('#calcd').close(); });
-$('#calcd').addEventListener('close', () => { const c = state.calc; state.calc = null; if (!c) return; const sel = c.src ? 'button.calc[data-src="' + c.src + '"]' : 'button.calc[data-k="' + c.k + '"][data-i="' + c.i + '"][data-part="' + (c.part === 'due' ? 'due' : 'paid') + '"]'; const b = $(sel); if (b) b.focus(); });
+$('#calcd').addEventListener('close', () => { const c = state.calc; state.calc = null; if (!c) return; const sel = c.cg ? '#p-calcs [data-gwork="' + c.gi + '"]' : c.cv ? 'button.calc[data-cv="' + c.cv + '"]' : c.tc ? 'button.calc[data-tc="' + c.tc + '"]' : c.src ? 'button.calc[data-src="' + c.src + '"]' : 'button.calc[data-k="' + c.k + '"][data-i="' + c.i + '"][data-part="' + (c.part === 'due' ? 'due' : 'paid') + '"]'; const b = $(sel); if (b) b.focus(); });
 $('#goInterpret').onclick = () => { selectTab('rules'); $('#interpBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 $('#railToggle').onclick = () => { const r = $('#rail'); const c = r.classList.toggle('collapsed'); $('#railToggle').setAttribute('aria-expanded', String(!c)); $('#railToggleState').textContent = c ? 'Show' : 'Hide'; };
 window.addEventListener('resize', () => { if (state.result) renderStrip(); });

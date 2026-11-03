@@ -148,7 +148,7 @@ function rrTeachKey(group, field) {
   return null;
 }
 const RR_DONE = ['found', 'taught', 'entered'];
-function readDealText(pages, fileName, lessons) {
+function readDealText(pages, fileName, lessons, alsoKeys) {
   const J = rrJoin(pages); const T = J.text;
   const found = []; const assumptions = [];
   const LS = rrLessons(lessons); const docKey = rrDocKey(pages, fileName); const usedL = new Set(); const items = { clauses: [], conc: [] };
@@ -572,8 +572,8 @@ function readDealText(pages, fileName, lessons) {
   // things a reader must check
   spec.classes.forEach(c => { if (c.spread == null) { c.spread = 0; assumptions.push('Class ' + c.id + ' spread not found: set to 0%. Enter it in the deal spec.'); } });
   if (!spec.equity) { const est = Math.max(0, (spec.meta.targetPar || 0) - sum(spec.classes, c => c.balance)); const nmE = /Preferred Shares/.test(T) ? 'Preferred Shares' : /Income Notes/.test(T) ? 'Income Notes' : 'Subordinated Notes'; spec.equity = { id: 'SUB', name: nmE, balance: est || 1 }; log('Notes', nmE, est ? rrM(est) + ', estimated as Target Par less the rated notes' : 'not found', null, est ? 'estimated' : 'missing'); assumptions.push('The ' + nmE + ' amount is not stated in this document; ' + (est ? 'it is estimated as Target Par less the rated notes (' + rrM(est) + ').' : 'enter it in the deal spec.') + ' It drives the IRR hurdle.'); }
-  // values entered by hand for this one document replace what was read
-  for (const x of LS.values.filter(q => q.value && q.doc === docKey)) {
+  // values entered by hand for this document (or for one of the documents read together here) replace what was read
+  for (const x of LS.values.filter(q => q.value && (q.doc === docKey || (alsoKeys || []).includes(q.doc)))) {
     const r = rrParseValue(x.field, x.value); if (!r.ok) continue; const v = r.v; const f = RR_FIELDS.find(q => q.key === x.field); let group = f.group, field = f.label, shown = x.value; const ref = 'entered by you'; const drop = re => { for (let i = assumptions.length - 1; i >= 0; i--) if (re.test(assumptions[i])) assumptions.splice(i, 1); };
     const bp = p => Math.round(p * 10000) / 100;
     switch (x.field) {

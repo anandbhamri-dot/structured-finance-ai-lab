@@ -51,26 +51,29 @@ function renderManual() {
   const ae = document.activeElement; const fk = ae && ae.dataset ? ae.dataset.fk : null; const selS = ae && 'selectionStart' in ae ? ae.selectionStart : null;
   const s = deal(); const r = state.result; const rows = manRows(); const I = state.inputs;
   const res = r && r.manual ? r.manual : []; const stat = i => res[i] || null;
-  let h = '<div class="sec"><h2>Manual inputs</h2><p class="lead">Amounts that come from the trustee report, the administrator or the manager for this Payment Date. Each row is paid at the waterfall step you tag it to. A row tagged to the capped Administrative Expenses step counts against the cap, in the order listed; anything above the cap is paid at the uncapped expenses step.</p>';
+  let h = '<div class="sec"><h2>Manual inputs</h2><p class="lead">Amounts that come from the trustee report, the administrator or the manager for this Payment Date. Each row is paid at the waterfall step you tag it to. A row tagged to the capped Administrative Expenses step counts against the cap, in the order listed; anything above the cap is paid at the uncapped expenses step. An amount that starts with = is a formula, such as <code class="f">=ROUND(Fee_Basis_Amount_2 * 0.02% * Day_Count_Fraction, 2)</code>, using the names on the Calculations tab; it is worked out again on every Payment Date.</p>';
   h += '<div class="toolbar"><button class="btn small" type="button" id="manAdd">Add a row</button><select id="manPreset" aria-label="Add a common item"><option value="">Add a common item…</option>' + MAN_PRESETS.map((x, i) => '<option value="' + i + '">' + esc(x[0]) + '</option>').join('') + '</select><button class="btn small" type="button" id="manPasteT">Paste from a spreadsheet</button>' +
     (rows.length ? '<button class="btn small" type="button" id="manCsv">' + (state.caps.downloads ? 'Download as CSV' : 'Copy as CSV') + '</button><button class="btn small" type="button" id="manZero">Set amounts to zero</button>' : '') + '</div>';
   h += '<div id="manPaste" hidden class="box" style="margin:0 0 12px"><p class="small" style="margin:0 0 6px">One row per line: description, amount, waterfall, step, position. Copy straight from a spreadsheet, or separate the values with commas. Waterfall is interest, principal or liquidation; position is before, pro rata or after (optional; ignored at the capped step). Example: <code>Trustee fee, 12500, interest, B</code></p><textarea id="manPasteText" rows="5" spellcheck="false"></textarea><div class="toolbar" style="margin-top:6px"><button class="btn small primary" type="button" id="manPasteGo">Add these rows</button><span class="src" id="manPasteMsg"></span></div></div>';
   h += '<div class="scroll"><table class="manual"><thead><tr><th>#</th><th>Description</th><th class="num">Amount</th><th>Waterfall step</th><th>Within the step</th><th class="num">Paid</th><th><span class="sr">Actions</span></th></tr></thead>';
   h += '<tbody class="std">' + standardRows().map(x => {
-    const v = I[x.field] || 0; const pd = standardPaid(x.key);
-    return '<tr><td class="small">—</td><td>' + esc(x.name) + '</td><td class="num"><input type="text" inputmode="decimal" class="amt" data-key="' + x.field + '" data-kind="amt" data-fk="k-' + x.field + '" aria-label="' + esc(x.name) + '" value="' + esc(v ? fmtAmt(v) : '0') + '"></td><td>' + esc('Interest ' + x.st.id + ' · ' + x.st.label) + '</td><td class="small">' + esc(x.how) + '</td><td class="num">' + (v > 0.005 && pd != null ? usd(pd) + '<div class="st">' + (pd >= v - 0.5 ? 'Paid in full' : pd > 0.5 ? 'Part paid' : 'Not paid') + '</div>' : '') + '</td><td></td></tr>';
+    const cs = calcSource(x.field); const v = cs ? cs.value : I[x.field] || 0; const pd = standardPaid(x.key);
+    return '<tr><td class="small">—</td><td>' + esc(x.name) + '</td><td class="num">' + (cs ? '<input type="text" class="amt" aria-label="' + esc(x.name) + '" value="' + esc(fmtAmt(v)) + '" disabled><div class="st">From calculation ' + esc(cs.name) + '</div>' : '<input type="text" inputmode="decimal" class="amt" data-key="' + x.field + '" data-kind="amt" data-fk="k-' + x.field + '" aria-label="' + esc(x.name) + '" value="' + esc(v ? fmtAmt(v) : '0') + '">') + '</td><td>' + esc('Interest ' + x.st.id + ' · ' + x.st.label) + '</td><td class="small">' + esc(x.how) + '</td><td class="num">' + (v > 0.005 && pd != null ? usd(pd) + '<div class="st">' + (pd >= v - 0.5 ? 'Paid in full' : pd > 0.5 ? 'Part paid' : 'Not paid') + '</div>' : '') + '</td><td></td></tr>';
   }).join('') + '</tbody><tbody id="manBody">';
   if (!rows.length) h += '<tr><td colspan="7" class="small" style="padding:14px 10px">No other manual amounts yet. Add a row, pick a common item, or paste rows from a spreadsheet.</td></tr>';
   rows.forEach((m, i) => {
     const st = (s.waterfalls[m.wf] || []).find(x => x.id === m.step); const z = stat(i);
-    const cls = z && /^Not paid|^Part paid/.test(z.status) && +m.amount > 0 ? ' class="warnrow"' : '';
-    h += '<tr' + cls + '><td class="small">' + (i + 1) + '</td>' +
+    const fx = CALC.isFormulaRow(m); const fr = fx && state.calcInfo ? state.calcInfo.manual[i] : null;
+    const cls = [z && /^Not paid|^Part paid/.test(z.status) && +m.amount > 0 ? 'warnrow' : '', fx ? 'hasfx' : ''].filter(Boolean).join(' ');
+    h += '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td class="small">' + (i + 1) + '</td>' +
       '<td><input type="text" data-mi="' + i + '" data-f="name" data-fk="m-' + m.id + '-name" aria-label="Row ' + (i + 1) + ' description" value="' + esc(m.name || '') + '" placeholder="Description" list="manNames"></td>' +
-      '<td class="num"><input type="text" inputmode="decimal" class="amt" data-mi="' + i + '" data-f="amount" data-fk="m-' + m.id + '-amount" aria-label="Row ' + (i + 1) + ' amount" value="' + esc(m.amount ? fmtAmt(m.amount) : '') + '" placeholder="0"></td>' +
+      (fx ? '<td class="num"><span class="fxv">' + (fr && !fr.err ? cents(fr.amount) : '—') + '</span><div class="st">from the formula</div></td>'
+        : '<td class="num"><input type="text" class="amt" data-mi="' + i + '" data-f="amount" data-fk="m-' + m.id + '-amount" aria-label="Row ' + (i + 1) + ' amount, or a formula starting with =" value="' + esc(m.amount ? fmtAmt(m.amount) : '') + '" placeholder="0 or =formula" spellcheck="false" autocomplete="off"></td>') +
       '<td><select class="stepsel" data-mi="' + i + '" data-f="step" data-fk="m-' + m.id + '-step" aria-label="Row ' + (i + 1) + ' step">' + stepOptions(m.wf, m.step) + '</select></td>' +
       '<td><select data-mi="' + i + '" data-f="rank" data-fk="m-' + m.id + '-rank" aria-label="Row ' + (i + 1) + ' position within the step"' + (isCapStep(st) ? ' disabled' : '') + '>' + rankOptions(st, m.rank) + '</select></td>' +
       '<td class="num">' + (z && +m.amount > 0 ? usd(z.paid) + '<div class="st">' + esc(z.status) + '</div>' : '') + '</td>' +
-      '<td class="acts"><button type="button" class="ib" data-up="' + i + '" aria-label="Move row ' + (i + 1) + ' up"' + (i ? '' : ' disabled') + '>↑</button><button type="button" class="ib" data-down="' + i + '" aria-label="Move row ' + (i + 1) + ' down"' + (i < rows.length - 1 ? '' : ' disabled') + '>↓</button><button type="button" class="ib" data-del="' + i + '" aria-label="Delete row ' + (i + 1) + '">×</button></td></tr>';
+      '<td class="acts"><button type="button" class="ib" data-up="' + i + '" aria-label="Move row ' + (i + 1) + ' up"' + (i ? '' : ' disabled') + '>↑</button><button type="button" class="ib" data-down="' + i + '" aria-label="Move row ' + (i + 1) + ' down"' + (i < rows.length - 1 ? '' : ' disabled') + '>↓</button><button type="button" class="ib" data-del="' + i + '" aria-label="Delete row ' + (i + 1) + '">×</button></td></tr>' +
+      (fx ? '<tr class="fxrow"><td></td><td colspan="5"><label class="fxl"><span>Formula</span><input type="text" class="fxin" data-mi="' + i + '" data-f="amount" data-fk="m-' + m.id + '-amount" aria-label="Row ' + (i + 1) + ' formula" value="' + esc('=' + m.formula) + '" spellcheck="false" autocomplete="off"></label>' + manFormulaNote(i, m) + '</td><td></td></tr>' : '');
   });
   const tot = sum(rows, m => +m.amount || 0) + sum(standardRows(), x => +I[x.field] || 0);
   const totPaid = sum(res, m => m.paid || 0) + sum(standardRows(), x => standardPaid(x.key) || 0);
@@ -99,6 +102,12 @@ function renderManual() {
   if (fk) { const el = P.querySelector('[data-fk="' + (window.CSS && CSS.escape ? CSS.escape(fk) : fk) + '"]'); if (el) { el.focus(); if (selS != null && el.setSelectionRange && el.type === 'text') try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) { /* not a text field */ } } }
 }
 function manChanged() { saveManual(); scheduleRun(); renderRail(); }
+// under a formula amount: what it came to, or why it could not be worked out
+function manFormulaNote(i, m) {
+  if (!CALC.isFormulaRow(m)) return ''; const x = state.calcInfo && state.calcInfo.manual[i];
+  if (!x) return '<div class="st">Worked out on the next run</div>';
+  return x.err ? '<div class="st err fxn">' + esc(x.err) + '. Counted as zero.</div>' : '<div class="st fxn">' + (x.blank ? 'Blank, so zero' : 'Comes to ' + cents(x.amount) + ' on this Payment Date. Clear it, or type a number, to enter a plain amount.') + '</div>';
+}
 function addManual(rows) { const L = manRows(); rows.forEach(x => L.push(Object.assign({ id: manId(), name: '', amount: 0 }, x))); manChanged(); }
 function bindKeys(root) {
   $$('input[data-key]', root).forEach(inp => inp.addEventListener('change', () => {
@@ -120,26 +129,31 @@ function bindManual(P) {
     $('#manPasteText', P).value.split(/\n+/).forEach(line => {
       const t = line.trim(); if (!t) return; const c = (/\t/.test(t) ? t.split('\t') : t.split(/,(?!\d{3}(?:\D|$))/)).map(x => x.trim().replace(/^"|"$/g, ''));
       if (/^description$/i.test(c[0])) return;
-      const amt = parseAmt(c[1]); const wf = /^p/i.test(c[2] || '') ? 'principal' : /^l/i.test(c[2] || '') ? 'liquidation' : 'interest';
+      const fx = /^=/.test(String(c[1] || '').trim()) ? String(c[1]).trim().replace(/^=\s*/, '') : ''; const amt = fx ? 0 : parseAmt(c[1]); const wf = /^p/i.test(c[2] || '') ? 'principal' : /^l/i.test(c[2] || '') ? 'liquidation' : 'interest';
       const st = (s.waterfalls[wf] || []).find(x => x.id.toLowerCase() === String(c[3] || '').replace(/[()]/g, '').trim().toLowerCase());
       if (!c[0] || amt == null || isNaN(amt) || !st) { bad.push(t); return; }
       const rk = /pro/i.test(c[4] || '') ? 'prorata' : /bef/i.test(c[4] || '') ? 'before' : 'after';
-      add.push({ name: c[0], amount: amt, wf, step: st.id, rank: isCapStep(st) ? 'cap' : rk === 'prorata' && !canProRata(st) ? 'after' : rk });
+      add.push(Object.assign({ name: c[0], amount: amt, wf, step: st.id, rank: isCapStep(st) ? 'cap' : rk === 'prorata' && !canProRata(st) ? 'after' : rk }, fx ? { formula: fx } : {}));
     });
     if (add.length) { addManual(add); $('#manPasteText').value = ''; }
     const msg = (add.length ? 'Added ' + add.length + ' row' + (add.length > 1 ? 's' : '') + '. ' : '') + (bad.length ? 'Skipped ' + bad.length + ' line' + (bad.length > 1 ? 's' : '') + ' without a description, an amount and a step in this deal: ' + bad.slice(0, 2).join('; ') : '');
     setTimeout(() => { const m = $('#manPasteMsg'); if (m) m.textContent = msg; else toast(msg); if (bad.length) { const b = $('#manPaste'); if (b) b.hidden = false; } }, 150);
   };
   const csv = $('#manCsv', P); if (csv) csv.onclick = async () => {
-    const out = manRows().map((m, i) => ({ row: i + 1, description: m.name, amount: (+m.amount || 0).toFixed(2), waterfall: m.wf, step: m.step, position: m.rank === 'cap' ? 'cap' : m.rank === 'prorata' ? 'pro rata' : m.rank }));
-    const txt = toCSV(out, ['row', 'description', 'amount', 'waterfall', 'step', 'position']);
+    const out = manRows().map((m, i) => ({ row: i + 1, description: m.name, amount: (+m.amount || 0).toFixed(2), waterfall: m.wf, step: m.step, position: m.rank === 'cap' ? 'cap' : m.rank === 'prorata' ? 'pro rata' : m.rank, formula: CALC.isFormulaRow(m) ? '=' + m.formula : '' }));
+    const txt = toCSV(out, ['row', 'description', 'amount', 'waterfall', 'step', 'position', 'formula']);
     if (state.caps.downloads) saveFile('manual-inputs-' + state.inputs.paymentDate + '.csv', txt);
     else { try { await navigator.clipboard.writeText(txt); toast('Copied. It pastes into a spreadsheet.'); } catch (e) { toast('Copying is blocked here.'); } }
   };
-  const z = $('#manZero', P); if (z) z.onclick = () => { manRows().forEach(m => { m.amount = 0; }); manChanged(); toast('Amounts set to zero; the rows and their tags are kept.'); };
+  const z = $('#manZero', P); if (z) z.onclick = () => { manRows().forEach(m => { m.amount = 0; delete m.formula; }); manChanged(); toast('Amounts set to zero; the rows and their tags are kept.'); };
+  $$('#manBody input[data-f="amount"]', P).forEach(el => attachComplete(el, true)); // names suggested once the amount starts with =
   $$('#manBody [data-mi]', P).forEach(el => el.addEventListener('change', () => {
     const m = manRows()[+el.dataset.mi]; if (!m) return; const f = el.dataset.f;
-    if (f === 'amount') { const v = parseAmt(el.value); if (v !== null && isNaN(v)) { el.setCustomValidity('Enter a number such as 12.5k or 12500'); el.reportValidity(); return; } el.setCustomValidity(''); m.amount = v || 0; }
+    if (f === 'amount') {
+      const t = el.value.trim();
+      if (/^=/.test(t)) { const fx = t.replace(/^=\s*/, ''); el.setCustomValidity(''); if (fx) m.formula = fx; else { delete m.formula; m.amount = 0; } }
+      else { const v = parseAmt(t); if (v !== null && isNaN(v)) { el.setCustomValidity('Enter a number such as 12.5k or 12500, or a formula starting with ='); el.reportValidity(); return; } el.setCustomValidity(''); delete m.formula; m.amount = v || 0; }
+    }
     else if (f === 'step') { const [w, sid] = el.value.split('|'); m.wf = w; m.step = sid; const st = (deal().waterfalls[m.wf] || []).find(x => x.id === m.step); m.rank = isCapStep(st) ? 'cap' : (m.rank === 'cap' || (m.rank === 'prorata' && !canProRata(st)) ? 'after' : m.rank); }
     else m[f] = el.value;
     manChanged();
