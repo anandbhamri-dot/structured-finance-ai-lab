@@ -166,26 +166,40 @@ function matrixLookup(mx, rowVal, colVal) {
   return Math.round((top + (bot - top) * rt) * 100) / 100;
 }
 
-function qualityMetrics(spec, pf, sel) {
+// QA: your adjustments to a test, by measure (Tests tab): loans left out of the numerator or the denominator, or the only loans counted
+function qualityMetrics(spec, pf, sel, QA) {
+  QA = QA || {};
   const nd = pf.rows.filter(r => !r.defaulted);
+  const idx = new Map(pf.rows.map((r, i) => [r, i]));
+  const setsOf = (m, base) => {
+    const a = QA[m]; if (!a) return { N: base, D: base, base, a: null, numLeft: [], denLeft: [] };
+    const one = m === 'diversity'; // the score has one set of loans: both lists leave loans out of it
+    const keepN = r => { const i = idx.get(r); return (!a.numOnly || a.numOnly[i]) && !(a.numSkip && a.numSkip[i]) && !(one && a.denSkip && a.denSkip[i]); };
+    const keepD = r => { const i = idx.get(r); return !(a.denSkip && a.denSkip[i]); };
+    const N = base.filter(keepN), D = one ? N : base.filter(keepD);
+    return { N, D, base, a, numLeft: base.filter(r => !keepN(r)), denLeft: one ? [] : base.filter(r => !keepD(r)) };
+  };
   const apb = sum(nd, r => r.par);
-  const fl = nd.filter(r => r.rateType === 'FLOAT'), fx = nd.filter(r => r.rateType === 'FIXED');
-  const flPar = sum(fl, r => r.par), fxPar = sum(fx, r => r.par);
+  const fl0 = nd.filter(r => r.rateType === 'FLOAT'), fx0 = nd.filter(r => r.rateType === 'FIXED');
+  const S = { warf: setsOf('warf', nd), was: setsOf('was', fl0), wac: setsOf('wac', fx0), wal: setsOf('wal', nd), diversity: setsOf('diversity', nd), moodysWARR: setsOf('moodysWARR', nd), spWARR: setsOf('spWARR', nd) };
+  const P = k => S[k] ? sum(S[k].D, r => r.par) : 0;
+  const flPar = P('was'), fxPar = P('wac');
   const sp = spec.spreadRules || {};
   const excessFunded = sp.excessParSpread ? pf.libor * Math.max(0, apb - spec.meta.targetPar) : 0;
-  const wasRaw = flPar ? (sum(fl, r => r.par * r.spread) + excessFunded) / flPar : 0;
-  const wacRaw = fxPar ? sum(fx, r => r.par * r.coupon) / fxPar : null;
+  const wasRaw = flPar ? (sum(S.was.N, r => r.par * r.spread) + excessFunded) / flPar : 0;
+  const wacRaw = fxPar ? sum(S.wac.N, r => r.par * r.coupon) / fxPar : null;
   const minWAS = sp.minWAS != null ? sp.minWAS : 0, minWAC = sp.minWAC != null ? sp.minWAC : 0;
   const spreadExcess = fxPar ? Math.max(0, wasRaw - minWAS) * flPar / fxPar : 0;
   const couponExcess = (fxPar && flPar && wacRaw != null) ? Math.max(0, wacRaw - minWAC) * fxPar / flPar : 0;
-  const warf = apb ? Math.ceil(sum(nd, r => r.par * r.rf) / apb) : 0;
-  const mwarr = apb ? Math.ceil(sum(nd, r => r.par * r.mRR) / apb * 10) / 10 : 0;
-  const swarr = {}; spec.recovery.sp.cols.forEach(c => { swarr[c] = apb ? sum(nd, r => r.par * r.sRR[c]) / apb : 0; });
-  const wal = apb ? sum(nd, r => r.par * r.yrs) / apb : 0;
-  const ds = diversityScore(nd);
+  const pW = P('warf'), pR = P('moodysWARR'), pS = P('spWARR'), pL = P('wal');
+  const warf = pW ? Math.ceil(sum(S.warf.N, r => r.par * r.rf) / pW) : 0;
+  const mwarr = pR ? Math.ceil(sum(S.moodysWARR.N, r => r.par * r.mRR) / pR * 10) / 10 : 0;
+  const swarr = {}; spec.recovery.sp.cols.forEach(c => { swarr[c] = pS ? sum(S.spWARR.N, r => r.par * r.sRR[c]) / pS : 0; });
+  const wal = pL ? sum(S.wal.N, r => r.par * r.yrs) / pL : 0;
+  const ds = diversityScore(S.diversity.N);
   let wac = wacRaw;
   if (wacRaw != null && wacRaw < minWAC) wac = Math.min(minWAC, wacRaw + spreadExcess);
-  return { apb, flPar, fxPar, wasRaw, wacRaw, wac, spreadExcess, couponExcess, excessFunded, warf, mwarr, swarr, wal, ds, anyLateMaturity: pf.rows.some(r => r.matAfterStated), nObligors: new Set(nd.map(r => r.obligor)).size };
+  return { apb, flPar, fxPar, wasRaw, wacRaw, wac, spreadExcess, couponExcess, excessFunded, warf, mwarr, swarr, wal, ds, anyLateMaturity: pf.rows.some(r => r.matAfterStated), nObligors: new Set(nd.map(r => r.obligor)).size, sets: S, parOf: P, adjusted: Object.keys(QA).filter(k => QA[k]) };
 }
 
 function evalQuality(spec, qm, sel, ctx) {
@@ -227,6 +241,12 @@ function evalQuality(spec, qm, sel, ctx) {
         r.note = 'Matrix ' + (+base.toFixed(2)) + (rfm ? ' + modifier ' + (+rfm.toFixed(2)) : '') + (qm.anyLateMaturity && t.limit.alt ? ' (Table II: an asset matures after Stated Maturity)' : '');
       } else if (lim.type === 'case') { lim = lim.values[(sel.spCase || 1) - 1]; r.note = 'Case ' + (sel.spCase || 1); }
       else if (lim.type === 'declining') { const L = lim; const y = days(ctx.meta[L.from] || ctx.meta.effectiveDate, ctx.asOf) / 365; lim = Math.max(0, L.startYears - y); r.note = L.startYears + ' years less ' + y.toFixed(2) + ' years since the ' + (L.from || 'effectiveDate').replace(/([A-Z])/g, ' $1').toLowerCase(); }
+      // a table of limits by Payment Date: the row for the latest date on or before this one
+      else if (lim.type === 'table') { const rows = (lim.rows || []).filter(x => x && x.from && isFinite(+x.value)).slice().sort((a, b) => D(a.from) - D(b.from)); const row = rows.filter(x => D(x.from) <= D(ctx.asOf)).pop() || rows[0]; lim = row ? +row.value : NaN; r.note = row ? 'Table: ' + row.value + ' from ' + row.from : ''; }
+      // a base plus a step for each Payment Date left before a date (usually the end of the Reinvestment Period), less a step for each since it
+      else if (lim.type === 'stepped') { const L = lim; const piv = ctx.meta[L.pivot || 'reinvestmentPeriodEnd']; const dates = schedule({ meta: ctx.meta }).map(x => x.date);
+        const before = D(ctx.asOf) < D(piv); const n = before ? dates.filter(d => D(d) > D(ctx.asOf) && D(d) <= D(piv)).length : dates.filter(d => D(d) > D(piv) && D(d) <= D(ctx.asOf)).length;
+        lim = Math.max(0, +L.base + (before ? 1 : -1) * +L.step * n); r.note = L.base + (before ? ' plus ' : ' less ') + L.step + ' × ' + n + ' Payment Date' + (n === 1 ? '' : 's') + (before ? ' left before' : ' since') + ' the end of the Reinvestment Period'; }
     }
     if (t.metric === 'was' && t.adjust && t.adjust.type === 'recoveryModifier') {
       const mv = sel.moodysModifier; const row = (t.adjust.table || []).find(x => x[0] === mv);
@@ -264,30 +284,75 @@ function rowMatches(r, filter) {
   }
   return true;
 }
-function evalConcentrations(spec, pf, pcvGeneral, rawTape, principalCash) {
+// the denominator of a Portfolio Profile Test: Principal Collateral Value at par, less the loans your adjustment leaves out
+function concDen(a, rows, pcvGeneral, principalCash) {
+  const left = a && a.denSkip ? rows.filter((x, i) => a.denSkip[i]) : [];
+  const cash = !(a && a.denCash === false);
+  const leftPar = sum(left, x => x.par);
+  return { value: pcvGeneral - leftPar - (cash ? 0 : principalCash), left, leftPar, cash };
+}
+// TA: your adjustments (Tests tab); a.numOnly replaces the clause's own test, a.numSkip and a.denSkip leave loans out
+function evalConcentrations(spec, pf, pcvGeneral, rawTape, principalCash, TA) {
   const out = []; const rows = pf.rows;
   const fieldPresent = f => ['ccc', 'matAfterStated', 'discount', 'assetType', 'rateType', 'country', 'defaulted'].includes(f) || rawTape.some(t => t[f] !== undefined && t[f] !== '' && t[f] !== null);
   for (const c of spec.concentrations || []) {
+    const a = (TA && TA.conc && TA.conc[c.id]) || null;
     const r = { id: c.id, label: c.label, ref: c.ref, op: c.op || '<=', limit: c.limit };
+    if (c.custom) r.custom = true;
+    if (a) { r.adjusted = true; r.adjText = a.summary || ''; }
+    const D = concDen(a, rows, pcvGeneral, principalCash); const den = D.value; r.den = den;
+    const pctOf = x => den > 0 ? x / den * 100 : 0;
+    const skip = i => !!(a && a.numSkip && a.numSkip[i]);
     if (c.metric === 'maxObligor' || c.metric === 'maxIndustry' || c.metric === 'maxByField') {
       const field = c.metric === 'maxObligor' ? 'obligor' : (c.field || (c.metric === 'maxIndustry' ? 'spIndustry' : 'country'));
       const g = {};
-      for (const x of rows) { const k = x[field]; if (c.within && !c.within.includes(k)) continue; g[k] = (g[k] || 0) + x.par; }
-      const arr = Object.entries(g).map(([k, v]) => ({ k, pct: v / pcvGeneral * 100 })).sort((a, b) => b.pct - a.pct);
-      const ex = c.exceptions; let pass = true, worst = arr[0] || { k: '—', pct: 0 };
+      rows.forEach((x, i) => { if (skip(i) || (a && a.numOnly && !a.numOnly[i])) return; const k = x[field]; if (c.within && !c.within.includes(k)) return; g[k] = (g[k] || 0) + x.par; });
+      const arr = Object.entries(g).map(([k, v]) => ({ k, par: v, pct: pctOf(v) })).sort((a, b) => b.pct - a.pct);
+      const ex = c.exceptions; let pass = true, worst = arr[0] || { k: '—', par: 0, pct: 0 };
       arr.forEach((e, i) => { const lim = ex && i < ex.count ? ex.limit : c.limit; if (e.pct > lim + 1e-9) pass = false; });
-      r.value = worst.pct; r.top = arr.slice(0, 3); r.pass = pass; r.fmt = 'pct2';
+      r.value = worst.pct; r.amount = worst.par; r.top = arr.slice(0, 3); r.pass = pass; r.fmt = 'pct2';
       r.note = 'Largest: ' + worst.k + (ex ? '; up to ' + ex.count + ' may reach ' + ex.limit + '%' : '');
     } else {
-      const missing = (c.filter || []).filter(f => !fieldPresent(f.f)).map(f => f.f);
-      let amt = sum(rows.filter(x => rowMatches(x, c.filter)), x => x.par);
-      if (c.cashAs && rowMatches(Object.assign({ assetType: 'SSL', rateType: 'FLOAT', country: 'US' }, c.cashAs), c.filter)) { amt += principalCash; r.note = 'Principal cash counted as senior secured, as the clause directs'; }
-      r.value = amt / pcvGeneral * 100; r.amount = amt; r.fmt = 'pct2';
-      r.pass = r.op === '>=' ? r.value >= c.limit - 1e-9 : r.value <= c.limit + 1e-9;
+      const own = a && a.numOnly; // your condition in place of the clause's own test
+      const missing = own ? [] : (c.filter || []).filter(f => !fieldPresent(f.f)).map(f => f.f);
+      let amt = sum(rows.filter((x, i) => (own ? a.numOnly[i] : rowMatches(x, c.filter)) && !skip(i)), x => x.par);
+      if (!own && D.cash && c.cashAs && rowMatches(Object.assign({ assetType: 'SSL', rateType: 'FLOAT', country: 'US' }, c.cashAs), c.filter)) { amt += principalCash; r.note = 'Principal cash counted as senior secured, as the clause directs'; r.cashIn = true; }
+      r.value = pctOf(amt); r.amount = amt; r.fmt = 'pct2';
       if (missing.length) { r.note = (r.note ? r.note + '; ' : '') + 'Tape has no ' + missing.join(', ') + ' column: treated as none'; r.missing = true; }
     }
+    if (!(c.metric === 'maxObligor' || c.metric === 'maxIndustry' || c.metric === 'maxByField')) r.pass = r.op === '>=' ? r.value >= c.limit - 1e-9 : r.value <= c.limit + 1e-9;
+    if (!(den > 0)) { r.pass = null; r.failed = true; r.note = (r.note ? r.note + '; ' : '') + 'The denominator is zero after your adjustment'; }
     out.push(r);
   }
+  return out;
+}
+// your test adjustments, checked against the tape: flags line up with the loans, one per loan
+function testAdjustOf(A, spec, rows, warnings) {
+  const out = { conc: {}, quality: {}, qualityByMetric: {}, coverage: {}, custom: [], any: false };
+  if (!A || typeof A !== 'object') return out;
+  const n = rows.length;
+  if (Array.isArray(A.ids) && (A.ids.length !== n || A.ids.some((id, i) => String(id) !== String(rows[i].id)))) { warnings.push('Your test adjustments were worked out for a different tape, so the tests are shown as the indenture reads'); return out; }
+  const fl = f => Array.isArray(f) && f.length === n ? f.map(Boolean) : null;
+  const clean = a => { if (!a || typeof a !== 'object') return null; const o = { numOnly: fl(a.numOnly), numSkip: fl(a.numSkip), denSkip: fl(a.denSkip), denCash: a.denCash !== false, text: Object.assign({}, a.text || {}), summary: String(a.summary || '') }; return o.numOnly || o.numSkip || o.denSkip || !o.denCash ? o : null; };
+  Object.entries(A.conc || {}).forEach(([id, a]) => { const o = clean(a); if (o) { out.conc[id] = o; out.any = true; } });
+  Object.entries(A.coverage || {}).forEach(([id, a]) => { const o = clean(a); if (o && o.numSkip) { out.coverage[id] = { numSkip: o.numSkip, text: o.text, summary: o.text.numSkip || o.summary || 'your condition' }; out.any = true; } });
+  Object.entries(A.quality || {}).forEach(([id, a]) => {
+    const o = clean(a); const t = (spec.qualityTests || []).find(x => x.id === id); if (!o || !t || t.metric === 'external') return;
+    if (out.qualityByMetric[t.metric]) { warnings.push('Two quality tests measure ' + t.metric + '; your adjustment to ' + t.label + ' is not applied, the one to ' + out.qualityByMetric[t.metric].label + ' is'); return; }
+    out.quality[id] = o; out.qualityByMetric[t.metric] = Object.assign({ label: t.label, id }, o); out.any = true;
+  });
+  (Array.isArray(A.custom) ? A.custom : []).forEach((u, k) => {
+    if (!u || typeof u !== 'object') return;
+    const id = String(u.id || 'U' + (k + 1)); const lim = +u.limit;
+    if (!isFinite(lim)) { warnings.push('Your test ' + (u.label || id) + ' has no limit, so it is not shown'); return; }
+    const kind = u.kind === 'largest' ? 'largest' : 'share';
+    const o = clean(u);
+    if (kind === 'share' && !(o && o.numOnly)) { warnings.push('Your test ' + (u.label || id) + ' says no loans to count, so it is not shown'); return; }
+    const groups = kind === 'largest' && Array.isArray(u.groups) && u.groups.length === n ? u.groups.map(v => v == null || v === '' ? '(blank)' : String(v)) : null;
+    if (kind === 'largest' && !groups) { warnings.push('Your test ' + (u.label || id) + ' has no field to group by, so it is not shown'); return; }
+    out.custom.push({ id, label: String(u.label || id), kind, limit: lim, op: u.op === '>=' ? '>=' : '<=', groups, fieldLabel: String(u.fieldLabel || u.field || 'value'), field: String(u.field || '') });
+    if (o) out.conc[id] = o; out.any = true;
+  });
   return out;
 }
 
@@ -397,9 +462,19 @@ function run(spec0, tape, inp) {
   const principalCash = +inp.principalProceeds || 0;
   const pf = analysePortfolio(spec, tape, { asOf: pd, libor });
   const pb = principalBalances(spec, pf, principalCash, seniorCol);
-  const qm = qualityMetrics(spec, pf, sel);
+  // your test adjustments (Tests tab): loans left out of a numerator or a denominator, and tests of your own
+  const TA = testAdjustOf(inp.testAdjust, spec, pf.rows, warnings);
+  if (TA.custom.length) {
+    spec.concentrations = (spec.concentrations || []).concat(TA.custom.map(u => Object.assign({ id: u.id, label: u.label, ref: 'Your test', op: u.op, limit: u.limit, custom: true, kind: u.kind }, u.kind === 'largest' ? { metric: 'maxByField', field: 'grp_' + u.id, fieldLabel: u.fieldLabel } : { filter: [] })));
+    TA.custom.forEach(u => { if (u.groups) pf.rows.forEach((r, i) => { r['grp_' + u.id] = u.groups[i]; }); });
+  }
+  const qm = qualityMetrics(spec, pf, sel, TA.qualityByMetric);
+  const qmPlain = qm.adjusted.length ? qualityMetrics(spec, pf, sel) : qm;
   const quality = evalQuality(spec, qm, sel, { meta: spec.meta, asOf: pd });
-  const conc = evalConcentrations(spec, pf, pb.pcvGeneral, tape, principalCash);
+  quality.forEach(q => { const a = TA.quality[q.id]; if (a) { q.adjusted = true; q.adjText = a.summary; } });
+  const conc = evalConcentrations(spec, pf, pb.pcvGeneral, tape, principalCash, TA);
+  const covDed = {}; Object.entries(TA.coverage).forEach(([k, a]) => { const left = pf.rows.filter((r, i) => a.numSkip[i]); covDed[k] = { amt: r2(sum(left, r => r.ocPB)), left, summary: a.summary }; });
+  const dedOf = k => covDed[k] ? covDed[k].amt : 0;
 
   // interest proceeds estimate
   const nd = pf.rows.filter(r => !r.defaulted);
@@ -474,13 +549,14 @@ function run(spec0, tape, inp) {
 
   // ---- test helpers
   const ocOf = (classes, n, pcv) => { const den = sum(classes, c => n[c] ? n[c].bal : 0); return { num: pcv, den, ratio: den > 0.5 ? pcv / den * 100 : Infinity }; };
+  const ocFor = (key, classes, n, pcv) => ocOf(classes, n, r2(pcv - dedOf(key))); // less the loans you left out of this test's numerator
   const icOf = (classes, n) => {
     const den = sum(classes, c => { const x = n[c]; if (!x) return 0; return r2((x.bal + x.defForTest) * x.rate / 100 * dcf) + (x.deferrable ? x.defForTest : 0); });
     return { num: ctx.icNum, den, ratio: den > 0.01 ? ctx.icNum / den * 100 : Infinity };
   };
   const testById = id => cov.tests.find(t => t.id === id);
   const evalGroup = (t, n, pcv) => {
-    const o = ocOf(t.oc.classes, n, pcv); const oPass = o.ratio >= t.oc.trigger - 1e-11;
+    const o = ocFor(t.id, t.oc.classes, n, pcv); const oPass = o.ratio >= t.oc.trigger - 1e-11;
     let i = null, iPass = true, icApplies = !!t.ic && period >= (t.ic.fromPeriod || 1);
     if (t.ic) { i = icOf(t.ic.classes, n); if (icApplies) iPass = i.ratio >= t.ic.trigger - 1e-11; }
     return { oc: o, ic: i, ocPass: oPass, icPass: iPass, icApplies, pass: oPass && iPass };
@@ -514,8 +590,8 @@ function run(spec0, tape, inp) {
   // ---- ledger
   const preTests = snapshotTests(notes, ctx.pcv);
   const preNotes = cloneNotes(notes);
-  const preIRT = cov.reinvestmentTest ? ocOf(cov.reinvestmentTest.ocClasses, notes, ctx.pcv) : null;
-  const preEoD = cov.eodTest ? ocOf(cov.eodTest.ocClasses, notes, ctx.pcv) : null;
+  const preIRT = cov.reinvestmentTest ? ocFor('irt', cov.reinvestmentTest.ocClasses, notes, ctx.pcv) : null;
+  const preEoD = cov.eodTest ? ocFor('eod', cov.eodTest.ocClasses, notes, ctx.pcv) : null;
 
   // ---- calculation trail helpers (every number shown so it can be re-done by hand)
   const LN = {
@@ -543,9 +619,10 @@ function run(spec0, tape, inp) {
     return out;
   };
   const ocLines = (t, n, pcv, title, compact) => {
-    const o = ocOf(t.oc.classes, n, pcv);
+    const o = ocFor(t.id, t.oc.classes, n, pcv); const dd = covDed[t.id];
     const out = [LN.head(title || (t.label + ' overcollateralization test'))];
     if (pcv === ctx.pcv && !compact) out.push(...pcvBridge()); else out.push(LN.row('Principal Collateral Value' + (compact && ctx.pcvLog.length ? ' after this payment' : ''), compact && ctx.pcvLog.length ? fmt2(ctx.pcvStart) + (ctx.pcvLog.map(x => (x.amt < 0 ? ' − ' : ' + ') + fmt2(Math.abs(x.amt))).join('')) : '', pcv));
+    if (dd) { out.push(LN.sub('Less: loans you left out of this test\'s numerator, ' + dd.summary, dd.left.length + ' positions at their carrying value', -dd.amt)); out.push(LN.row('Numerator for this test', fmt2(pcv) + ' − ' + fmt2(dd.amt), o.num)); }
     t.oc.classes.forEach(c => out.push(LN.sub('Class ' + c + ' principal outstanding' + (n[c].def > 0.5 && notes[c].deferrable ? ' (deferred interest excluded)' : ''), '', n[c].bal)));
     out.push(LN.row('Denominator', t.oc.classes.join(' + '), o.den));
     out.push(LN.row('OC ratio', fmt2(o.num) + ' ÷ ' + fmt2(o.den), fratio(o.ratio)));
@@ -918,22 +995,22 @@ function run(spec0, tape, inp) {
         }
         case 'reinvestmentDiversion': {
           if (!cov.reinvestmentTest) { warnings.push(kindName + ' step ' + st.id + ' diverts interest under the Interest Reinvestment Test, but the deal spec has no coverage.reinvestmentTest, so nothing is diverted'); row.note = 'No Interest Reinvestment Test in the deal spec'; CD.push(LN.note('The deal spec has no Interest Reinvestment Test (coverage.reinvestmentTest), so no interest is diverted here.'), LN.total('Due under this step', 0)); break; }
-          const rt = cov.reinvestmentTest; const o = ocOf(rt.ocClasses, notes, ctx.pcv);
+          const rt = cov.reinvestmentTest; const o = ocFor('irt', rt.ocClasses, notes, ctx.pcv);
           row.test = { label: rt.label, ratio: o.ratio, trigger: rt.trigger };
-          CD.push(...ocLines({ label: rt.label, oc: { classes: rt.ocClasses, trigger: rt.trigger } }, notes, ctx.pcv, rt.label));
+          CD.push(...ocLines({ id: 'irt', label: rt.label, oc: { classes: rt.ocClasses, trigger: rt.trigger } }, notes, ctx.pcv, rt.label));
           if (o.ratio >= rt.trigger - 1e-9) { row.note = rt.label + ' passes (' + o.ratio.toFixed(2) + '%)'; CD.push(LN.total('Due under this step', 0, 'the test passes')); break; }
-          const need = Math.ceil((rt.trigger / 100 * o.den - ctx.pcv) * 100 - 1e-6) / 100; const cap = Math.floor(rt.maxDiversionPct / 100 * pool.avail() * 100 + 1e-6) / 100;
+          const need = Math.ceil((rt.trigger / 100 * o.den - o.num) * 100 - 1e-6) / 100; const cap = Math.floor(rt.maxDiversionPct / 100 * pool.avail() * 100 + 1e-6) / 100;
           CD.push(LN.head('Diversion'));
           CD.push(LN.note('Diverted cash buys collateral, so it adds to the numerator: the test passes when (PCV + X) ÷ Denominator ≥ trigger, so X = trigger × Denominator − PCV.'));
-          CD.push(LN.row('Needed to pass, rounded up to the cent', fpct(rt.trigger, 2) + ' × ' + fmt2(o.den) + ' − ' + fmt2(ctx.pcv), need));
+          CD.push(LN.row('Needed to pass, rounded up to the cent', fpct(rt.trigger, 2) + ' × ' + fmt2(o.den) + ' − ' + fmt2(o.num), need));
           CD.push(LN.row(rt.maxDiversionPct + '% of interest remaining, rounded down to the cent', fmt2(pool.avail()) + ' × ' + rt.maxDiversionPct + '%', cap));
           row.due = Math.min(need, cap); CD.push(LN.total('Due under this step', row.due, 'lesser of the two'));
           const p = take(row.due); row.paid = p;
           ctx.buckets.reinvestOnly += p; ctx.pcv += p; ctx.pcvLog.push({ why: 'Plus: interest diverted to buy collateral at step ' + st.id, amt: p }); ctx.irtDiverted = p;
           row.payees.push({ to: 'Principal Collection Account (buy collateral)', amount: p });
-          row.test.after = ocOf(rt.ocClasses, notes, ctx.pcv).ratio;
+          const oA = ocFor('irt', rt.ocClasses, notes, ctx.pcv); row.test.after = oA.ratio;
           simplePaid = false; CP.push(LN.row('Moved to the Principal Collection Account', 'the full amount due', p));
-          CP.push(LN.row(rt.label + ' after', fmt2(ctx.pcv) + ' ÷ ' + fmt2(o.den), fratio(row.test.after)));
+          CP.push(LN.row(rt.label + ' after', fmt2(oA.num) + ' ÷ ' + fmt2(o.den), fratio(row.test.after)));
           CP.push(LN.note('This cash can only be reinvested in collateral; it never pays down notes or reaches the Subordinated Notes.'));
           row.note = rt.label + ' at ' + o.ratio.toFixed(2) + '% vs ' + rt.trigger.toFixed(2) + '%: diverted the lesser of ' + rt.maxDiversionPct + '% of remaining interest and the cure amount';
           break;
@@ -1085,7 +1162,7 @@ function run(spec0, tape, inp) {
     return ledger;
   }
 
-  const result = { period, paymentDate: pd, prevDate: prev, days: ndays, inRP, mode, libor, interestProceeds, estInterest, principalProceeds: principalCash, feeBasis, pcvInterp, pcvStart: ctx.pcvStart, overridden: Object.keys(OV).filter(k => ovOf(k)).concat(Object.keys(SRC)), dues: Object.assign({}, dues), duesInterp, adminCap, adminDue, adminEntered, pf, pb, qm, quality, conc, preTests, preIRT, preEoD, icDeduct, warnings, manual: manualAll, manualNotes };
+  const result = { period, paymentDate: pd, prevDate: prev, days: ndays, inRP, mode, libor, interestProceeds, estInterest, principalProceeds: principalCash, feeBasis, pcvInterp, pcvStart: ctx.pcvStart, overridden: Object.keys(OV).filter(k => ovOf(k)).concat(Object.keys(SRC)), dues: Object.assign({}, dues), duesInterp, adminCap, adminDue, adminEntered, pf, pb, qm, qmPlain, testAdjust: { any: TA.any, conc: Object.keys(TA.conc), quality: Object.keys(TA.quality), coverage: Object.keys(TA.coverage), custom: TA.custom.map(u => u.id) }, quality, conc, preTests, preIRT, preEoD, icDeduct, warnings, manual: manualAll, manualNotes };
 
   if (mode === 'liquidation') {
     let cash = interestProceeds + principalCash + (+inp.liquidationProceeds || 0);
@@ -1157,8 +1234,8 @@ function run(spec0, tape, inp) {
   }
   const postNotes = cloneNotes(notes); for (const c of order) { postNotes[c].def = postNotes[c].defEnd; postNotes[c].defForTest = postNotes[c].defEnd; }
   result.postTests = snapshotTests(postNotes, ctx.pcv);
-  result.postIRT = cov.reinvestmentTest ? ocOf(cov.reinvestmentTest.ocClasses, postNotes, ctx.pcv) : null;
-  result.postEoD = cov.eodTest ? ocOf(cov.eodTest.ocClasses, postNotes, ctx.pcv) : null;
+  result.postIRT = cov.reinvestmentTest ? ocFor('irt', cov.reinvestmentTest.ocClasses, postNotes, ctx.pcv) : null;
+  result.postEoD = cov.eodTest ? ocFor('eod', cov.eodTest.ocClasses, postNotes, ctx.pcv) : null;
   if (preEoD && preEoD.ratio < cov.eodTest.trigger) ctx.eod.push(cov.eodTest.label + ' at ' + preEoD.ratio.toFixed(2) + '% is below ' + cov.eodTest.trigger + '%');
   result.pcvAfter = ctx.pcv;
   manualAll.forEach(m => { if (m.status) return; m.status = m.paid >= m.amount - 0.005 ? 'Paid in full' : m.paid > 0.005 ? 'Part paid, ' + fmt2(r2(m.amount - m.paid)) + ' short' : 'Not paid: no cash left when it was reached'; });
@@ -1218,6 +1295,13 @@ function run(spec0, tape, inp) {
     pcvTables.push(TB('All collateral', [cID, cOb, cTy, cM, cS, cPar, ['Price', 'num2', r => r.price], ['Treatment', 'text', statusOf], ['Carried at', 'usd', r => r.ocPB, true], ['Haircut', 'usd', r => r2(r.par - r.ocPB), true]], rows.slice().sort((a, b) => (b.par - b.ocPB) - (a.par - a.ocPB) || b.par - a.par),
       'Sorted with the largest haircuts first. Principal Proceeds of ' + fmt2(principalCash) + (ctx.principalInPCV ? ' are added on top.' : ' are not counted, by your setting.')));
     const pcvPart = part('Principal Collateral Value', ctx.pcvStart, 'usd', pcvLines, pcvTables);
+    // a coverage test whose numerator you adjusted: the same value, less the loans you left out
+    const leftTable = (title, list, note) => TB(title, [cID, cOb, cTy, cM, cS, cPar, ['Carried at', 'usd', r => r.ocPB, true]], list.slice().sort((a, b) => b.ocPB - a.ocPB || b.par - a.par), note);
+    const pcvPartFor = k => {
+      const dd = covDed[k]; if (!dd) return pcvPart; const v = r2(ctx.pcvStart - dd.amt);
+      const L = pcvLines.concat([LN.head('Your adjustment to this test'), LN.row('Loans you left out of the numerator, at their carrying value', 'sum of the last column, ' + dd.left.length + ' positions', dd.amt), LN.total('Numerator for this test', v, fmt2(ctx.pcvStart) + ' − ' + fmt2(dd.amt)), LN.note('Left out: loans where ' + dd.summary + '.')]);
+      return part('Principal Collateral Value, less the loans you left out', v, 'usd', L, [leftTable('Left out of this test\'s numerator', dd.left, 'Loans where ' + dd.summary)].concat(pcvTables));
+    };
 
     const noteTable = (classes, n) => TB('Notes in the denominator', [['Class', 'text', c => c], ['Principal outstanding', 'usd', c => n[c].bal, true], ['Deferred interest', 'usd', c => n[c].def || 0], ['Counted', 'usd', c => n[c].bal, true]], classes,
       classes.some(c => (n[c].def || 0) > 0.5) ? 'Capitalised deferred interest is shown for reference; the OC denominator counts principal only.' : '');
@@ -1229,6 +1313,10 @@ function run(spec0, tape, inp) {
     // after this Payment Date
     const pcvAfterLines = [LN.row('Principal Collateral Value on the Determination Date', 'see the numerator before payments', ctx.pcvStart)].concat(ctx.pcvLog.map(x => LN.row(x.why, '', x.amt)), [LN.total('Principal Collateral Value after payments', ctx.pcv, [fmt2(ctx.pcvStart)].concat(ctx.pcvLog.map(x => (x.amt < 0 ? '− ' : '+ ') + fmt2(Math.abs(x.amt)))).join(' '))]);
     const pcvAfter = part('Principal Collateral Value after payments', ctx.pcv, 'usd', pcvAfterLines, ctx.pcvLog.length ? [TB('Changes during the waterfalls', [['Change', 'text', x => x.why], ['Amount', 'usd', x => x.amt, true]], ctx.pcvLog)] : []);
+    const pcvAfterFor = k => {
+      const dd = covDed[k]; if (!dd) return pcvAfter; const v = r2(ctx.pcv - dd.amt);
+      return part('Principal Collateral Value after payments, less the loans you left out', v, 'usd', pcvAfterLines.concat([LN.row('Loans you left out of the numerator, at their carrying value', 'sum of the last column, ' + dd.left.length + ' positions', dd.amt), LN.total('Numerator for this test', v, fmt2(ctx.pcv) + ' − ' + fmt2(dd.amt))]), [leftTable('Left out of this test\'s numerator', dd.left, 'Loans where ' + dd.summary)].concat(pcvAfter.tables));
+    };
 
     // Interest coverage
     const entered = inp.interestProceeds != null && inp.interestProceeds !== '';
@@ -1254,9 +1342,9 @@ function run(spec0, tape, inp) {
     };
     const coverage = {};
     cov.tests.forEach((t, i) => {
-      const pre = preTests[i]; const o = ocPair(t.label + ' OC ratio', t.oc.classes, t.oc.trigger, preNotes, pcvPart);
-      const post = result.postTests[i]; const oa = ocDen(t.oc.classes, postNotes); const resA = ocResult(t.label + ' OC ratio after payments', ctx.pcv, oa.value, t.oc.trigger);
-      const x = { oc: o, ocAfter: { num: withResult(pcvAfter, resA), den: withResult(Object.assign({}, oa, { title: 'Principal of Class ' + t.oc.classes.join(', ') + ' after payments' }), resA) } };
+      const pre = preTests[i]; const o = ocPair(t.label + ' OC ratio', t.oc.classes, t.oc.trigger, preNotes, pcvPartFor(t.id));
+      const post = result.postTests[i]; const oa = ocDen(t.oc.classes, postNotes); const resA = ocResult(t.label + ' OC ratio after payments', r2(ctx.pcv - dedOf(t.id)), oa.value, t.oc.trigger);
+      const x = { oc: o, ocAfter: { num: withResult(pcvAfterFor(t.id), resA), den: withResult(Object.assign({}, oa, { title: 'Principal of Class ' + t.oc.classes.join(', ') + ' after payments' }), resA) } };
       if (t.ic) {
         const dp = icDenPart(t.ic.classes, preNotes); const applies = period >= (t.ic.fromPeriod || 1);
         const res = [LN.head('Result'), LN.row(t.label + ' IC ratio', fmt2(ctx.icNum) + ' ÷ ' + fmt2(dp.value), fratio(pre.ic.ratio)), LN.check('Trigger ' + fpct(t.ic.trigger, 2), applies ? fratio(pre.ic.ratio) + (pre.ic.ratio >= t.ic.trigger - 1e-9 ? ' ≥ ' : ' < ') + fpct(t.ic.trigger, 2) : 'not applied until Payment Date ' + t.ic.fromPeriod, pre.ic.ratio >= t.ic.trigger - 1e-9, applies)];
@@ -1265,23 +1353,33 @@ function run(spec0, tape, inp) {
       coverage[t.id] = x;
     });
     const TC = { coverage };
-    if (cov.reinvestmentTest) { const rt = cov.reinvestmentTest; TC.irt = ocPair(rt.label, rt.ocClasses, rt.trigger, preNotes, pcvPart); const d = ocDen(rt.ocClasses, postNotes); const res = ocResult(rt.label + ' after payments', ctx.pcv, d.value, rt.trigger); TC.irtAfter = { num: withResult(pcvAfter, res), den: withResult(d, res) }; }
-    if (cov.eodTest) { const et = cov.eodTest; TC.eod = ocPair(et.label, et.ocClasses, et.trigger, preNotes, pcvPart); const d = ocDen(et.ocClasses, postNotes); const res = ocResult(et.label + ' after payments', ctx.pcv, d.value, et.trigger); TC.eodAfter = { num: withResult(pcvAfter, res), den: withResult(d, res) }; }
+    if (cov.reinvestmentTest) { const rt = cov.reinvestmentTest; TC.irt = ocPair(rt.label, rt.ocClasses, rt.trigger, preNotes, pcvPartFor('irt')); const d = ocDen(rt.ocClasses, postNotes); const res = ocResult(rt.label + ' after payments', r2(ctx.pcv - dedOf('irt')), d.value, rt.trigger); TC.irtAfter = { num: withResult(pcvAfterFor('irt'), res), den: withResult(d, res) }; }
+    if (cov.eodTest) { const et = cov.eodTest; TC.eod = ocPair(et.label, et.ocClasses, et.trigger, preNotes, pcvPartFor('eod')); const d = ocDen(et.ocClasses, postNotes); const res = ocResult(et.label + ' after payments', r2(ctx.pcv - dedOf('eod')), d.value, et.trigger); TC.eodAfter = { num: withResult(pcvAfterFor('eod'), res), den: withResult(d, res) }; }
 
-    // Collateral Quality Tests
-    const apb = qm.apb; const parLine = LN.total('Denominator: par of performing collateral', apb, 'sum of the Par column, ' + nd.length + ' positions');
+    // Collateral Quality Tests: each measure on its own loans, after any adjustment you made to it
+    const apb = qm.apb;
+    const SetOf = m => qm.sets && qm.sets[m] ? qm.sets[m] : { N: nd, D: nd, base: nd, a: null, numLeft: [], denLeft: [] };
+    const cLeft = [cID, cOb, cTy, cM, cS, cPar];
+    const leftN = (S, one) => S.a && S.numLeft.length ? [TB('Left out of the ' + (one ? 'score' : 'numerator') + ' by your adjustment', cLeft, S.numLeft.slice().sort((a, b) => b.par - a.par))] : [];
+    const leftD = S => S.a && S.denLeft.length ? [TB('Left out of the denominator by your adjustment', cLeft, S.denLeft.slice().sort((a, b) => b.par - a.par))] : [];
+    const noteN = (S, one) => { if (!S.a) return []; const X = S.a.text || {}; const bits = []; if (X.numOnly) bits.push('counts only loans where ' + X.numOnly); if (X.numSkip) bits.push('leaves out loans where ' + X.numSkip); if (one && X.denSkip) bits.push('leaves out loans where ' + X.denSkip); return bits.length ? [LN.note('Your adjustment ' + bits.join(', and ') + ': ' + S.numLeft.length + ' position' + (S.numLeft.length === 1 ? '' : 's') + ' (' + fmt2(sum(S.numLeft, r => r.par)) + ' par) left out of the ' + (one ? 'score' : 'numerator') + '.')] : []; };
+    const noteD = S => S.a && S.a.text && S.a.text.denSkip ? [LN.note('Your adjustment leaves out loans where ' + S.a.text.denSkip + ': ' + S.denLeft.length + ' position' + (S.denLeft.length === 1 ? '' : 's') + ' (' + fmt2(sum(S.denLeft, r => r.par)) + ' par) left out of the denominator.')] : [];
+    const sameSet = S => S.N === S.D || (S.N.length === S.D.length && S.N.every((r, i) => r === S.D[i]));
+    const denT = (S, T, title) => sameSet(S) ? T : TB(title + ', in the denominator', [cID, cOb, cTy, cPar], S.D.slice().sort((a, b) => b.par - a.par));
+    const denL = (S, label, P) => LN.total(label, P, 'sum of the Par column, ' + S.D.length + ' positions');
     const limitLines = (q) => { const o = [LN.head('Against the limit')]; if (q.note) o.push(LN.note(q.note)); if (q.limit != null && q.value != null && q.pass != null) o.push(LN.check('Limit ' + (q.op === '<=' ? '≤ ' : '≥ ') + (typeof q.limit === 'number' ? +q.limit.toFixed(4) : q.limit), String(+(+q.value).toFixed(4)) + (q.pass ? ' passes' : ' fails'), q.pass)); return o; };
     const quality = {};
     for (const q of result.quality) {
       const t = (spec.qualityTests || []).find(x => x.id === q.id) || {}; let num = null, den = null;
       const defNote = defd.length ? [LN.note(defd.length + ' Defaulted Securities (' + fmt2(sum(defd, r => r.par)) + ' par) are excluded.')] : [];
+      const S = SetOf(t.metric); const pD = qm.parOf(t.metric);
       if (t.metric === 'warf') {
-        const S1 = sum(nd, r => r.par * r.rf); const T = TB('Performing collateral by rating factor', [cID, cOb, cM, ['Rating factor', 'num0', r => r.rf], cPar, ['Par × rating factor', 'num0', r => r.par * r.rf, true]], nd.slice().sort((a, b) => b.rf - a.rf || b.par - a.par));
-        const res = [LN.head('Result'), LN.row('Par-weighted rating factor', fmt2(S1) + ' ÷ ' + fmt2(apb), apb ? S1 / apb : 0), LN.row('WARF, rounded up to a whole number', '', String(qm.warf))].concat(limitLines(q));
-        num = part('Σ par × Moody\'s Rating Factor', S1, 'num', [LN.total('Numerator: Σ par × rating factor', S1, 'sum of the last column')].concat(defNote, res), [T]);
-        den = part('Par of performing collateral', apb, 'usd', [parLine].concat(defNote, res), [T]);
+        const S1 = sum(S.N, r => r.par * r.rf); const T = TB('Performing collateral by rating factor', [cID, cOb, cM, ['Rating factor', 'num0', r => r.rf], cPar, ['Par × rating factor', 'num0', r => r.par * r.rf, true]], S.N.slice().sort((a, b) => b.rf - a.rf || b.par - a.par));
+        const res = [LN.head('Result'), LN.row('Par-weighted rating factor', fmt2(S1) + ' ÷ ' + fmt2(pD), pD ? S1 / pD : 0), LN.row('WARF, rounded up to a whole number', '', String(qm.warf))].concat(limitLines(q));
+        num = part('Σ par × Moody\'s Rating Factor', S1, 'num', [LN.total('Numerator: Σ par × rating factor', S1, 'sum of the last column')].concat(defNote, noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of performing collateral', pD, 'usd', [denL(S, 'Denominator: par of performing collateral', pD)].concat(defNote, noteD(S), res), [denT(S, T, 'Performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'was') {
-        const fl = nd.filter(r => r.rateType !== 'FIXED'); const S1 = sum(fl, r => r.par * r.spread / 100); const exF = qm.excessFunded / 100;
+        const fl = S.N; const S1 = sum(fl, r => r.par * r.spread / 100); const exF = qm.excessFunded / 100;
         const T = TB('Floating-rate performing collateral', [cID, cOb, cPar, ['Spread', 'pct4', r => r.spread], ['Annual spread income', 'usd', r => r.par * r.spread / 100, true]], fl.slice().sort((a, b) => b.spread - a.spread));
         const nl = [LN.row('Annual spread income: Σ par × spread', 'sum of the last column', S1)];
         if (exF) nl.push(LN.row('Plus: index earned on par above the Target Par', fpct(libor) + ' × ' + fmt2(apb - spec.meta.targetPar), exF));
@@ -1290,45 +1388,45 @@ function run(spec0, tape, inp) {
         if (qm.was > qm.wasRaw + 1e-12) { res.push(LN.row('Plus: excess coupon converted to spread, (WAC − minimum WAC) × fixed par ÷ floating par', '(' + fpct(qm.wacRaw, 6) + ' − ' + fpct(spec.spreadRules.minWAC, 2) + ') × ' + fmt2(qm.fxPar) + ' ÷ ' + fmt2(qm.flPar), P4(qm.couponExcess))); res.push(LN.row('Weighted average spread with the excess, capped at the level the tests need', '', P4(qm.was))); }
         if (t.adjust && t.adjust.type === 'recoveryModifier' && q.value - qm.was > 1e-12) { const mv = sel.moodysModifier; const row = (t.adjust.table || []).find(x => x[0] === mv); res.push(LN.row("Plus: Moody's recovery modifier, in percentage points", '(' + qm.mwarr.toFixed(1) + ' − ' + mv + ') × ' + row[1] + ' ÷ 100', (q.value - qm.was).toFixed(4)), LN.row('Spread for this test', '', P4(q.value))); }
         res.push(...limitLines(q));
-        num = part('Annual spread income on floating-rate collateral', S1 + exF, 'usd', nl.concat(res), [T]);
-        den = part('Par of floating-rate performing collateral', qm.flPar, 'usd', [LN.total('Denominator: floating-rate par', qm.flPar, 'sum of the Par column, ' + fl.length + ' positions')].concat(defNote, res), [T]);
+        num = part('Annual spread income on floating-rate collateral', S1 + exF, 'usd', nl.concat(noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of floating-rate performing collateral', qm.flPar, 'usd', [denL(S, 'Denominator: floating-rate par', qm.flPar)].concat(defNote, noteD(S), res), [denT(S, T, 'Floating-rate performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'wac') {
-        const fx = nd.filter(r => r.rateType === 'FIXED'); const S1 = sum(fx, r => r.par * r.coupon / 100);
+        const fx = S.N; const S1 = sum(fx, r => r.par * r.coupon / 100);
         const T = TB('Fixed-rate performing collateral', [cID, cOb, cPar, ['Coupon', 'pct4', r => r.coupon], ['Annual coupon income', 'usd', r => r.par * r.coupon / 100, true]], fx.slice().sort((a, b) => b.coupon - a.coupon));
         const res = [LN.head('Result')];
-        if (!fx.length) res.push(LN.note('There are no fixed-rate assets, so the test does not apply.'));
+        if (!qm.fxPar) res.push(LN.note('There are no fixed-rate assets, so the test does not apply.'));
         else { res.push(LN.row('Weighted average coupon', fmt2(S1) + ' ÷ ' + fmt2(qm.fxPar), P4(qm.wacRaw))); if (qm.wac > qm.wacRaw + 1e-12) { res.push(LN.row('Plus: excess spread converted to coupon, (WAS − minimum WAS) × floating par ÷ fixed par', '(' + fpct(qm.wasRaw, 6) + ' − ' + fpct(spec.spreadRules.minWAS, 2) + ') × ' + fmt2(qm.flPar) + ' ÷ ' + fmt2(qm.fxPar), P4(qm.spreadExcess))); res.push(LN.row('Coupon for the test, capped at the minimum', '', P4(qm.wac))); } }
         res.push(...limitLines(q));
-        num = part('Annual coupon income on fixed-rate collateral', S1, 'usd', [LN.total('Numerator: Σ par × coupon', S1, 'sum of the last column')].concat(res), [T]);
-        den = part('Par of fixed-rate performing collateral', qm.fxPar, 'usd', [LN.total('Denominator: fixed-rate par', qm.fxPar, 'sum of the Par column, ' + fx.length + ' positions')].concat(res), [T]);
+        num = part('Annual coupon income on fixed-rate collateral', S1, 'usd', [LN.total('Numerator: Σ par × coupon', S1, 'sum of the last column')].concat(noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of fixed-rate performing collateral', qm.fxPar, 'usd', [denL(S, 'Denominator: fixed-rate par', qm.fxPar)].concat(noteD(S), res), [denT(S, T, 'Fixed-rate performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'wal') {
-        const S1 = sum(nd, r => r.par * r.yrs); const T = TB('Performing collateral by remaining life', [cID, cOb, ['Maturity', 'text', r => r.maturity], ['Years to maturity', 'num2', r => r.yrs], cPar, ['Par × years', 'num2', r => r.par * r.yrs, true]], nd.slice().sort((a, b) => b.yrs - a.yrs), 'Years run from ' + pd + ' to each maturity, divided by 365 and rounded to 0.01.');
-        const res = [LN.head('Result'), LN.row('Weighted average life, in years', fmt2(S1) + ' ÷ ' + fmt2(apb), apb ? S1 / apb : 0)].concat(limitLines(q));
-        num = part('Σ par × years to maturity', S1, 'num', [LN.total('Numerator: Σ par × years', S1, 'sum of the last column')].concat(defNote, res), [T]);
-        den = part('Par of performing collateral', apb, 'usd', [parLine].concat(defNote, res), [T]);
+        const S1 = sum(S.N, r => r.par * r.yrs); const T = TB('Performing collateral by remaining life', [cID, cOb, ['Maturity', 'text', r => r.maturity], ['Years to maturity', 'num2', r => r.yrs], cPar, ['Par × years', 'num2', r => r.par * r.yrs, true]], S.N.slice().sort((a, b) => b.yrs - a.yrs), 'Years run from ' + pd + ' to each maturity, divided by 365 and rounded to 0.01.');
+        const res = [LN.head('Result'), LN.row('Weighted average life, in years', fmt2(S1) + ' ÷ ' + fmt2(pD), pD ? S1 / pD : 0)].concat(limitLines(q));
+        num = part('Σ par × years to maturity', S1, 'num', [LN.total('Numerator: Σ par × years', S1, 'sum of the last column')].concat(defNote, noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of performing collateral', pD, 'usd', [denL(S, 'Denominator: par of performing collateral', pD)].concat(defNote, noteD(S), res), [denT(S, T, 'Performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'diversity') {
-        const byOb = {}; for (const r of nd) { const k = r.obligor; (byOb[k] = byOb[k] || { ob: k, par: 0, ind: r.mIndustry }).par += r.par; }
+        const byOb = {}; for (const r of S.N) { const k = r.obligor; (byOb[k] = byOb[k] || { ob: k, par: 0, ind: r.mIndustry }).par += r.par; }
         const obs = Object.values(byOb); const tot = sum(obs, o => o.par); const avg = obs.length ? tot / obs.length : 0;
         obs.forEach(o => { o.units = avg ? Math.min(1, o.par / avg) : 0; });
         const byInd = {}; obs.forEach(o => { (byInd[o.ind] = byInd[o.ind] || { ind: o.ind, n: 0, par: 0, units: 0 }); byInd[o.ind].n++; byInd[o.ind].par += o.par; byInd[o.ind].units += o.units; });
         const inds = Object.values(byInd).map(x => Object.assign(x, { u1: Math.round(x.units * 10) / 10, score: industryScore(x.units) })).sort((a, b) => b.score - a.score);
         const res = [LN.head('Result'), LN.row('Diversity Score, sum of the industry scores', 'rounded to 0.01', qm.ds)].concat(limitLines(q));
-        num = part('Sum of industry diversity scores', qm.ds, 'num2', [LN.note('Each obligor counts as the lesser of 1 and its par ÷ the Average Par Amount. Units are added up by Moody\'s industry, rounded to 0.1, and converted to an industry score with Moody\'s table: 1 unit scores 1, 2 score 1.5, 3 score 2, then the increments shrink to a cap of 5.')].concat(res),
-          [TB('Industries', [['Moody\'s industry', 'text', x => x.ind], ['Obligors', 'num0', x => x.n, true], ['Par', 'usd', x => x.par, true], ['Obligor units', 'num4', x => x.units], ['Units, to 0.1', 'num1', x => x.u1], ['Industry score', 'num2', x => x.score, true]], inds)]);
-        den = part('Average Par Amount per obligor', avg, 'usd', [LN.row('Par of performing collateral, summed by obligor', '', tot), LN.row('Number of obligors', '', String(obs.length)), LN.total('Average Par Amount', avg, fmt2(tot) + ' ÷ ' + obs.length)].concat(res),
-          [TB('Obligors', [cOb, ['Moody\'s industry', 'text', o => o.ind], ['Par', 'usd', o => o.par, true], ['Units: lesser of 1 and par ÷ average', 'num4', o => o.units, true]], obs.sort((a, b) => b.par - a.par))]);
+        num = part('Sum of industry diversity scores', qm.ds, 'num2', [LN.note('Each obligor counts as the lesser of 1 and its par ÷ the Average Par Amount. Units are added up by Moody\'s industry, rounded to 0.1, and converted to an industry score with Moody\'s table: 1 unit scores 1, 2 score 1.5, 3 score 2, then the increments shrink to a cap of 5.')].concat(noteN(S, true), res),
+          [TB('Industries', [['Moody\'s industry', 'text', x => x.ind], ['Obligors', 'num0', x => x.n, true], ['Par', 'usd', x => x.par, true], ['Obligor units', 'num4', x => x.units], ['Units, to 0.1', 'num1', x => x.u1], ['Industry score', 'num2', x => x.score, true]], inds)].concat(leftN(S, true)));
+        den = part('Average Par Amount per obligor', avg, 'usd', [LN.row('Par of performing collateral, summed by obligor', '', tot), LN.row('Number of obligors', '', String(obs.length)), LN.total('Average Par Amount', avg, fmt2(tot) + ' ÷ ' + obs.length)].concat(noteN(S, true), res),
+          [TB('Obligors', [cOb, ['Moody\'s industry', 'text', o => o.ind], ['Par', 'usd', o => o.par, true], ['Units: lesser of 1 and par ÷ average', 'num4', o => o.units, true]], obs.sort((a, b) => b.par - a.par))].concat(leftN(S, true)));
       } else if (t.metric === 'moodysWARR') {
-        const S1 = sum(nd, r => r.par * r.mRR / 100);
-        const T = TB("Performing collateral by Moody's recovery rate", [cID, cOb, cTy, cM, ["Moody's facility", 'text', r => r.moodysFacility], ['Notches, facility above DPR', 'num0', r => clamp(mIdx(r.moodysDPR) - mIdx(r.moodysFacility), -3, 2)], ['Recovery rate', 'pct1', r => r.mRR], cPar, ['Par × rate', 'usd', r => r.par * r.mRR / 100, true]], nd.slice().sort((a, b) => a.mRR - b.mRR || b.par - a.par));
-        const res = [LN.head('Result'), LN.row('Weighted average recovery rate', fmt2(S1) + ' ÷ ' + fmt2(apb), P4(apb ? S1 / apb * 100 : 0)), LN.row('Rounded up to 0.1%', '', qm.mwarr.toFixed(1) + '%')].concat(limitLines(q));
-        num = part('Σ par × Moody\'s recovery rate', S1, 'usd', [LN.total('Numerator: recovery value at Moody\'s rates', S1, 'sum of the last column')].concat(defNote, res), [T]);
-        den = part('Par of performing collateral', apb, 'usd', [parLine].concat(defNote, res), [T]);
+        const S1 = sum(S.N, r => r.par * r.mRR / 100);
+        const T = TB("Performing collateral by Moody's recovery rate", [cID, cOb, cTy, cM, ["Moody's facility", 'text', r => r.moodysFacility], ['Notches, facility above DPR', 'num0', r => clamp(mIdx(r.moodysDPR) - mIdx(r.moodysFacility), -3, 2)], ['Recovery rate', 'pct1', r => r.mRR], cPar, ['Par × rate', 'usd', r => r.par * r.mRR / 100, true]], S.N.slice().sort((a, b) => a.mRR - b.mRR || b.par - a.par));
+        const res = [LN.head('Result'), LN.row('Weighted average recovery rate', fmt2(S1) + ' ÷ ' + fmt2(pD), P4(pD ? S1 / pD * 100 : 0)), LN.row('Rounded up to 0.1%', '', qm.mwarr.toFixed(1) + '%')].concat(limitLines(q));
+        num = part('Σ par × Moody\'s recovery rate', S1, 'usd', [LN.total('Numerator: recovery value at Moody\'s rates', S1, 'sum of the last column')].concat(defNote, noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of performing collateral', pD, 'usd', [denL(S, 'Denominator: par of performing collateral', pD)].concat(defNote, noteD(S), res), [denT(S, T, 'Performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'spWARR') {
-        const cols = spec.recovery.sp.cols; const c0 = cols[0]; const S1 = sum(nd, r => r.par * r.sRR[c0] / 100);
-        const T = TB('Performing collateral by S&P recovery rate', [cID, cOb, cTy, ['S&P recovery rating', 'text', r => r.spRecUsed]].concat(cols.map(c => [c + ' rate', 'pct1', r => r.sRR[c]]), [cPar, ['Par × ' + c0 + ' rate', 'usd', r => r.par * r.sRR[c0] / 100, true]]), nd.slice().sort((a, b) => a.sRR[c0] - b.sRR[c0] || b.par - a.par));
-        const res = [LN.head('Result')].concat(cols.map(c => LN.sub(c + ' column', fmt2(sum(nd, r => r.par * r.sRR[c] / 100)) + ' ÷ ' + fmt2(apb), P4(qm.swarr[c]))), limitLines(q));
-        num = part('Σ par × S&P recovery rate, ' + c0 + ' column', S1, 'usd', [LN.total('Numerator: recovery value at the ' + c0 + ' rates', S1, 'sum of the last column'), LN.note('Each rated class is tested against its own column; the table shows every column.')].concat(defNote, res), [T]);
-        den = part('Par of performing collateral', apb, 'usd', [parLine].concat(defNote, res), [T]);
+        const cols = spec.recovery.sp.cols; const c0 = cols[0]; const S1 = sum(S.N, r => r.par * r.sRR[c0] / 100);
+        const T = TB('Performing collateral by S&P recovery rate', [cID, cOb, cTy, ['S&P recovery rating', 'text', r => r.spRecUsed]].concat(cols.map(c => [c + ' rate', 'pct1', r => r.sRR[c]]), [cPar, ['Par × ' + c0 + ' rate', 'usd', r => r.par * r.sRR[c0] / 100, true]]), S.N.slice().sort((a, b) => a.sRR[c0] - b.sRR[c0] || b.par - a.par));
+        const res = [LN.head('Result')].concat(cols.map(c => LN.sub(c + ' column', fmt2(sum(S.N, r => r.par * r.sRR[c] / 100)) + ' ÷ ' + fmt2(pD), P4(qm.swarr[c]))), limitLines(q));
+        num = part('Σ par × S&P recovery rate, ' + c0 + ' column', S1, 'usd', [LN.total('Numerator: recovery value at the ' + c0 + ' rates', S1, 'sum of the last column'), LN.note('Each rated class is tested against its own column; the table shows every column.')].concat(defNote, noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of performing collateral', pD, 'usd', [denL(S, 'Denominator: par of performing collateral', pD)].concat(defNote, noteD(S), res), [denT(S, T, 'Performing collateral')].concat(leftD(S)));
       }
       if (num) quality[q.id] = { num, den };
     }
@@ -1341,36 +1439,58 @@ function run(spec0, tape, inp) {
     const fText = c => (c.filter || []).map(x => (FL[x.f] || x.f) + (x.in ? ' is ' + x.in.join(' or ') : x.notIn ? ' is not ' + x.notIn.join(' or ') : x.eq !== undefined ? (x.eq ? ' = yes' : ' = no') : x.lt !== undefined ? ' below ' + (x.f === 'facilitySize' ? fmt2(x.lt) : x.lt) : x.gt !== undefined ? ' above ' + x.gt : '')).join(' and ');
     const allT = TB('All collateral', [cID, cOb, cTy, ['Country', 'text', r => r.country], cPar, ['Share of PCV', 'pct4', r => r.par / pcvGen * 100]], rows.slice().sort((a, b) => b.par - a.par), 'Principal Proceeds of ' + fmt2(principalCash) + ' are added to the par of the collateral.');
     const denConc = part('Principal Collateral Value at par', pcvGen, 'usd', [LN.row('Aggregate par of the collateral', 'sum of the Par column, ' + rows.length + ' positions', pb.parTotal), LN.row('Plus: Principal Proceeds on deposit', '', principalCash), LN.total('Denominator', pcvGen, fmt2(pb.parTotal) + ' + ' + fmt2(principalCash))], [allT]);
+    const cL = [cID, cOb, cTy, ['Country', 'text', r => r.country], ["S&P industry", 'text', r => r.spIndustry], cPar];
+    // the denominator after your adjustment: Principal Collateral Value at par, less the loans you left out
+    const denConcFor = (a, D) => {
+      if (!a || (!D.left.length && D.cash)) return denConc;
+      const X = a.text || {}; const L = [LN.row('Aggregate par of the collateral', 'sum of the Par column, ' + rows.length + ' positions', pb.parTotal)];
+      if (D.left.length) L.push(LN.row('Loans you left out of the denominator: loans where ' + X.denSkip, 'sum of the Par column, ' + D.left.length + ' positions', D.leftPar));
+      else if (X.denSkip) L.push(LN.note('No loan meets your condition for leaving loans out of the denominator (' + X.denSkip + ').'));
+      L.push(D.cash ? LN.row('Plus: Principal Proceeds on deposit', '', principalCash) : LN.row('Principal Proceeds on deposit, left out by your adjustment', 'not counted', 0));
+      L.push(LN.total('Denominator', D.value, fmt2(pb.parTotal) + (D.left.length ? ' − ' + fmt2(D.leftPar) : '') + (D.cash ? ' + ' + fmt2(principalCash) : '')));
+      const T = TB('All collateral', [cID, cOb, cTy, ['Country', 'text', r => r.country], cPar, ['Share of the denominator', 'pct4', r => D.value > 0 ? r.par / D.value * 100 : 0]], rows.slice().sort((a, b) => b.par - a.par), D.cash ? 'Principal Proceeds of ' + fmt2(principalCash) + ' are added to the par of the collateral.' : 'Principal Proceeds are not counted, by your adjustment.');
+      return part('Principal Collateral Value at par, as you adjusted it', D.value, 'usd', L, [T].concat(D.left.length ? [TB('Left out of the denominator by your adjustment', cL, D.left.slice().sort((a, b) => b.par - a.par), 'Loans where ' + X.denSkip)] : []));
+    };
     const conc = {};
     for (const c of result.conc) {
       const t = (spec.concentrations || []).find(x => x.id === c.id) || {}; let num;
+      const a = (TA.conc && TA.conc[c.id]) || null; const X = (a && a.text) || {};
+      const D = concDen(a, rows, pcvGen, principalCash); const dv = D.value; const dPart = denConcFor(a, D);
+      const shareOf = x => dv > 0 ? x / dv * 100 : 0; const dName = a && dPart !== denConc ? 'the denominator' : 'PCV';
+      const skipped = a && a.numSkip ? rows.filter((x, i) => a.numSkip[i]) : [];
       const chk = (val, lim, op) => LN.check('Limit ' + (op === '>=' ? '≥ ' : '≤ ') + fpct(lim, 2), P4(val) + ((op === '>=' ? val >= lim - 1e-9 : val <= lim + 1e-9) ? ' passes' : ' fails'), op === '>=' ? val >= lim - 1e-9 : val <= lim + 1e-9);
       if (t.metric === 'maxObligor' || t.metric === 'maxIndustry' || t.metric === 'maxByField') {
         const field = t.metric === 'maxObligor' ? 'obligor' : (t.field || (t.metric === 'maxIndustry' ? 'spIndustry' : 'country'));
-        const g = {}; for (const x of rows) { const k = x[field]; if (t.within && !t.within.includes(k)) continue; (g[k] = g[k] || { k, par: 0, n: 0 }).par += x.par; g[k].n++; }
+        const inSet = rows.filter((x, i) => !(a && a.numSkip && a.numSkip[i]) && !(a && a.numOnly && !a.numOnly[i]));
+        const g = {}; for (const x of inSet) { const k = x[field]; if (t.within && !t.within.includes(k)) continue; (g[k] = g[k] || { k, par: 0, n: 0 }).par += x.par; g[k].n++; }
         const arr = Object.values(g).sort((a, b) => b.par - a.par); const ex = t.exceptions;
-        arr.forEach((e, i) => { e.pct = e.par / pcvGen * 100; e.lim = ex && i < ex.count ? ex.limit : t.limit; e.pass = e.pct <= e.lim + 1e-9; });
-        const top = arr[0] || { k: '—', par: 0, pct: 0 }; const inTop = rows.filter(x => x[field] === top.k);
-        const gName = FL[field] || field;
-        const res = [LN.head('Result'), LN.row('Largest ' + gName.toLowerCase() + ', ' + top.k, fmt2(top.par) + ' ÷ ' + fmt2(pcvGen), P4(top.pct))];
+        arr.forEach((e, i) => { e.pct = shareOf(e.par); e.lim = ex && i < ex.count ? ex.limit : t.limit; e.pass = e.pct <= e.lim + 1e-9; });
+        const top = arr[0] || { k: '—', par: 0, pct: 0 }; const inTop = inSet.filter(x => x[field] === top.k);
+        const gName = FL[field] || t.fieldLabel || field;
+        const res = [LN.head('Result'), LN.row('Largest ' + gName.toLowerCase() + ', ' + top.k, fmt2(top.par) + ' ÷ ' + fmt2(dv), P4(top.pct))];
         if (ex) res.push(LN.note('Up to ' + ex.count + ' may each reach ' + ex.limit + '%; the rest are limited to ' + t.limit + '%. The table checks each against the limit that applies to its rank.'));
-        res.push(LN.check(c.pass ? 'Every ' + gName.toLowerCase() + ' within its limit' : 'At least one ' + gName.toLowerCase() + ' over its limit', arr.filter(e => !e.pass).map(e => e.k).join(', ') || 'none over', c.pass));
-        const GT = TB('By ' + gName.toLowerCase() + (t.within ? ' (' + t.within.join(', ') + ' only)' : ''), [[gName, 'text', e => e.k], ['Positions', 'num0', e => e.n, true], ['Par', 'usd', e => e.par, true], ['Share of PCV', 'pct4', e => e.pct], ['Limit that applies', 'pct2', e => e.lim], ['Within', 'yn', e => e.pass]], arr);
-        num = part('Par of the largest ' + gName.toLowerCase() + ': ' + top.k, top.par, 'usd', [LN.total('Numerator', top.par, 'sum of the Par column in the second table')].concat(res), [GT, TB('Positions of ' + top.k, [cID, cOb, cTy, ['Country', 'text', r => r.country], ["S&P industry", 'text', r => r.spIndustry], cPar], inTop.sort((a, b) => b.par - a.par))]);
-        conc[c.id] = { num, den: withResult(denConc, res) };
+        res.push(LN.check(c.pass ? 'Every ' + gName.toLowerCase() + ' within its limit' : 'At least one ' + gName.toLowerCase() + ' over its limit', arr.filter(e => !e.pass).map(e => e.k).join(', ') || 'none over', !!c.pass));
+        const adj = []; if (X.numOnly) adj.push(LN.note('Your adjustment groups only loans where ' + X.numOnly + '.')); if (X.numSkip) adj.push(LN.note('Your adjustment leaves out of the numerator loans where ' + X.numSkip + ': ' + skipped.length + ' position' + (skipped.length === 1 ? '' : 's') + ', ' + fmt2(sum(skipped, x => x.par)) + ' par.'));
+        const GT = TB('By ' + gName.toLowerCase() + (t.within ? ' (' + t.within.join(', ') + ' only)' : ''), [[gName, 'text', e => e.k], ['Positions', 'num0', e => e.n, true], ['Par', 'usd', e => e.par, true], ['Share of ' + dName, 'pct4', e => e.pct], ['Limit that applies', 'pct2', e => e.lim], ['Within', 'yn', e => e.pass]], arr);
+        num = part('Par of the largest ' + gName.toLowerCase() + ': ' + top.k, top.par, 'usd', [LN.total('Numerator', top.par, 'sum of the Par column in the second table')].concat(adj, res), [GT, TB('Positions of ' + top.k, cL, inTop.sort((a, b) => b.par - a.par))].concat(skipped.length ? [TB('Left out of the numerator by your adjustment', cL, skipped.slice().sort((a, b) => b.par - a.par), 'Loans where ' + X.numSkip)] : []));
+        conc[c.id] = { num, den: withResult(dPart, res) };
       } else {
-        const m = rows.filter(x => rowMatches(x, t.filter)).sort((a, b) => b.par - a.par); const mPar = sum(m, x => x.par);
-        const cashOk = t.cashAs && rowMatches(Object.assign({ assetType: 'SSL', rateType: 'FLOAT', country: 'US' }, t.cashAs), t.filter);
+        const own = !!(a && a.numOnly);
+        const m = rows.filter((x, i) => (own ? a.numOnly[i] : rowMatches(x, t.filter)) && !(a && a.numSkip && a.numSkip[i])).sort((a, b) => b.par - a.par); const mPar = sum(m, x => x.par);
+        const cashOk = !!c.cashIn;
         const amt = mPar + (cashOk ? principalCash : 0);
-        const L = [LN.row('Par of collateral where ' + (fText(t) || 'the clause applies'), 'sum of the Par column, ' + m.length + ' positions', mPar)];
+        const what = own ? X.numOnly + (t.custom ? '' : ' (your condition, in place of the clause\'s own test)') : (fText(t) || 'the clause applies');
+        const L = [LN.row('Par of collateral where ' + what + (X.numSkip ? ', other than loans where ' + X.numSkip : ''), 'sum of the Par column, ' + m.length + ' positions', mPar)];
         if (cashOk) L.push(LN.row('Plus: Principal Proceeds, counted as the clause directs', '', principalCash));
         L.push(LN.total('Numerator', amt, cashOk ? fmt2(mPar) + ' + ' + fmt2(principalCash) : ''));
+        if (X.numSkip) L.push(LN.note('Your adjustment leaves out of the numerator loans where ' + X.numSkip + ': ' + skipped.length + ' position' + (skipped.length === 1 ? '' : 's') + ', ' + fmt2(sum(skipped, x => x.par)) + ' par in all.'));
         if (c.missing) L.push(LN.note(c.note));
-        const res = [LN.head('Result'), LN.row('Share of Principal Collateral Value', fmt2(amt) + ' ÷ ' + fmt2(pcvGen), P4(c.value)), chk(c.value, c.limit, c.op)];
-        const extra = []; (t.filter || []).forEach(x => { if (!['assetType'].includes(x.f) && !extra.some(e => e[0] === fCol(x.f)[0])) extra.push(fCol(x.f)); });
-        const MT = TB('Collateral counted', [cID, cOb, cTy].concat(extra, [cPar, ['Share of PCV', 'pct4', r => r.par / pcvGen * 100, true]]), m, m.length ? '' : 'No collateral meets this clause.');
-        num = part('Par of collateral counted under ' + c.id, amt, 'usd', L.concat(res), [MT]);
-        conc[c.id] = { num, den: withResult(denConc, res) };
+        const res = [LN.head('Result'), LN.row('Share of ' + (dName === 'PCV' ? 'Principal Collateral Value' : 'the denominator'), fmt2(amt) + ' ÷ ' + fmt2(dv), P4(c.value))];
+        if (c.pass != null) res.push(chk(c.value, c.limit, c.op)); else res.push(LN.note(c.note || 'Could not be evaluated'));
+        const extra = []; if (!own) (t.filter || []).forEach(x => { if (!['assetType'].includes(x.f) && !extra.some(e => e[0] === fCol(x.f)[0])) extra.push(fCol(x.f)); });
+        const MT = TB('Collateral counted', [cID, cOb, cTy].concat(extra, [cPar, ['Share of ' + dName, 'pct4', r => shareOf(r.par), true]]), m, m.length ? '' : 'No collateral meets this ' + (own ? 'condition' : 'clause') + '.');
+        num = part('Par of collateral counted under ' + c.id, amt, 'usd', L.concat(res), [MT].concat(skipped.length ? [TB('Left out of the numerator by your adjustment', cL, skipped.slice().sort((a, b) => b.par - a.par), 'Loans where ' + X.numSkip)] : []));
+        conc[c.id] = { num, den: withResult(dPart, res) };
       }
     }
     TC.conc = conc;
@@ -1438,6 +1558,6 @@ function validateSpec(s) {
   return { errs, warns };
 }
 
-const api = { plainError, run, schedule, analysePortfolio, principalBalances, qualityMetrics, validateSpec, normaliseRow, money, days, addMonths, D, iso, M_SCALE, S_SCALE, mIdx, sIdx, xirr, hurdleAmount, diversityScore, KNOWN_TYPES };
+const api = { plainError, run, schedule, analysePortfolio, principalBalances, qualityMetrics, rowMatches, validateSpec, normaliseRow, money, days, addMonths, D, iso, M_SCALE, S_SCALE, mIdx, sIdx, xirr, hurdleAmount, diversityScore, KNOWN_TYPES };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CLOEngine = api;
 })(typeof window !== 'undefined' ? window : globalThis);

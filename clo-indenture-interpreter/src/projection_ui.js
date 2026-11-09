@@ -92,7 +92,7 @@ function bindProjChart(fig, o) {
 }
 function runProjection() {
   // the starting tape carries any loan-level replacements; fee and collateral-value replacements apply on every projected date
-  const S = projState(); const s = deal(); const tape = state.calcInfo ? state.calcInfo.tape : effectiveTape(); const I = clone(state.inputs); const first = state.result; const out = {}; let k = 0; const PE = CALC.projectionEngine(E, calcRows());
+  const S = projState(); const s = deal(); const tape = state.calcInfo ? state.calcInfo.tape : effectiveTape(); const I = clone(state.inputs); const first = state.result; const out = {}; let k = 0; const PE = CALC.projectionEngine(E, calcRows(), testRules());
   S.running = S.sc[0].label; renderProjection();
   const next = () => {
     if (k >= S.sc.length) { S.res = out; S.running = false; S.stamp = projStamp(); renderProjection(); toast('Projection done'); return; }

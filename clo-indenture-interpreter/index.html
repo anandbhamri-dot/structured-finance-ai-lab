@@ -364,6 +364,47 @@ h3.cvg-plain { font: 600 13px/1.3 var(--sans); color: var(--muted); margin: 6px 
 .refs .nm em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
 .refs .nm span { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
 code.f { font: 12px/1.4 var(--mono); background: var(--panel-2); border: 1px solid var(--rule-2); padding: 0 4px; border-radius: 4px; overflow-wrap: anywhere; }
+/* your adjustments to the tests */
+.adjc { margin-top: 3px; font-weight: 400; }
+.adjb { font-size: 12px; }
+.adjtag { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); vertical-align: 1px; }
+.adjtag.err { background: var(--fail-soft); color: var(--fail); }
+.adjsum { overflow-wrap: anywhere; max-width: 34ch; }
+tr.mine > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.adjnew { margin-top: 10px; align-items: center; }
+.adjnew .small { flex: 1 1 260px; }
+.adjres { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 0 0 16px; }
+.adjres > div { background: var(--panel-2); border: 1px solid var(--rule-2); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.adjres b { font-size: 18px; font-weight: 600; }
+.adjsec { border-top: 1px solid var(--rule-2); padding: 12px 0 4px; }
+.adjsec h3 { font: 600 15px/1.3 var(--sans); margin: 0 0 6px; }
+.adjsec > .small { margin: 0 0 8px; }
+.adjlist { margin: 8px 0 14px; }
+.adjlist h4 { font-size: 13px; margin: 0 0 2px; }
+.adjlist > .small { margin: 0 0 6px; }
+ul.chips { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+ul.chips li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 6px 4px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); }
+ul.chips li.bad { border-color: var(--fail); }
+ul.chips li .cv-err { flex-basis: 100%; }
+ul.chips .jw { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.chipx { margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 17px; line-height: 1; padding: 2px 6px; cursor: pointer; border-radius: 4px; min-height: 26px; }
+.chipx:hover { color: var(--fail); background: var(--fail-soft); }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.adjbuild { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.adjbuild select, .adjbuild input { min-width: 0; max-width: 100%; font: inherit; font-size: 13px; color: var(--ink); }
+.adjbuild select[data-bf] { flex: 1 1 150px; } .adjbuild select[data-bo] { flex: 0 1 120px; } .adjbuild [data-bv] { flex: 1 1 150px; }
+input[type=date] { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 5px 8px; min-height: 32px; color: var(--ink); font: inherit; }
+.adjpreview { margin: 4px 0 6px; }
+.adjtype { display: flex; gap: 6px; }
+.adjtype input { flex: 1; min-width: 0; font: 12.5px/1.4 var(--mono); color: var(--ink); }
+.adjmode { border: 0; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.adjmode legend { font-size: 13px; font-weight: 600; padding: 0; margin-bottom: 2px; }
+.adjmode label, label.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
+.adjmode input, label.chk input { margin-top: 3px; }
+.adjgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 12px; }
+.adjgrid label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--ink-2); }
+.adjgrid input, .adjgrid select { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; font-size: 13px; color: var(--ink); }
+.adjlim { display: flex; gap: 6px; } .adjlim select { flex: 0 0 auto; width: auto; } .adjlim input { flex: 1; }
 table.manual tr.hasfx td { border-bottom: 0; }
 table.manual tr.fxrow td { padding-top: 0; }
 table.manual .fxv { font-variant-numeric: tabular-nums; font-weight: 500; }
@@ -693,26 +734,40 @@ function matrixLookup(mx, rowVal, colVal) {
   return Math.round((top + (bot - top) * rt) * 100) / 100;
 }
 
-function qualityMetrics(spec, pf, sel) {
+// QA: your adjustments to a test, by measure (Tests tab): loans left out of the numerator or the denominator, or the only loans counted
+function qualityMetrics(spec, pf, sel, QA) {
+  QA = QA || {};
   const nd = pf.rows.filter(r => !r.defaulted);
+  const idx = new Map(pf.rows.map((r, i) => [r, i]));
+  const setsOf = (m, base) => {
+    const a = QA[m]; if (!a) return { N: base, D: base, base, a: null, numLeft: [], denLeft: [] };
+    const one = m === 'diversity'; // the score has one set of loans: both lists leave loans out of it
+    const keepN = r => { const i = idx.get(r); return (!a.numOnly || a.numOnly[i]) && !(a.numSkip && a.numSkip[i]) && !(one && a.denSkip && a.denSkip[i]); };
+    const keepD = r => { const i = idx.get(r); return !(a.denSkip && a.denSkip[i]); };
+    const N = base.filter(keepN), D = one ? N : base.filter(keepD);
+    return { N, D, base, a, numLeft: base.filter(r => !keepN(r)), denLeft: one ? [] : base.filter(r => !keepD(r)) };
+  };
   const apb = sum(nd, r => r.par);
-  const fl = nd.filter(r => r.rateType === 'FLOAT'), fx = nd.filter(r => r.rateType === 'FIXED');
-  const flPar = sum(fl, r => r.par), fxPar = sum(fx, r => r.par);
+  const fl0 = nd.filter(r => r.rateType === 'FLOAT'), fx0 = nd.filter(r => r.rateType === 'FIXED');
+  const S = { warf: setsOf('warf', nd), was: setsOf('was', fl0), wac: setsOf('wac', fx0), wal: setsOf('wal', nd), diversity: setsOf('diversity', nd), moodysWARR: setsOf('moodysWARR', nd), spWARR: setsOf('spWARR', nd) };
+  const P = k => S[k] ? sum(S[k].D, r => r.par) : 0;
+  const flPar = P('was'), fxPar = P('wac');
   const sp = spec.spreadRules || {};
   const excessFunded = sp.excessParSpread ? pf.libor * Math.max(0, apb - spec.meta.targetPar) : 0;
-  const wasRaw = flPar ? (sum(fl, r => r.par * r.spread) + excessFunded) / flPar : 0;
-  const wacRaw = fxPar ? sum(fx, r => r.par * r.coupon) / fxPar : null;
+  const wasRaw = flPar ? (sum(S.was.N, r => r.par * r.spread) + excessFunded) / flPar : 0;
+  const wacRaw = fxPar ? sum(S.wac.N, r => r.par * r.coupon) / fxPar : null;
   const minWAS = sp.minWAS != null ? sp.minWAS : 0, minWAC = sp.minWAC != null ? sp.minWAC : 0;
   const spreadExcess = fxPar ? Math.max(0, wasRaw - minWAS) * flPar / fxPar : 0;
   const couponExcess = (fxPar && flPar && wacRaw != null) ? Math.max(0, wacRaw - minWAC) * fxPar / flPar : 0;
-  const warf = apb ? Math.ceil(sum(nd, r => r.par * r.rf) / apb) : 0;
-  const mwarr = apb ? Math.ceil(sum(nd, r => r.par * r.mRR) / apb * 10) / 10 : 0;
-  const swarr = {}; spec.recovery.sp.cols.forEach(c => { swarr[c] = apb ? sum(nd, r => r.par * r.sRR[c]) / apb : 0; });
-  const wal = apb ? sum(nd, r => r.par * r.yrs) / apb : 0;
-  const ds = diversityScore(nd);
+  const pW = P('warf'), pR = P('moodysWARR'), pS = P('spWARR'), pL = P('wal');
+  const warf = pW ? Math.ceil(sum(S.warf.N, r => r.par * r.rf) / pW) : 0;
+  const mwarr = pR ? Math.ceil(sum(S.moodysWARR.N, r => r.par * r.mRR) / pR * 10) / 10 : 0;
+  const swarr = {}; spec.recovery.sp.cols.forEach(c => { swarr[c] = pS ? sum(S.spWARR.N, r => r.par * r.sRR[c]) / pS : 0; });
+  const wal = pL ? sum(S.wal.N, r => r.par * r.yrs) / pL : 0;
+  const ds = diversityScore(S.diversity.N);
   let wac = wacRaw;
   if (wacRaw != null && wacRaw < minWAC) wac = Math.min(minWAC, wacRaw + spreadExcess);
-  return { apb, flPar, fxPar, wasRaw, wacRaw, wac, spreadExcess, couponExcess, excessFunded, warf, mwarr, swarr, wal, ds, anyLateMaturity: pf.rows.some(r => r.matAfterStated), nObligors: new Set(nd.map(r => r.obligor)).size };
+  return { apb, flPar, fxPar, wasRaw, wacRaw, wac, spreadExcess, couponExcess, excessFunded, warf, mwarr, swarr, wal, ds, anyLateMaturity: pf.rows.some(r => r.matAfterStated), nObligors: new Set(nd.map(r => r.obligor)).size, sets: S, parOf: P, adjusted: Object.keys(QA).filter(k => QA[k]) };
 }
 
 function evalQuality(spec, qm, sel, ctx) {
@@ -754,6 +809,12 @@ function evalQuality(spec, qm, sel, ctx) {
         r.note = 'Matrix ' + (+base.toFixed(2)) + (rfm ? ' + modifier ' + (+rfm.toFixed(2)) : '') + (qm.anyLateMaturity && t.limit.alt ? ' (Table II: an asset matures after Stated Maturity)' : '');
       } else if (lim.type === 'case') { lim = lim.values[(sel.spCase || 1) - 1]; r.note = 'Case ' + (sel.spCase || 1); }
       else if (lim.type === 'declining') { const L = lim; const y = days(ctx.meta[L.from] || ctx.meta.effectiveDate, ctx.asOf) / 365; lim = Math.max(0, L.startYears - y); r.note = L.startYears + ' years less ' + y.toFixed(2) + ' years since the ' + (L.from || 'effectiveDate').replace(/([A-Z])/g, ' $1').toLowerCase(); }
+      // a table of limits by Payment Date: the row for the latest date on or before this one
+      else if (lim.type === 'table') { const rows = (lim.rows || []).filter(x => x && x.from && isFinite(+x.value)).slice().sort((a, b) => D(a.from) - D(b.from)); const row = rows.filter(x => D(x.from) <= D(ctx.asOf)).pop() || rows[0]; lim = row ? +row.value : NaN; r.note = row ? 'Table: ' + row.value + ' from ' + row.from : ''; }
+      // a base plus a step for each Payment Date left before a date (usually the end of the Reinvestment Period), less a step for each since it
+      else if (lim.type === 'stepped') { const L = lim; const piv = ctx.meta[L.pivot || 'reinvestmentPeriodEnd']; const dates = schedule({ meta: ctx.meta }).map(x => x.date);
+        const before = D(ctx.asOf) < D(piv); const n = before ? dates.filter(d => D(d) > D(ctx.asOf) && D(d) <= D(piv)).length : dates.filter(d => D(d) > D(piv) && D(d) <= D(ctx.asOf)).length;
+        lim = Math.max(0, +L.base + (before ? 1 : -1) * +L.step * n); r.note = L.base + (before ? ' plus ' : ' less ') + L.step + ' × ' + n + ' Payment Date' + (n === 1 ? '' : 's') + (before ? ' left before' : ' since') + ' the end of the Reinvestment Period'; }
     }
     if (t.metric === 'was' && t.adjust && t.adjust.type === 'recoveryModifier') {
       const mv = sel.moodysModifier; const row = (t.adjust.table || []).find(x => x[0] === mv);
@@ -791,30 +852,75 @@ function rowMatches(r, filter) {
   }
   return true;
 }
-function evalConcentrations(spec, pf, pcvGeneral, rawTape, principalCash) {
+// the denominator of a Portfolio Profile Test: Principal Collateral Value at par, less the loans your adjustment leaves out
+function concDen(a, rows, pcvGeneral, principalCash) {
+  const left = a && a.denSkip ? rows.filter((x, i) => a.denSkip[i]) : [];
+  const cash = !(a && a.denCash === false);
+  const leftPar = sum(left, x => x.par);
+  return { value: pcvGeneral - leftPar - (cash ? 0 : principalCash), left, leftPar, cash };
+}
+// TA: your adjustments (Tests tab); a.numOnly replaces the clause's own test, a.numSkip and a.denSkip leave loans out
+function evalConcentrations(spec, pf, pcvGeneral, rawTape, principalCash, TA) {
   const out = []; const rows = pf.rows;
   const fieldPresent = f => ['ccc', 'matAfterStated', 'discount', 'assetType', 'rateType', 'country', 'defaulted'].includes(f) || rawTape.some(t => t[f] !== undefined && t[f] !== '' && t[f] !== null);
   for (const c of spec.concentrations || []) {
+    const a = (TA && TA.conc && TA.conc[c.id]) || null;
     const r = { id: c.id, label: c.label, ref: c.ref, op: c.op || '<=', limit: c.limit };
+    if (c.custom) r.custom = true;
+    if (a) { r.adjusted = true; r.adjText = a.summary || ''; }
+    const D = concDen(a, rows, pcvGeneral, principalCash); const den = D.value; r.den = den;
+    const pctOf = x => den > 0 ? x / den * 100 : 0;
+    const skip = i => !!(a && a.numSkip && a.numSkip[i]);
     if (c.metric === 'maxObligor' || c.metric === 'maxIndustry' || c.metric === 'maxByField') {
       const field = c.metric === 'maxObligor' ? 'obligor' : (c.field || (c.metric === 'maxIndustry' ? 'spIndustry' : 'country'));
       const g = {};
-      for (const x of rows) { const k = x[field]; if (c.within && !c.within.includes(k)) continue; g[k] = (g[k] || 0) + x.par; }
-      const arr = Object.entries(g).map(([k, v]) => ({ k, pct: v / pcvGeneral * 100 })).sort((a, b) => b.pct - a.pct);
-      const ex = c.exceptions; let pass = true, worst = arr[0] || { k: '—', pct: 0 };
+      rows.forEach((x, i) => { if (skip(i) || (a && a.numOnly && !a.numOnly[i])) return; const k = x[field]; if (c.within && !c.within.includes(k)) return; g[k] = (g[k] || 0) + x.par; });
+      const arr = Object.entries(g).map(([k, v]) => ({ k, par: v, pct: pctOf(v) })).sort((a, b) => b.pct - a.pct);
+      const ex = c.exceptions; let pass = true, worst = arr[0] || { k: '—', par: 0, pct: 0 };
       arr.forEach((e, i) => { const lim = ex && i < ex.count ? ex.limit : c.limit; if (e.pct > lim + 1e-9) pass = false; });
-      r.value = worst.pct; r.top = arr.slice(0, 3); r.pass = pass; r.fmt = 'pct2';
+      r.value = worst.pct; r.amount = worst.par; r.top = arr.slice(0, 3); r.pass = pass; r.fmt = 'pct2';
       r.note = 'Largest: ' + worst.k + (ex ? '; up to ' + ex.count + ' may reach ' + ex.limit + '%' : '');
     } else {
-      const missing = (c.filter || []).filter(f => !fieldPresent(f.f)).map(f => f.f);
-      let amt = sum(rows.filter(x => rowMatches(x, c.filter)), x => x.par);
-      if (c.cashAs && rowMatches(Object.assign({ assetType: 'SSL', rateType: 'FLOAT', country: 'US' }, c.cashAs), c.filter)) { amt += principalCash; r.note = 'Principal cash counted as senior secured, as the clause directs'; }
-      r.value = amt / pcvGeneral * 100; r.amount = amt; r.fmt = 'pct2';
-      r.pass = r.op === '>=' ? r.value >= c.limit - 1e-9 : r.value <= c.limit + 1e-9;
+      const own = a && a.numOnly; // your condition in place of the clause's own test
+      const missing = own ? [] : (c.filter || []).filter(f => !fieldPresent(f.f)).map(f => f.f);
+      let amt = sum(rows.filter((x, i) => (own ? a.numOnly[i] : rowMatches(x, c.filter)) && !skip(i)), x => x.par);
+      if (!own && D.cash && c.cashAs && rowMatches(Object.assign({ assetType: 'SSL', rateType: 'FLOAT', country: 'US' }, c.cashAs), c.filter)) { amt += principalCash; r.note = 'Principal cash counted as senior secured, as the clause directs'; r.cashIn = true; }
+      r.value = pctOf(amt); r.amount = amt; r.fmt = 'pct2';
       if (missing.length) { r.note = (r.note ? r.note + '; ' : '') + 'Tape has no ' + missing.join(', ') + ' column: treated as none'; r.missing = true; }
     }
+    if (!(c.metric === 'maxObligor' || c.metric === 'maxIndustry' || c.metric === 'maxByField')) r.pass = r.op === '>=' ? r.value >= c.limit - 1e-9 : r.value <= c.limit + 1e-9;
+    if (!(den > 0)) { r.pass = null; r.failed = true; r.note = (r.note ? r.note + '; ' : '') + 'The denominator is zero after your adjustment'; }
     out.push(r);
   }
+  return out;
+}
+// your test adjustments, checked against the tape: flags line up with the loans, one per loan
+function testAdjustOf(A, spec, rows, warnings) {
+  const out = { conc: {}, quality: {}, qualityByMetric: {}, coverage: {}, custom: [], any: false };
+  if (!A || typeof A !== 'object') return out;
+  const n = rows.length;
+  if (Array.isArray(A.ids) && (A.ids.length !== n || A.ids.some((id, i) => String(id) !== String(rows[i].id)))) { warnings.push('Your test adjustments were worked out for a different tape, so the tests are shown as the indenture reads'); return out; }
+  const fl = f => Array.isArray(f) && f.length === n ? f.map(Boolean) : null;
+  const clean = a => { if (!a || typeof a !== 'object') return null; const o = { numOnly: fl(a.numOnly), numSkip: fl(a.numSkip), denSkip: fl(a.denSkip), denCash: a.denCash !== false, text: Object.assign({}, a.text || {}), summary: String(a.summary || '') }; return o.numOnly || o.numSkip || o.denSkip || !o.denCash ? o : null; };
+  Object.entries(A.conc || {}).forEach(([id, a]) => { const o = clean(a); if (o) { out.conc[id] = o; out.any = true; } });
+  Object.entries(A.coverage || {}).forEach(([id, a]) => { const o = clean(a); if (o && o.numSkip) { out.coverage[id] = { numSkip: o.numSkip, text: o.text, summary: o.text.numSkip || o.summary || 'your condition' }; out.any = true; } });
+  Object.entries(A.quality || {}).forEach(([id, a]) => {
+    const o = clean(a); const t = (spec.qualityTests || []).find(x => x.id === id); if (!o || !t || t.metric === 'external') return;
+    if (out.qualityByMetric[t.metric]) { warnings.push('Two quality tests measure ' + t.metric + '; your adjustment to ' + t.label + ' is not applied, the one to ' + out.qualityByMetric[t.metric].label + ' is'); return; }
+    out.quality[id] = o; out.qualityByMetric[t.metric] = Object.assign({ label: t.label, id }, o); out.any = true;
+  });
+  (Array.isArray(A.custom) ? A.custom : []).forEach((u, k) => {
+    if (!u || typeof u !== 'object') return;
+    const id = String(u.id || 'U' + (k + 1)); const lim = +u.limit;
+    if (!isFinite(lim)) { warnings.push('Your test ' + (u.label || id) + ' has no limit, so it is not shown'); return; }
+    const kind = u.kind === 'largest' ? 'largest' : 'share';
+    const o = clean(u);
+    if (kind === 'share' && !(o && o.numOnly)) { warnings.push('Your test ' + (u.label || id) + ' says no loans to count, so it is not shown'); return; }
+    const groups = kind === 'largest' && Array.isArray(u.groups) && u.groups.length === n ? u.groups.map(v => v == null || v === '' ? '(blank)' : String(v)) : null;
+    if (kind === 'largest' && !groups) { warnings.push('Your test ' + (u.label || id) + ' has no field to group by, so it is not shown'); return; }
+    out.custom.push({ id, label: String(u.label || id), kind, limit: lim, op: u.op === '>=' ? '>=' : '<=', groups, fieldLabel: String(u.fieldLabel || u.field || 'value'), field: String(u.field || '') });
+    if (o) out.conc[id] = o; out.any = true;
+  });
   return out;
 }
 
@@ -924,9 +1030,19 @@ function run(spec0, tape, inp) {
   const principalCash = +inp.principalProceeds || 0;
   const pf = analysePortfolio(spec, tape, { asOf: pd, libor });
   const pb = principalBalances(spec, pf, principalCash, seniorCol);
-  const qm = qualityMetrics(spec, pf, sel);
+  // your test adjustments (Tests tab): loans left out of a numerator or a denominator, and tests of your own
+  const TA = testAdjustOf(inp.testAdjust, spec, pf.rows, warnings);
+  if (TA.custom.length) {
+    spec.concentrations = (spec.concentrations || []).concat(TA.custom.map(u => Object.assign({ id: u.id, label: u.label, ref: 'Your test', op: u.op, limit: u.limit, custom: true, kind: u.kind }, u.kind === 'largest' ? { metric: 'maxByField', field: 'grp_' + u.id, fieldLabel: u.fieldLabel } : { filter: [] })));
+    TA.custom.forEach(u => { if (u.groups) pf.rows.forEach((r, i) => { r['grp_' + u.id] = u.groups[i]; }); });
+  }
+  const qm = qualityMetrics(spec, pf, sel, TA.qualityByMetric);
+  const qmPlain = qm.adjusted.length ? qualityMetrics(spec, pf, sel) : qm;
   const quality = evalQuality(spec, qm, sel, { meta: spec.meta, asOf: pd });
-  const conc = evalConcentrations(spec, pf, pb.pcvGeneral, tape, principalCash);
+  quality.forEach(q => { const a = TA.quality[q.id]; if (a) { q.adjusted = true; q.adjText = a.summary; } });
+  const conc = evalConcentrations(spec, pf, pb.pcvGeneral, tape, principalCash, TA);
+  const covDed = {}; Object.entries(TA.coverage).forEach(([k, a]) => { const left = pf.rows.filter((r, i) => a.numSkip[i]); covDed[k] = { amt: r2(sum(left, r => r.ocPB)), left, summary: a.summary }; });
+  const dedOf = k => covDed[k] ? covDed[k].amt : 0;
 
   // interest proceeds estimate
   const nd = pf.rows.filter(r => !r.defaulted);
@@ -1001,13 +1117,14 @@ function run(spec0, tape, inp) {
 
   // ---- test helpers
   const ocOf = (classes, n, pcv) => { const den = sum(classes, c => n[c] ? n[c].bal : 0); return { num: pcv, den, ratio: den > 0.5 ? pcv / den * 100 : Infinity }; };
+  const ocFor = (key, classes, n, pcv) => ocOf(classes, n, r2(pcv - dedOf(key))); // less the loans you left out of this test's numerator
   const icOf = (classes, n) => {
     const den = sum(classes, c => { const x = n[c]; if (!x) return 0; return r2((x.bal + x.defForTest) * x.rate / 100 * dcf) + (x.deferrable ? x.defForTest : 0); });
     return { num: ctx.icNum, den, ratio: den > 0.01 ? ctx.icNum / den * 100 : Infinity };
   };
   const testById = id => cov.tests.find(t => t.id === id);
   const evalGroup = (t, n, pcv) => {
-    const o = ocOf(t.oc.classes, n, pcv); const oPass = o.ratio >= t.oc.trigger - 1e-11;
+    const o = ocFor(t.id, t.oc.classes, n, pcv); const oPass = o.ratio >= t.oc.trigger - 1e-11;
     let i = null, iPass = true, icApplies = !!t.ic && period >= (t.ic.fromPeriod || 1);
     if (t.ic) { i = icOf(t.ic.classes, n); if (icApplies) iPass = i.ratio >= t.ic.trigger - 1e-11; }
     return { oc: o, ic: i, ocPass: oPass, icPass: iPass, icApplies, pass: oPass && iPass };
@@ -1041,8 +1158,8 @@ function run(spec0, tape, inp) {
   // ---- ledger
   const preTests = snapshotTests(notes, ctx.pcv);
   const preNotes = cloneNotes(notes);
-  const preIRT = cov.reinvestmentTest ? ocOf(cov.reinvestmentTest.ocClasses, notes, ctx.pcv) : null;
-  const preEoD = cov.eodTest ? ocOf(cov.eodTest.ocClasses, notes, ctx.pcv) : null;
+  const preIRT = cov.reinvestmentTest ? ocFor('irt', cov.reinvestmentTest.ocClasses, notes, ctx.pcv) : null;
+  const preEoD = cov.eodTest ? ocFor('eod', cov.eodTest.ocClasses, notes, ctx.pcv) : null;
 
   // ---- calculation trail helpers (every number shown so it can be re-done by hand)
   const LN = {
@@ -1070,9 +1187,10 @@ function run(spec0, tape, inp) {
     return out;
   };
   const ocLines = (t, n, pcv, title, compact) => {
-    const o = ocOf(t.oc.classes, n, pcv);
+    const o = ocFor(t.id, t.oc.classes, n, pcv); const dd = covDed[t.id];
     const out = [LN.head(title || (t.label + ' overcollateralization test'))];
     if (pcv === ctx.pcv && !compact) out.push(...pcvBridge()); else out.push(LN.row('Principal Collateral Value' + (compact && ctx.pcvLog.length ? ' after this payment' : ''), compact && ctx.pcvLog.length ? fmt2(ctx.pcvStart) + (ctx.pcvLog.map(x => (x.amt < 0 ? ' − ' : ' + ') + fmt2(Math.abs(x.amt))).join('')) : '', pcv));
+    if (dd) { out.push(LN.sub('Less: loans you left out of this test\'s numerator, ' + dd.summary, dd.left.length + ' positions at their carrying value', -dd.amt)); out.push(LN.row('Numerator for this test', fmt2(pcv) + ' − ' + fmt2(dd.amt), o.num)); }
     t.oc.classes.forEach(c => out.push(LN.sub('Class ' + c + ' principal outstanding' + (n[c].def > 0.5 && notes[c].deferrable ? ' (deferred interest excluded)' : ''), '', n[c].bal)));
     out.push(LN.row('Denominator', t.oc.classes.join(' + '), o.den));
     out.push(LN.row('OC ratio', fmt2(o.num) + ' ÷ ' + fmt2(o.den), fratio(o.ratio)));
@@ -1445,22 +1563,22 @@ function run(spec0, tape, inp) {
         }
         case 'reinvestmentDiversion': {
           if (!cov.reinvestmentTest) { warnings.push(kindName + ' step ' + st.id + ' diverts interest under the Interest Reinvestment Test, but the deal spec has no coverage.reinvestmentTest, so nothing is diverted'); row.note = 'No Interest Reinvestment Test in the deal spec'; CD.push(LN.note('The deal spec has no Interest Reinvestment Test (coverage.reinvestmentTest), so no interest is diverted here.'), LN.total('Due under this step', 0)); break; }
-          const rt = cov.reinvestmentTest; const o = ocOf(rt.ocClasses, notes, ctx.pcv);
+          const rt = cov.reinvestmentTest; const o = ocFor('irt', rt.ocClasses, notes, ctx.pcv);
           row.test = { label: rt.label, ratio: o.ratio, trigger: rt.trigger };
-          CD.push(...ocLines({ label: rt.label, oc: { classes: rt.ocClasses, trigger: rt.trigger } }, notes, ctx.pcv, rt.label));
+          CD.push(...ocLines({ id: 'irt', label: rt.label, oc: { classes: rt.ocClasses, trigger: rt.trigger } }, notes, ctx.pcv, rt.label));
           if (o.ratio >= rt.trigger - 1e-9) { row.note = rt.label + ' passes (' + o.ratio.toFixed(2) + '%)'; CD.push(LN.total('Due under this step', 0, 'the test passes')); break; }
-          const need = Math.ceil((rt.trigger / 100 * o.den - ctx.pcv) * 100 - 1e-6) / 100; const cap = Math.floor(rt.maxDiversionPct / 100 * pool.avail() * 100 + 1e-6) / 100;
+          const need = Math.ceil((rt.trigger / 100 * o.den - o.num) * 100 - 1e-6) / 100; const cap = Math.floor(rt.maxDiversionPct / 100 * pool.avail() * 100 + 1e-6) / 100;
           CD.push(LN.head('Diversion'));
           CD.push(LN.note('Diverted cash buys collateral, so it adds to the numerator: the test passes when (PCV + X) ÷ Denominator ≥ trigger, so X = trigger × Denominator − PCV.'));
-          CD.push(LN.row('Needed to pass, rounded up to the cent', fpct(rt.trigger, 2) + ' × ' + fmt2(o.den) + ' − ' + fmt2(ctx.pcv), need));
+          CD.push(LN.row('Needed to pass, rounded up to the cent', fpct(rt.trigger, 2) + ' × ' + fmt2(o.den) + ' − ' + fmt2(o.num), need));
           CD.push(LN.row(rt.maxDiversionPct + '% of interest remaining, rounded down to the cent', fmt2(pool.avail()) + ' × ' + rt.maxDiversionPct + '%', cap));
           row.due = Math.min(need, cap); CD.push(LN.total('Due under this step', row.due, 'lesser of the two'));
           const p = take(row.due); row.paid = p;
           ctx.buckets.reinvestOnly += p; ctx.pcv += p; ctx.pcvLog.push({ why: 'Plus: interest diverted to buy collateral at step ' + st.id, amt: p }); ctx.irtDiverted = p;
           row.payees.push({ to: 'Principal Collection Account (buy collateral)', amount: p });
-          row.test.after = ocOf(rt.ocClasses, notes, ctx.pcv).ratio;
+          const oA = ocFor('irt', rt.ocClasses, notes, ctx.pcv); row.test.after = oA.ratio;
           simplePaid = false; CP.push(LN.row('Moved to the Principal Collection Account', 'the full amount due', p));
-          CP.push(LN.row(rt.label + ' after', fmt2(ctx.pcv) + ' ÷ ' + fmt2(o.den), fratio(row.test.after)));
+          CP.push(LN.row(rt.label + ' after', fmt2(oA.num) + ' ÷ ' + fmt2(o.den), fratio(row.test.after)));
           CP.push(LN.note('This cash can only be reinvested in collateral; it never pays down notes or reaches the Subordinated Notes.'));
           row.note = rt.label + ' at ' + o.ratio.toFixed(2) + '% vs ' + rt.trigger.toFixed(2) + '%: diverted the lesser of ' + rt.maxDiversionPct + '% of remaining interest and the cure amount';
           break;
@@ -1612,7 +1730,7 @@ function run(spec0, tape, inp) {
     return ledger;
   }
 
-  const result = { period, paymentDate: pd, prevDate: prev, days: ndays, inRP, mode, libor, interestProceeds, estInterest, principalProceeds: principalCash, feeBasis, pcvInterp, pcvStart: ctx.pcvStart, overridden: Object.keys(OV).filter(k => ovOf(k)).concat(Object.keys(SRC)), dues: Object.assign({}, dues), duesInterp, adminCap, adminDue, adminEntered, pf, pb, qm, quality, conc, preTests, preIRT, preEoD, icDeduct, warnings, manual: manualAll, manualNotes };
+  const result = { period, paymentDate: pd, prevDate: prev, days: ndays, inRP, mode, libor, interestProceeds, estInterest, principalProceeds: principalCash, feeBasis, pcvInterp, pcvStart: ctx.pcvStart, overridden: Object.keys(OV).filter(k => ovOf(k)).concat(Object.keys(SRC)), dues: Object.assign({}, dues), duesInterp, adminCap, adminDue, adminEntered, pf, pb, qm, qmPlain, testAdjust: { any: TA.any, conc: Object.keys(TA.conc), quality: Object.keys(TA.quality), coverage: Object.keys(TA.coverage), custom: TA.custom.map(u => u.id) }, quality, conc, preTests, preIRT, preEoD, icDeduct, warnings, manual: manualAll, manualNotes };
 
   if (mode === 'liquidation') {
     let cash = interestProceeds + principalCash + (+inp.liquidationProceeds || 0);
@@ -1684,8 +1802,8 @@ function run(spec0, tape, inp) {
   }
   const postNotes = cloneNotes(notes); for (const c of order) { postNotes[c].def = postNotes[c].defEnd; postNotes[c].defForTest = postNotes[c].defEnd; }
   result.postTests = snapshotTests(postNotes, ctx.pcv);
-  result.postIRT = cov.reinvestmentTest ? ocOf(cov.reinvestmentTest.ocClasses, postNotes, ctx.pcv) : null;
-  result.postEoD = cov.eodTest ? ocOf(cov.eodTest.ocClasses, postNotes, ctx.pcv) : null;
+  result.postIRT = cov.reinvestmentTest ? ocFor('irt', cov.reinvestmentTest.ocClasses, postNotes, ctx.pcv) : null;
+  result.postEoD = cov.eodTest ? ocFor('eod', cov.eodTest.ocClasses, postNotes, ctx.pcv) : null;
   if (preEoD && preEoD.ratio < cov.eodTest.trigger) ctx.eod.push(cov.eodTest.label + ' at ' + preEoD.ratio.toFixed(2) + '% is below ' + cov.eodTest.trigger + '%');
   result.pcvAfter = ctx.pcv;
   manualAll.forEach(m => { if (m.status) return; m.status = m.paid >= m.amount - 0.005 ? 'Paid in full' : m.paid > 0.005 ? 'Part paid, ' + fmt2(r2(m.amount - m.paid)) + ' short' : 'Not paid: no cash left when it was reached'; });
@@ -1745,6 +1863,13 @@ function run(spec0, tape, inp) {
     pcvTables.push(TB('All collateral', [cID, cOb, cTy, cM, cS, cPar, ['Price', 'num2', r => r.price], ['Treatment', 'text', statusOf], ['Carried at', 'usd', r => r.ocPB, true], ['Haircut', 'usd', r => r2(r.par - r.ocPB), true]], rows.slice().sort((a, b) => (b.par - b.ocPB) - (a.par - a.ocPB) || b.par - a.par),
       'Sorted with the largest haircuts first. Principal Proceeds of ' + fmt2(principalCash) + (ctx.principalInPCV ? ' are added on top.' : ' are not counted, by your setting.')));
     const pcvPart = part('Principal Collateral Value', ctx.pcvStart, 'usd', pcvLines, pcvTables);
+    // a coverage test whose numerator you adjusted: the same value, less the loans you left out
+    const leftTable = (title, list, note) => TB(title, [cID, cOb, cTy, cM, cS, cPar, ['Carried at', 'usd', r => r.ocPB, true]], list.slice().sort((a, b) => b.ocPB - a.ocPB || b.par - a.par), note);
+    const pcvPartFor = k => {
+      const dd = covDed[k]; if (!dd) return pcvPart; const v = r2(ctx.pcvStart - dd.amt);
+      const L = pcvLines.concat([LN.head('Your adjustment to this test'), LN.row('Loans you left out of the numerator, at their carrying value', 'sum of the last column, ' + dd.left.length + ' positions', dd.amt), LN.total('Numerator for this test', v, fmt2(ctx.pcvStart) + ' − ' + fmt2(dd.amt)), LN.note('Left out: loans where ' + dd.summary + '.')]);
+      return part('Principal Collateral Value, less the loans you left out', v, 'usd', L, [leftTable('Left out of this test\'s numerator', dd.left, 'Loans where ' + dd.summary)].concat(pcvTables));
+    };
 
     const noteTable = (classes, n) => TB('Notes in the denominator', [['Class', 'text', c => c], ['Principal outstanding', 'usd', c => n[c].bal, true], ['Deferred interest', 'usd', c => n[c].def || 0], ['Counted', 'usd', c => n[c].bal, true]], classes,
       classes.some(c => (n[c].def || 0) > 0.5) ? 'Capitalised deferred interest is shown for reference; the OC denominator counts principal only.' : '');
@@ -1756,6 +1881,10 @@ function run(spec0, tape, inp) {
     // after this Payment Date
     const pcvAfterLines = [LN.row('Principal Collateral Value on the Determination Date', 'see the numerator before payments', ctx.pcvStart)].concat(ctx.pcvLog.map(x => LN.row(x.why, '', x.amt)), [LN.total('Principal Collateral Value after payments', ctx.pcv, [fmt2(ctx.pcvStart)].concat(ctx.pcvLog.map(x => (x.amt < 0 ? '− ' : '+ ') + fmt2(Math.abs(x.amt)))).join(' '))]);
     const pcvAfter = part('Principal Collateral Value after payments', ctx.pcv, 'usd', pcvAfterLines, ctx.pcvLog.length ? [TB('Changes during the waterfalls', [['Change', 'text', x => x.why], ['Amount', 'usd', x => x.amt, true]], ctx.pcvLog)] : []);
+    const pcvAfterFor = k => {
+      const dd = covDed[k]; if (!dd) return pcvAfter; const v = r2(ctx.pcv - dd.amt);
+      return part('Principal Collateral Value after payments, less the loans you left out', v, 'usd', pcvAfterLines.concat([LN.row('Loans you left out of the numerator, at their carrying value', 'sum of the last column, ' + dd.left.length + ' positions', dd.amt), LN.total('Numerator for this test', v, fmt2(ctx.pcv) + ' − ' + fmt2(dd.amt))]), [leftTable('Left out of this test\'s numerator', dd.left, 'Loans where ' + dd.summary)].concat(pcvAfter.tables));
+    };
 
     // Interest coverage
     const entered = inp.interestProceeds != null && inp.interestProceeds !== '';
@@ -1781,9 +1910,9 @@ function run(spec0, tape, inp) {
     };
     const coverage = {};
     cov.tests.forEach((t, i) => {
-      const pre = preTests[i]; const o = ocPair(t.label + ' OC ratio', t.oc.classes, t.oc.trigger, preNotes, pcvPart);
-      const post = result.postTests[i]; const oa = ocDen(t.oc.classes, postNotes); const resA = ocResult(t.label + ' OC ratio after payments', ctx.pcv, oa.value, t.oc.trigger);
-      const x = { oc: o, ocAfter: { num: withResult(pcvAfter, resA), den: withResult(Object.assign({}, oa, { title: 'Principal of Class ' + t.oc.classes.join(', ') + ' after payments' }), resA) } };
+      const pre = preTests[i]; const o = ocPair(t.label + ' OC ratio', t.oc.classes, t.oc.trigger, preNotes, pcvPartFor(t.id));
+      const post = result.postTests[i]; const oa = ocDen(t.oc.classes, postNotes); const resA = ocResult(t.label + ' OC ratio after payments', r2(ctx.pcv - dedOf(t.id)), oa.value, t.oc.trigger);
+      const x = { oc: o, ocAfter: { num: withResult(pcvAfterFor(t.id), resA), den: withResult(Object.assign({}, oa, { title: 'Principal of Class ' + t.oc.classes.join(', ') + ' after payments' }), resA) } };
       if (t.ic) {
         const dp = icDenPart(t.ic.classes, preNotes); const applies = period >= (t.ic.fromPeriod || 1);
         const res = [LN.head('Result'), LN.row(t.label + ' IC ratio', fmt2(ctx.icNum) + ' ÷ ' + fmt2(dp.value), fratio(pre.ic.ratio)), LN.check('Trigger ' + fpct(t.ic.trigger, 2), applies ? fratio(pre.ic.ratio) + (pre.ic.ratio >= t.ic.trigger - 1e-9 ? ' ≥ ' : ' < ') + fpct(t.ic.trigger, 2) : 'not applied until Payment Date ' + t.ic.fromPeriod, pre.ic.ratio >= t.ic.trigger - 1e-9, applies)];
@@ -1792,23 +1921,33 @@ function run(spec0, tape, inp) {
       coverage[t.id] = x;
     });
     const TC = { coverage };
-    if (cov.reinvestmentTest) { const rt = cov.reinvestmentTest; TC.irt = ocPair(rt.label, rt.ocClasses, rt.trigger, preNotes, pcvPart); const d = ocDen(rt.ocClasses, postNotes); const res = ocResult(rt.label + ' after payments', ctx.pcv, d.value, rt.trigger); TC.irtAfter = { num: withResult(pcvAfter, res), den: withResult(d, res) }; }
-    if (cov.eodTest) { const et = cov.eodTest; TC.eod = ocPair(et.label, et.ocClasses, et.trigger, preNotes, pcvPart); const d = ocDen(et.ocClasses, postNotes); const res = ocResult(et.label + ' after payments', ctx.pcv, d.value, et.trigger); TC.eodAfter = { num: withResult(pcvAfter, res), den: withResult(d, res) }; }
+    if (cov.reinvestmentTest) { const rt = cov.reinvestmentTest; TC.irt = ocPair(rt.label, rt.ocClasses, rt.trigger, preNotes, pcvPartFor('irt')); const d = ocDen(rt.ocClasses, postNotes); const res = ocResult(rt.label + ' after payments', r2(ctx.pcv - dedOf('irt')), d.value, rt.trigger); TC.irtAfter = { num: withResult(pcvAfterFor('irt'), res), den: withResult(d, res) }; }
+    if (cov.eodTest) { const et = cov.eodTest; TC.eod = ocPair(et.label, et.ocClasses, et.trigger, preNotes, pcvPartFor('eod')); const d = ocDen(et.ocClasses, postNotes); const res = ocResult(et.label + ' after payments', r2(ctx.pcv - dedOf('eod')), d.value, et.trigger); TC.eodAfter = { num: withResult(pcvAfterFor('eod'), res), den: withResult(d, res) }; }
 
-    // Collateral Quality Tests
-    const apb = qm.apb; const parLine = LN.total('Denominator: par of performing collateral', apb, 'sum of the Par column, ' + nd.length + ' positions');
+    // Collateral Quality Tests: each measure on its own loans, after any adjustment you made to it
+    const apb = qm.apb;
+    const SetOf = m => qm.sets && qm.sets[m] ? qm.sets[m] : { N: nd, D: nd, base: nd, a: null, numLeft: [], denLeft: [] };
+    const cLeft = [cID, cOb, cTy, cM, cS, cPar];
+    const leftN = (S, one) => S.a && S.numLeft.length ? [TB('Left out of the ' + (one ? 'score' : 'numerator') + ' by your adjustment', cLeft, S.numLeft.slice().sort((a, b) => b.par - a.par))] : [];
+    const leftD = S => S.a && S.denLeft.length ? [TB('Left out of the denominator by your adjustment', cLeft, S.denLeft.slice().sort((a, b) => b.par - a.par))] : [];
+    const noteN = (S, one) => { if (!S.a) return []; const X = S.a.text || {}; const bits = []; if (X.numOnly) bits.push('counts only loans where ' + X.numOnly); if (X.numSkip) bits.push('leaves out loans where ' + X.numSkip); if (one && X.denSkip) bits.push('leaves out loans where ' + X.denSkip); return bits.length ? [LN.note('Your adjustment ' + bits.join(', and ') + ': ' + S.numLeft.length + ' position' + (S.numLeft.length === 1 ? '' : 's') + ' (' + fmt2(sum(S.numLeft, r => r.par)) + ' par) left out of the ' + (one ? 'score' : 'numerator') + '.')] : []; };
+    const noteD = S => S.a && S.a.text && S.a.text.denSkip ? [LN.note('Your adjustment leaves out loans where ' + S.a.text.denSkip + ': ' + S.denLeft.length + ' position' + (S.denLeft.length === 1 ? '' : 's') + ' (' + fmt2(sum(S.denLeft, r => r.par)) + ' par) left out of the denominator.')] : [];
+    const sameSet = S => S.N === S.D || (S.N.length === S.D.length && S.N.every((r, i) => r === S.D[i]));
+    const denT = (S, T, title) => sameSet(S) ? T : TB(title + ', in the denominator', [cID, cOb, cTy, cPar], S.D.slice().sort((a, b) => b.par - a.par));
+    const denL = (S, label, P) => LN.total(label, P, 'sum of the Par column, ' + S.D.length + ' positions');
     const limitLines = (q) => { const o = [LN.head('Against the limit')]; if (q.note) o.push(LN.note(q.note)); if (q.limit != null && q.value != null && q.pass != null) o.push(LN.check('Limit ' + (q.op === '<=' ? '≤ ' : '≥ ') + (typeof q.limit === 'number' ? +q.limit.toFixed(4) : q.limit), String(+(+q.value).toFixed(4)) + (q.pass ? ' passes' : ' fails'), q.pass)); return o; };
     const quality = {};
     for (const q of result.quality) {
       const t = (spec.qualityTests || []).find(x => x.id === q.id) || {}; let num = null, den = null;
       const defNote = defd.length ? [LN.note(defd.length + ' Defaulted Securities (' + fmt2(sum(defd, r => r.par)) + ' par) are excluded.')] : [];
+      const S = SetOf(t.metric); const pD = qm.parOf(t.metric);
       if (t.metric === 'warf') {
-        const S1 = sum(nd, r => r.par * r.rf); const T = TB('Performing collateral by rating factor', [cID, cOb, cM, ['Rating factor', 'num0', r => r.rf], cPar, ['Par × rating factor', 'num0', r => r.par * r.rf, true]], nd.slice().sort((a, b) => b.rf - a.rf || b.par - a.par));
-        const res = [LN.head('Result'), LN.row('Par-weighted rating factor', fmt2(S1) + ' ÷ ' + fmt2(apb), apb ? S1 / apb : 0), LN.row('WARF, rounded up to a whole number', '', String(qm.warf))].concat(limitLines(q));
-        num = part('Σ par × Moody\'s Rating Factor', S1, 'num', [LN.total('Numerator: Σ par × rating factor', S1, 'sum of the last column')].concat(defNote, res), [T]);
-        den = part('Par of performing collateral', apb, 'usd', [parLine].concat(defNote, res), [T]);
+        const S1 = sum(S.N, r => r.par * r.rf); const T = TB('Performing collateral by rating factor', [cID, cOb, cM, ['Rating factor', 'num0', r => r.rf], cPar, ['Par × rating factor', 'num0', r => r.par * r.rf, true]], S.N.slice().sort((a, b) => b.rf - a.rf || b.par - a.par));
+        const res = [LN.head('Result'), LN.row('Par-weighted rating factor', fmt2(S1) + ' ÷ ' + fmt2(pD), pD ? S1 / pD : 0), LN.row('WARF, rounded up to a whole number', '', String(qm.warf))].concat(limitLines(q));
+        num = part('Σ par × Moody\'s Rating Factor', S1, 'num', [LN.total('Numerator: Σ par × rating factor', S1, 'sum of the last column')].concat(defNote, noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of performing collateral', pD, 'usd', [denL(S, 'Denominator: par of performing collateral', pD)].concat(defNote, noteD(S), res), [denT(S, T, 'Performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'was') {
-        const fl = nd.filter(r => r.rateType !== 'FIXED'); const S1 = sum(fl, r => r.par * r.spread / 100); const exF = qm.excessFunded / 100;
+        const fl = S.N; const S1 = sum(fl, r => r.par * r.spread / 100); const exF = qm.excessFunded / 100;
         const T = TB('Floating-rate performing collateral', [cID, cOb, cPar, ['Spread', 'pct4', r => r.spread], ['Annual spread income', 'usd', r => r.par * r.spread / 100, true]], fl.slice().sort((a, b) => b.spread - a.spread));
         const nl = [LN.row('Annual spread income: Σ par × spread', 'sum of the last column', S1)];
         if (exF) nl.push(LN.row('Plus: index earned on par above the Target Par', fpct(libor) + ' × ' + fmt2(apb - spec.meta.targetPar), exF));
@@ -1817,45 +1956,45 @@ function run(spec0, tape, inp) {
         if (qm.was > qm.wasRaw + 1e-12) { res.push(LN.row('Plus: excess coupon converted to spread, (WAC − minimum WAC) × fixed par ÷ floating par', '(' + fpct(qm.wacRaw, 6) + ' − ' + fpct(spec.spreadRules.minWAC, 2) + ') × ' + fmt2(qm.fxPar) + ' ÷ ' + fmt2(qm.flPar), P4(qm.couponExcess))); res.push(LN.row('Weighted average spread with the excess, capped at the level the tests need', '', P4(qm.was))); }
         if (t.adjust && t.adjust.type === 'recoveryModifier' && q.value - qm.was > 1e-12) { const mv = sel.moodysModifier; const row = (t.adjust.table || []).find(x => x[0] === mv); res.push(LN.row("Plus: Moody's recovery modifier, in percentage points", '(' + qm.mwarr.toFixed(1) + ' − ' + mv + ') × ' + row[1] + ' ÷ 100', (q.value - qm.was).toFixed(4)), LN.row('Spread for this test', '', P4(q.value))); }
         res.push(...limitLines(q));
-        num = part('Annual spread income on floating-rate collateral', S1 + exF, 'usd', nl.concat(res), [T]);
-        den = part('Par of floating-rate performing collateral', qm.flPar, 'usd', [LN.total('Denominator: floating-rate par', qm.flPar, 'sum of the Par column, ' + fl.length + ' positions')].concat(defNote, res), [T]);
+        num = part('Annual spread income on floating-rate collateral', S1 + exF, 'usd', nl.concat(noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of floating-rate performing collateral', qm.flPar, 'usd', [denL(S, 'Denominator: floating-rate par', qm.flPar)].concat(defNote, noteD(S), res), [denT(S, T, 'Floating-rate performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'wac') {
-        const fx = nd.filter(r => r.rateType === 'FIXED'); const S1 = sum(fx, r => r.par * r.coupon / 100);
+        const fx = S.N; const S1 = sum(fx, r => r.par * r.coupon / 100);
         const T = TB('Fixed-rate performing collateral', [cID, cOb, cPar, ['Coupon', 'pct4', r => r.coupon], ['Annual coupon income', 'usd', r => r.par * r.coupon / 100, true]], fx.slice().sort((a, b) => b.coupon - a.coupon));
         const res = [LN.head('Result')];
-        if (!fx.length) res.push(LN.note('There are no fixed-rate assets, so the test does not apply.'));
+        if (!qm.fxPar) res.push(LN.note('There are no fixed-rate assets, so the test does not apply.'));
         else { res.push(LN.row('Weighted average coupon', fmt2(S1) + ' ÷ ' + fmt2(qm.fxPar), P4(qm.wacRaw))); if (qm.wac > qm.wacRaw + 1e-12) { res.push(LN.row('Plus: excess spread converted to coupon, (WAS − minimum WAS) × floating par ÷ fixed par', '(' + fpct(qm.wasRaw, 6) + ' − ' + fpct(spec.spreadRules.minWAS, 2) + ') × ' + fmt2(qm.flPar) + ' ÷ ' + fmt2(qm.fxPar), P4(qm.spreadExcess))); res.push(LN.row('Coupon for the test, capped at the minimum', '', P4(qm.wac))); } }
         res.push(...limitLines(q));
-        num = part('Annual coupon income on fixed-rate collateral', S1, 'usd', [LN.total('Numerator: Σ par × coupon', S1, 'sum of the last column')].concat(res), [T]);
-        den = part('Par of fixed-rate performing collateral', qm.fxPar, 'usd', [LN.total('Denominator: fixed-rate par', qm.fxPar, 'sum of the Par column, ' + fx.length + ' positions')].concat(res), [T]);
+        num = part('Annual coupon income on fixed-rate collateral', S1, 'usd', [LN.total('Numerator: Σ par × coupon', S1, 'sum of the last column')].concat(noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of fixed-rate performing collateral', qm.fxPar, 'usd', [denL(S, 'Denominator: fixed-rate par', qm.fxPar)].concat(noteD(S), res), [denT(S, T, 'Fixed-rate performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'wal') {
-        const S1 = sum(nd, r => r.par * r.yrs); const T = TB('Performing collateral by remaining life', [cID, cOb, ['Maturity', 'text', r => r.maturity], ['Years to maturity', 'num2', r => r.yrs], cPar, ['Par × years', 'num2', r => r.par * r.yrs, true]], nd.slice().sort((a, b) => b.yrs - a.yrs), 'Years run from ' + pd + ' to each maturity, divided by 365 and rounded to 0.01.');
-        const res = [LN.head('Result'), LN.row('Weighted average life, in years', fmt2(S1) + ' ÷ ' + fmt2(apb), apb ? S1 / apb : 0)].concat(limitLines(q));
-        num = part('Σ par × years to maturity', S1, 'num', [LN.total('Numerator: Σ par × years', S1, 'sum of the last column')].concat(defNote, res), [T]);
-        den = part('Par of performing collateral', apb, 'usd', [parLine].concat(defNote, res), [T]);
+        const S1 = sum(S.N, r => r.par * r.yrs); const T = TB('Performing collateral by remaining life', [cID, cOb, ['Maturity', 'text', r => r.maturity], ['Years to maturity', 'num2', r => r.yrs], cPar, ['Par × years', 'num2', r => r.par * r.yrs, true]], S.N.slice().sort((a, b) => b.yrs - a.yrs), 'Years run from ' + pd + ' to each maturity, divided by 365 and rounded to 0.01.');
+        const res = [LN.head('Result'), LN.row('Weighted average life, in years', fmt2(S1) + ' ÷ ' + fmt2(pD), pD ? S1 / pD : 0)].concat(limitLines(q));
+        num = part('Σ par × years to maturity', S1, 'num', [LN.total('Numerator: Σ par × years', S1, 'sum of the last column')].concat(defNote, noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of performing collateral', pD, 'usd', [denL(S, 'Denominator: par of performing collateral', pD)].concat(defNote, noteD(S), res), [denT(S, T, 'Performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'diversity') {
-        const byOb = {}; for (const r of nd) { const k = r.obligor; (byOb[k] = byOb[k] || { ob: k, par: 0, ind: r.mIndustry }).par += r.par; }
+        const byOb = {}; for (const r of S.N) { const k = r.obligor; (byOb[k] = byOb[k] || { ob: k, par: 0, ind: r.mIndustry }).par += r.par; }
         const obs = Object.values(byOb); const tot = sum(obs, o => o.par); const avg = obs.length ? tot / obs.length : 0;
         obs.forEach(o => { o.units = avg ? Math.min(1, o.par / avg) : 0; });
         const byInd = {}; obs.forEach(o => { (byInd[o.ind] = byInd[o.ind] || { ind: o.ind, n: 0, par: 0, units: 0 }); byInd[o.ind].n++; byInd[o.ind].par += o.par; byInd[o.ind].units += o.units; });
         const inds = Object.values(byInd).map(x => Object.assign(x, { u1: Math.round(x.units * 10) / 10, score: industryScore(x.units) })).sort((a, b) => b.score - a.score);
         const res = [LN.head('Result'), LN.row('Diversity Score, sum of the industry scores', 'rounded to 0.01', qm.ds)].concat(limitLines(q));
-        num = part('Sum of industry diversity scores', qm.ds, 'num2', [LN.note('Each obligor counts as the lesser of 1 and its par ÷ the Average Par Amount. Units are added up by Moody\'s industry, rounded to 0.1, and converted to an industry score with Moody\'s table: 1 unit scores 1, 2 score 1.5, 3 score 2, then the increments shrink to a cap of 5.')].concat(res),
-          [TB('Industries', [['Moody\'s industry', 'text', x => x.ind], ['Obligors', 'num0', x => x.n, true], ['Par', 'usd', x => x.par, true], ['Obligor units', 'num4', x => x.units], ['Units, to 0.1', 'num1', x => x.u1], ['Industry score', 'num2', x => x.score, true]], inds)]);
-        den = part('Average Par Amount per obligor', avg, 'usd', [LN.row('Par of performing collateral, summed by obligor', '', tot), LN.row('Number of obligors', '', String(obs.length)), LN.total('Average Par Amount', avg, fmt2(tot) + ' ÷ ' + obs.length)].concat(res),
-          [TB('Obligors', [cOb, ['Moody\'s industry', 'text', o => o.ind], ['Par', 'usd', o => o.par, true], ['Units: lesser of 1 and par ÷ average', 'num4', o => o.units, true]], obs.sort((a, b) => b.par - a.par))]);
+        num = part('Sum of industry diversity scores', qm.ds, 'num2', [LN.note('Each obligor counts as the lesser of 1 and its par ÷ the Average Par Amount. Units are added up by Moody\'s industry, rounded to 0.1, and converted to an industry score with Moody\'s table: 1 unit scores 1, 2 score 1.5, 3 score 2, then the increments shrink to a cap of 5.')].concat(noteN(S, true), res),
+          [TB('Industries', [['Moody\'s industry', 'text', x => x.ind], ['Obligors', 'num0', x => x.n, true], ['Par', 'usd', x => x.par, true], ['Obligor units', 'num4', x => x.units], ['Units, to 0.1', 'num1', x => x.u1], ['Industry score', 'num2', x => x.score, true]], inds)].concat(leftN(S, true)));
+        den = part('Average Par Amount per obligor', avg, 'usd', [LN.row('Par of performing collateral, summed by obligor', '', tot), LN.row('Number of obligors', '', String(obs.length)), LN.total('Average Par Amount', avg, fmt2(tot) + ' ÷ ' + obs.length)].concat(noteN(S, true), res),
+          [TB('Obligors', [cOb, ['Moody\'s industry', 'text', o => o.ind], ['Par', 'usd', o => o.par, true], ['Units: lesser of 1 and par ÷ average', 'num4', o => o.units, true]], obs.sort((a, b) => b.par - a.par))].concat(leftN(S, true)));
       } else if (t.metric === 'moodysWARR') {
-        const S1 = sum(nd, r => r.par * r.mRR / 100);
-        const T = TB("Performing collateral by Moody's recovery rate", [cID, cOb, cTy, cM, ["Moody's facility", 'text', r => r.moodysFacility], ['Notches, facility above DPR', 'num0', r => clamp(mIdx(r.moodysDPR) - mIdx(r.moodysFacility), -3, 2)], ['Recovery rate', 'pct1', r => r.mRR], cPar, ['Par × rate', 'usd', r => r.par * r.mRR / 100, true]], nd.slice().sort((a, b) => a.mRR - b.mRR || b.par - a.par));
-        const res = [LN.head('Result'), LN.row('Weighted average recovery rate', fmt2(S1) + ' ÷ ' + fmt2(apb), P4(apb ? S1 / apb * 100 : 0)), LN.row('Rounded up to 0.1%', '', qm.mwarr.toFixed(1) + '%')].concat(limitLines(q));
-        num = part('Σ par × Moody\'s recovery rate', S1, 'usd', [LN.total('Numerator: recovery value at Moody\'s rates', S1, 'sum of the last column')].concat(defNote, res), [T]);
-        den = part('Par of performing collateral', apb, 'usd', [parLine].concat(defNote, res), [T]);
+        const S1 = sum(S.N, r => r.par * r.mRR / 100);
+        const T = TB("Performing collateral by Moody's recovery rate", [cID, cOb, cTy, cM, ["Moody's facility", 'text', r => r.moodysFacility], ['Notches, facility above DPR', 'num0', r => clamp(mIdx(r.moodysDPR) - mIdx(r.moodysFacility), -3, 2)], ['Recovery rate', 'pct1', r => r.mRR], cPar, ['Par × rate', 'usd', r => r.par * r.mRR / 100, true]], S.N.slice().sort((a, b) => a.mRR - b.mRR || b.par - a.par));
+        const res = [LN.head('Result'), LN.row('Weighted average recovery rate', fmt2(S1) + ' ÷ ' + fmt2(pD), P4(pD ? S1 / pD * 100 : 0)), LN.row('Rounded up to 0.1%', '', qm.mwarr.toFixed(1) + '%')].concat(limitLines(q));
+        num = part('Σ par × Moody\'s recovery rate', S1, 'usd', [LN.total('Numerator: recovery value at Moody\'s rates', S1, 'sum of the last column')].concat(defNote, noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of performing collateral', pD, 'usd', [denL(S, 'Denominator: par of performing collateral', pD)].concat(defNote, noteD(S), res), [denT(S, T, 'Performing collateral')].concat(leftD(S)));
       } else if (t.metric === 'spWARR') {
-        const cols = spec.recovery.sp.cols; const c0 = cols[0]; const S1 = sum(nd, r => r.par * r.sRR[c0] / 100);
-        const T = TB('Performing collateral by S&P recovery rate', [cID, cOb, cTy, ['S&P recovery rating', 'text', r => r.spRecUsed]].concat(cols.map(c => [c + ' rate', 'pct1', r => r.sRR[c]]), [cPar, ['Par × ' + c0 + ' rate', 'usd', r => r.par * r.sRR[c0] / 100, true]]), nd.slice().sort((a, b) => a.sRR[c0] - b.sRR[c0] || b.par - a.par));
-        const res = [LN.head('Result')].concat(cols.map(c => LN.sub(c + ' column', fmt2(sum(nd, r => r.par * r.sRR[c] / 100)) + ' ÷ ' + fmt2(apb), P4(qm.swarr[c]))), limitLines(q));
-        num = part('Σ par × S&P recovery rate, ' + c0 + ' column', S1, 'usd', [LN.total('Numerator: recovery value at the ' + c0 + ' rates', S1, 'sum of the last column'), LN.note('Each rated class is tested against its own column; the table shows every column.')].concat(defNote, res), [T]);
-        den = part('Par of performing collateral', apb, 'usd', [parLine].concat(defNote, res), [T]);
+        const cols = spec.recovery.sp.cols; const c0 = cols[0]; const S1 = sum(S.N, r => r.par * r.sRR[c0] / 100);
+        const T = TB('Performing collateral by S&P recovery rate', [cID, cOb, cTy, ['S&P recovery rating', 'text', r => r.spRecUsed]].concat(cols.map(c => [c + ' rate', 'pct1', r => r.sRR[c]]), [cPar, ['Par × ' + c0 + ' rate', 'usd', r => r.par * r.sRR[c0] / 100, true]]), S.N.slice().sort((a, b) => a.sRR[c0] - b.sRR[c0] || b.par - a.par));
+        const res = [LN.head('Result')].concat(cols.map(c => LN.sub(c + ' column', fmt2(sum(S.N, r => r.par * r.sRR[c] / 100)) + ' ÷ ' + fmt2(pD), P4(qm.swarr[c]))), limitLines(q));
+        num = part('Σ par × S&P recovery rate, ' + c0 + ' column', S1, 'usd', [LN.total('Numerator: recovery value at the ' + c0 + ' rates', S1, 'sum of the last column'), LN.note('Each rated class is tested against its own column; the table shows every column.')].concat(defNote, noteN(S), res), [T].concat(leftN(S)));
+        den = part('Par of performing collateral', pD, 'usd', [denL(S, 'Denominator: par of performing collateral', pD)].concat(defNote, noteD(S), res), [denT(S, T, 'Performing collateral')].concat(leftD(S)));
       }
       if (num) quality[q.id] = { num, den };
     }
@@ -1868,36 +2007,58 @@ function run(spec0, tape, inp) {
     const fText = c => (c.filter || []).map(x => (FL[x.f] || x.f) + (x.in ? ' is ' + x.in.join(' or ') : x.notIn ? ' is not ' + x.notIn.join(' or ') : x.eq !== undefined ? (x.eq ? ' = yes' : ' = no') : x.lt !== undefined ? ' below ' + (x.f === 'facilitySize' ? fmt2(x.lt) : x.lt) : x.gt !== undefined ? ' above ' + x.gt : '')).join(' and ');
     const allT = TB('All collateral', [cID, cOb, cTy, ['Country', 'text', r => r.country], cPar, ['Share of PCV', 'pct4', r => r.par / pcvGen * 100]], rows.slice().sort((a, b) => b.par - a.par), 'Principal Proceeds of ' + fmt2(principalCash) + ' are added to the par of the collateral.');
     const denConc = part('Principal Collateral Value at par', pcvGen, 'usd', [LN.row('Aggregate par of the collateral', 'sum of the Par column, ' + rows.length + ' positions', pb.parTotal), LN.row('Plus: Principal Proceeds on deposit', '', principalCash), LN.total('Denominator', pcvGen, fmt2(pb.parTotal) + ' + ' + fmt2(principalCash))], [allT]);
+    const cL = [cID, cOb, cTy, ['Country', 'text', r => r.country], ["S&P industry", 'text', r => r.spIndustry], cPar];
+    // the denominator after your adjustment: Principal Collateral Value at par, less the loans you left out
+    const denConcFor = (a, D) => {
+      if (!a || (!D.left.length && D.cash)) return denConc;
+      const X = a.text || {}; const L = [LN.row('Aggregate par of the collateral', 'sum of the Par column, ' + rows.length + ' positions', pb.parTotal)];
+      if (D.left.length) L.push(LN.row('Loans you left out of the denominator: loans where ' + X.denSkip, 'sum of the Par column, ' + D.left.length + ' positions', D.leftPar));
+      else if (X.denSkip) L.push(LN.note('No loan meets your condition for leaving loans out of the denominator (' + X.denSkip + ').'));
+      L.push(D.cash ? LN.row('Plus: Principal Proceeds on deposit', '', principalCash) : LN.row('Principal Proceeds on deposit, left out by your adjustment', 'not counted', 0));
+      L.push(LN.total('Denominator', D.value, fmt2(pb.parTotal) + (D.left.length ? ' − ' + fmt2(D.leftPar) : '') + (D.cash ? ' + ' + fmt2(principalCash) : '')));
+      const T = TB('All collateral', [cID, cOb, cTy, ['Country', 'text', r => r.country], cPar, ['Share of the denominator', 'pct4', r => D.value > 0 ? r.par / D.value * 100 : 0]], rows.slice().sort((a, b) => b.par - a.par), D.cash ? 'Principal Proceeds of ' + fmt2(principalCash) + ' are added to the par of the collateral.' : 'Principal Proceeds are not counted, by your adjustment.');
+      return part('Principal Collateral Value at par, as you adjusted it', D.value, 'usd', L, [T].concat(D.left.length ? [TB('Left out of the denominator by your adjustment', cL, D.left.slice().sort((a, b) => b.par - a.par), 'Loans where ' + X.denSkip)] : []));
+    };
     const conc = {};
     for (const c of result.conc) {
       const t = (spec.concentrations || []).find(x => x.id === c.id) || {}; let num;
+      const a = (TA.conc && TA.conc[c.id]) || null; const X = (a && a.text) || {};
+      const D = concDen(a, rows, pcvGen, principalCash); const dv = D.value; const dPart = denConcFor(a, D);
+      const shareOf = x => dv > 0 ? x / dv * 100 : 0; const dName = a && dPart !== denConc ? 'the denominator' : 'PCV';
+      const skipped = a && a.numSkip ? rows.filter((x, i) => a.numSkip[i]) : [];
       const chk = (val, lim, op) => LN.check('Limit ' + (op === '>=' ? '≥ ' : '≤ ') + fpct(lim, 2), P4(val) + ((op === '>=' ? val >= lim - 1e-9 : val <= lim + 1e-9) ? ' passes' : ' fails'), op === '>=' ? val >= lim - 1e-9 : val <= lim + 1e-9);
       if (t.metric === 'maxObligor' || t.metric === 'maxIndustry' || t.metric === 'maxByField') {
         const field = t.metric === 'maxObligor' ? 'obligor' : (t.field || (t.metric === 'maxIndustry' ? 'spIndustry' : 'country'));
-        const g = {}; for (const x of rows) { const k = x[field]; if (t.within && !t.within.includes(k)) continue; (g[k] = g[k] || { k, par: 0, n: 0 }).par += x.par; g[k].n++; }
+        const inSet = rows.filter((x, i) => !(a && a.numSkip && a.numSkip[i]) && !(a && a.numOnly && !a.numOnly[i]));
+        const g = {}; for (const x of inSet) { const k = x[field]; if (t.within && !t.within.includes(k)) continue; (g[k] = g[k] || { k, par: 0, n: 0 }).par += x.par; g[k].n++; }
         const arr = Object.values(g).sort((a, b) => b.par - a.par); const ex = t.exceptions;
-        arr.forEach((e, i) => { e.pct = e.par / pcvGen * 100; e.lim = ex && i < ex.count ? ex.limit : t.limit; e.pass = e.pct <= e.lim + 1e-9; });
-        const top = arr[0] || { k: '—', par: 0, pct: 0 }; const inTop = rows.filter(x => x[field] === top.k);
-        const gName = FL[field] || field;
-        const res = [LN.head('Result'), LN.row('Largest ' + gName.toLowerCase() + ', ' + top.k, fmt2(top.par) + ' ÷ ' + fmt2(pcvGen), P4(top.pct))];
+        arr.forEach((e, i) => { e.pct = shareOf(e.par); e.lim = ex && i < ex.count ? ex.limit : t.limit; e.pass = e.pct <= e.lim + 1e-9; });
+        const top = arr[0] || { k: '—', par: 0, pct: 0 }; const inTop = inSet.filter(x => x[field] === top.k);
+        const gName = FL[field] || t.fieldLabel || field;
+        const res = [LN.head('Result'), LN.row('Largest ' + gName.toLowerCase() + ', ' + top.k, fmt2(top.par) + ' ÷ ' + fmt2(dv), P4(top.pct))];
         if (ex) res.push(LN.note('Up to ' + ex.count + ' may each reach ' + ex.limit + '%; the rest are limited to ' + t.limit + '%. The table checks each against the limit that applies to its rank.'));
-        res.push(LN.check(c.pass ? 'Every ' + gName.toLowerCase() + ' within its limit' : 'At least one ' + gName.toLowerCase() + ' over its limit', arr.filter(e => !e.pass).map(e => e.k).join(', ') || 'none over', c.pass));
-        const GT = TB('By ' + gName.toLowerCase() + (t.within ? ' (' + t.within.join(', ') + ' only)' : ''), [[gName, 'text', e => e.k], ['Positions', 'num0', e => e.n, true], ['Par', 'usd', e => e.par, true], ['Share of PCV', 'pct4', e => e.pct], ['Limit that applies', 'pct2', e => e.lim], ['Within', 'yn', e => e.pass]], arr);
-        num = part('Par of the largest ' + gName.toLowerCase() + ': ' + top.k, top.par, 'usd', [LN.total('Numerator', top.par, 'sum of the Par column in the second table')].concat(res), [GT, TB('Positions of ' + top.k, [cID, cOb, cTy, ['Country', 'text', r => r.country], ["S&P industry", 'text', r => r.spIndustry], cPar], inTop.sort((a, b) => b.par - a.par))]);
-        conc[c.id] = { num, den: withResult(denConc, res) };
+        res.push(LN.check(c.pass ? 'Every ' + gName.toLowerCase() + ' within its limit' : 'At least one ' + gName.toLowerCase() + ' over its limit', arr.filter(e => !e.pass).map(e => e.k).join(', ') || 'none over', !!c.pass));
+        const adj = []; if (X.numOnly) adj.push(LN.note('Your adjustment groups only loans where ' + X.numOnly + '.')); if (X.numSkip) adj.push(LN.note('Your adjustment leaves out of the numerator loans where ' + X.numSkip + ': ' + skipped.length + ' position' + (skipped.length === 1 ? '' : 's') + ', ' + fmt2(sum(skipped, x => x.par)) + ' par.'));
+        const GT = TB('By ' + gName.toLowerCase() + (t.within ? ' (' + t.within.join(', ') + ' only)' : ''), [[gName, 'text', e => e.k], ['Positions', 'num0', e => e.n, true], ['Par', 'usd', e => e.par, true], ['Share of ' + dName, 'pct4', e => e.pct], ['Limit that applies', 'pct2', e => e.lim], ['Within', 'yn', e => e.pass]], arr);
+        num = part('Par of the largest ' + gName.toLowerCase() + ': ' + top.k, top.par, 'usd', [LN.total('Numerator', top.par, 'sum of the Par column in the second table')].concat(adj, res), [GT, TB('Positions of ' + top.k, cL, inTop.sort((a, b) => b.par - a.par))].concat(skipped.length ? [TB('Left out of the numerator by your adjustment', cL, skipped.slice().sort((a, b) => b.par - a.par), 'Loans where ' + X.numSkip)] : []));
+        conc[c.id] = { num, den: withResult(dPart, res) };
       } else {
-        const m = rows.filter(x => rowMatches(x, t.filter)).sort((a, b) => b.par - a.par); const mPar = sum(m, x => x.par);
-        const cashOk = t.cashAs && rowMatches(Object.assign({ assetType: 'SSL', rateType: 'FLOAT', country: 'US' }, t.cashAs), t.filter);
+        const own = !!(a && a.numOnly);
+        const m = rows.filter((x, i) => (own ? a.numOnly[i] : rowMatches(x, t.filter)) && !(a && a.numSkip && a.numSkip[i])).sort((a, b) => b.par - a.par); const mPar = sum(m, x => x.par);
+        const cashOk = !!c.cashIn;
         const amt = mPar + (cashOk ? principalCash : 0);
-        const L = [LN.row('Par of collateral where ' + (fText(t) || 'the clause applies'), 'sum of the Par column, ' + m.length + ' positions', mPar)];
+        const what = own ? X.numOnly + (t.custom ? '' : ' (your condition, in place of the clause\'s own test)') : (fText(t) || 'the clause applies');
+        const L = [LN.row('Par of collateral where ' + what + (X.numSkip ? ', other than loans where ' + X.numSkip : ''), 'sum of the Par column, ' + m.length + ' positions', mPar)];
         if (cashOk) L.push(LN.row('Plus: Principal Proceeds, counted as the clause directs', '', principalCash));
         L.push(LN.total('Numerator', amt, cashOk ? fmt2(mPar) + ' + ' + fmt2(principalCash) : ''));
+        if (X.numSkip) L.push(LN.note('Your adjustment leaves out of the numerator loans where ' + X.numSkip + ': ' + skipped.length + ' position' + (skipped.length === 1 ? '' : 's') + ', ' + fmt2(sum(skipped, x => x.par)) + ' par in all.'));
         if (c.missing) L.push(LN.note(c.note));
-        const res = [LN.head('Result'), LN.row('Share of Principal Collateral Value', fmt2(amt) + ' ÷ ' + fmt2(pcvGen), P4(c.value)), chk(c.value, c.limit, c.op)];
-        const extra = []; (t.filter || []).forEach(x => { if (!['assetType'].includes(x.f) && !extra.some(e => e[0] === fCol(x.f)[0])) extra.push(fCol(x.f)); });
-        const MT = TB('Collateral counted', [cID, cOb, cTy].concat(extra, [cPar, ['Share of PCV', 'pct4', r => r.par / pcvGen * 100, true]]), m, m.length ? '' : 'No collateral meets this clause.');
-        num = part('Par of collateral counted under ' + c.id, amt, 'usd', L.concat(res), [MT]);
-        conc[c.id] = { num, den: withResult(denConc, res) };
+        const res = [LN.head('Result'), LN.row('Share of ' + (dName === 'PCV' ? 'Principal Collateral Value' : 'the denominator'), fmt2(amt) + ' ÷ ' + fmt2(dv), P4(c.value))];
+        if (c.pass != null) res.push(chk(c.value, c.limit, c.op)); else res.push(LN.note(c.note || 'Could not be evaluated'));
+        const extra = []; if (!own) (t.filter || []).forEach(x => { if (!['assetType'].includes(x.f) && !extra.some(e => e[0] === fCol(x.f)[0])) extra.push(fCol(x.f)); });
+        const MT = TB('Collateral counted', [cID, cOb, cTy].concat(extra, [cPar, ['Share of ' + dName, 'pct4', r => shareOf(r.par), true]]), m, m.length ? '' : 'No collateral meets this ' + (own ? 'condition' : 'clause') + '.');
+        num = part('Par of collateral counted under ' + c.id, amt, 'usd', L.concat(res), [MT].concat(skipped.length ? [TB('Left out of the numerator by your adjustment', cL, skipped.slice().sort((a, b) => b.par - a.par), 'Loans where ' + X.numSkip)] : []));
+        conc[c.id] = { num, den: withResult(dPart, res) };
       }
     }
     TC.conc = conc;
@@ -1965,7 +2126,7 @@ function validateSpec(s) {
   return { errs, warns };
 }
 
-const api = { plainError, run, schedule, analysePortfolio, principalBalances, qualityMetrics, validateSpec, normaliseRow, money, days, addMonths, D, iso, M_SCALE, S_SCALE, mIdx, sIdx, xirr, hurdleAmount, diversityScore, KNOWN_TYPES };
+const api = { plainError, run, schedule, analysePortfolio, principalBalances, qualityMetrics, rowMatches, validateSpec, normaliseRow, money, days, addMonths, D, iso, M_SCALE, S_SCALE, mIdx, sIdx, xirr, hurdleAmount, diversityScore, KNOWN_TYPES };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CLOEngine = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -2323,12 +2484,15 @@ function saveManual() { try { localStorage.setItem(MAN_KEY, JSON.stringify(state
 const CALC_KEY = 'clo-interpreter-calcs-v1';
 function loadCalcs() { try { const raw = localStorage.getItem(CALC_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; } }
 function saveCalcs() { try { localStorage.setItem(CALC_KEY, JSON.stringify(state.calcsByDeal)); } catch (e) { /* storage unavailable: keep in memory */ } }
+const TESTADJ_KEY = 'clo-interpreter-tests-v1'; // your adjustments to the tests, and tests of your own, per deal
+function loadTestAdj() { try { const raw = localStorage.getItem(TESTADJ_KEY); const o = raw ? JSON.parse(raw) : {}; return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+function saveTestAdj() { try { localStorage.setItem(TESTADJ_KEY, JSON.stringify(state.testsByDeal)); } catch (e) { /* storage unavailable: keep in memory */ } }
 const DW_KEY = 'clo-interpreter-docwords-v1';
 function loadDocWords() { try { const raw = localStorage.getItem(DW_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; } }
 function saveDocWords() { try { localStorage.setItem(DW_KEY, JSON.stringify(state.docWords)); } catch (e) { /* storage unavailable: keep in memory */ } }
 const SCEN = DATA.scenarios();
 const state = {
-  saved: loadSavedDeals(), docWords: loadDocWords(), manualByDeal: loadManual(), calcsByDeal: loadCalcs(), calcInfo: null, dealId: 'example', scenarioId: 'apr09', tape: null, tapeSource: '', inputs: null,
+  saved: loadSavedDeals(), docWords: loadDocWords(), manualByDeal: loadManual(), calcsByDeal: loadCalcs(), testsByDeal: loadTestAdj(), calcInfo: null, dealId: 'example', scenarioId: 'apr09', tape: null, tapeSource: '', inputs: null,
   stress: { extraDefaultPct: 0, notches: 0, priceShock: 0, defaultPrice: 45 }, tab: 'waterfall', wfView: 'interest', result: null, hist: [],
   interp: { pages: null, fileName: '', excerpts: null, status: '', log: [], spec: null, check: null, busy: false, ctl: null },
   caps: { sample: null, downloads: null }
@@ -2370,7 +2534,7 @@ function run() {
   state.inputs.manual = manRows();
   try {
     // the user's calculations are worked out first; any that replace a figure are used in the run
-    const out = CALC.runWith(E, deal(), effectiveTape(), state.inputs, calcRows());
+    const out = CALC.runWith(E, deal(), effectiveTape(), state.inputs, calcRows(), { tests: testRules() });
     state.result = out.result; state.calcInfo = out.info; state.error = null;
     if (out.info) manRows().forEach((m, i) => { if (CALC.isFormulaRow(m)) m.amount = out.info.manual[i].err ? 0 : out.info.manual[i].amount; });
     const re = $('#railExp'); if (re) re.textContent = railExpText();
@@ -2698,7 +2862,7 @@ function renderWaterfall() {
     h += '<tr class="' + cls + '"><td class="step">' + esc(row.id) + '</td><td class="what">' + w + '</td><td class="num">' + link(row.due, 'due', usdz(row.due)) + '</td><td class="num">' + link(row.paid, 'paid', usdz(row.paid)) + '</td><td class="num sh">' + usdz(Math.max(0, row.due - row.paid)) + '</td><td class="rem"><div class="remv">' + link(row.after, 'paid', usd(row.after)) + '</div><div class="rembar' + (divert ? ' dv' : '') + '"><span style="width:' + remPct.toFixed(2) + '%"></span></div></td></tr>';
   }
   h += '</tbody></table></div>';
-  const P = $('#p-waterfall'); P.innerHTML = h; bindBanner(P);
+  const P = $('#p-waterfall'); P.innerHTML = testsNotice('waterfall') + h; bindBanner(P);
   $$('[data-wf]', P).forEach(b => b.onclick = () => { state.wfView = b.dataset.wf; renderWaterfall(); });
   const dl = $('#dlLedger', P); if (dl) dl.onclick = downloadLedger;
   const df = $('#docFile', P); if (df) df.onchange = e => { const f = e.target.files[0]; if (f) matchDocument(f); };
@@ -2742,6 +2906,7 @@ function openCalc(c) {
 function renderCalc() {
   const c = state.calc, r = state.result, d = $('#calcd'); if (!c || !r) return;
   d.classList.toggle('wide', !!c.cg); // a group's steps side by side need the room
+  if (c.adj) { renderAdjust(c, d); return; }
   let h = '';
   if (c.cg) {
     const keys = calcRows().filter(x => x.group === c.cg && x.on !== false && x.name).map(x => x.name.toLowerCase());
@@ -3321,13 +3486,82 @@ function evalManual(M, st, R, formula) {
   catch (e) { if (e instanceof CalcError) return { err: e.message }; throw e; }
 }
 
+// ---------- your adjustments to the tests (Tests tab): lists of loan-level conditions in the same formula language
+// rules: { adj: { 'conc:<id>' | 'quality:<id>' | 'coverage:<id>': { numOnly: [..], numSkip: [..], denSkip: [..], denCash, on } },
+//          custom: [{ id, label, kind: 'share' | 'largest', field, numOnly, numSkip, denSkip, denCash, limit, op, on }] }
+// numOnly conditions must all hold (AND); a loan meeting any numSkip or denSkip condition is left out (OR)
+const condList = L => (Array.isArray(L) ? L : []).map(x => String(x == null ? '' : x).trim().replace(/^=\s*/, '')).filter(Boolean);
+const onlyOf = a => a.numMode === 'all' ? [] : condList(a.numOnly); // the numerator's own conditions, unless you switched back to the indenture's
+const adjActive = a => !!a && a.on !== false && !!(onlyOf(a).length || condList(a.numSkip).length || condList(a.denSkip).length || a.denCash === false);
+function hasTestRules(T) { return !!T && (Object.values(T.adj || {}).some(adjActive) || (T.custom || []).some(u => u && u.on !== false)); }
+const joinConds = (L, op) => L.length === 1 ? L[0] : L.map(x => /\b(AND|OR)\b|&&|\|\|/i.test(x) ? '(' + x + ')' : x).join(' ' + op + ' ');
+// one condition, worked out for every loan: { flags, n } or { err }
+function rowCond(M, st, R, text) {
+  let ast; try { ast = parse(String(text).replace(/^\s*=/, '')); } catch (e) { if (e instanceof CalcError) return { err: e.message }; throw e; }
+  const e1 = M.checkRefs(refsOf(ast), 'loan'); if (e1) return { err: e1 };
+  const cache = new Map(); const out = new Array(R.count);
+  try {
+    for (let i = 0; i < R.count; i++) {
+      const X = { cache, look: n => st.rowLook(i, n), agg: n => aggregate(n, X, R, st.rowLook) };
+      try { out[i] = truthy(ev(ast, X)); } catch (e) { if (e instanceof CalcError) fail('For ' + R.label(i) + ': ' + e.message); throw e; }
+    }
+  } catch (e) { if (e instanceof CalcError) return { err: e.message }; throw e; }
+  return { flags: out, n: out.filter(Boolean).length };
+}
+// a loan column's value for every loan (to group by): { vals } or { err }
+function rowValues(M, st, R, field) {
+  const f = String(field || '').trim(); const k = f.toLowerCase(); const kind = M.kindOf(k);
+  if (!f) return { err: 'Choose the field to group by' };
+  if (kind !== 'column' && kind !== 'loanvar') return { err: f + ' is not a loan column' + (kind ? '' : suggest(f, STD_COLS.map(c => c[0]).concat(M.extra.map(c => c.name)))) };
+  try { return { vals: Array.from({ length: R.count }, (_, i) => st.rowLook(i, { key: k, name: f })) }; } catch (e) { if (e instanceof CalcError) return { err: e.message }; throw e; }
+}
+function testAdjustFrom(M, st, R, T) {
+  const adjust = { ids: R.N.map(n => n.id), conc: {}, quality: {}, coverage: {}, custom: [] };
+  const errs = {}, counts = {}; let any = false;
+  const one = (key, a, lists) => {
+    const flags = {}, text = {}; let bad = null;
+    lists.forEach(([k, op]) => {
+      const L = k === 'numOnly' ? onlyOf(a) : condList(a[k]); if (!L.length) return;
+      const res = L.map(c => ({ c, r: rowCond(M, st, R, c) }));
+      res.filter(x => x.r.err).forEach(x => (bad = bad || []).push({ list: k, cond: x.c, err: x.r.err }));
+      if (res.some(x => x.r.err)) return;
+      flags[k] = R.N.map((_, i) => op === 'AND' ? res.every(x => x.r.flags[i]) : res.some(x => x.r.flags[i]));
+      text[k] = joinConds(L, op); (counts[key] = counts[key] || {})[k] = flags[k].filter(Boolean).length;
+      counts[key][k + 'Each'] = res.map(x => x.r.n);
+    });
+    if (bad) { errs[key] = bad; return null; }
+    const summary = [text.numOnly ? 'only loans where ' + text.numOnly : '', text.numSkip ? 'numerator leaves out ' + text.numSkip : '', text.denSkip ? 'denominator leaves out ' + text.denSkip : '', a.denCash === false ? 'no Principal Proceeds in the denominator' : ''].filter(Boolean).join('; ');
+    return Object.assign({ text, summary, denCash: a.denCash !== false }, flags);
+  };
+  const ALL = [['numOnly', 'AND'], ['numSkip', 'OR'], ['denSkip', 'OR']];
+  Object.entries(T.adj || {}).forEach(([key, a]) => {
+    if (!adjActive(a)) return; const m = key.match(/^(conc|quality|coverage):(.+)$/); if (!m) return;
+    const o = one(key, a, m[1] === 'coverage' ? [['numSkip', 'OR']] : ALL); if (!o) return;
+    if (m[1] === 'coverage' && !o.numSkip) return;
+    adjust[m[1]][m[2]] = o; any = true;
+  });
+  (T.custom || []).forEach(u => {
+    if (!u || u.on === false || !u.id) return; const key = 'custom:' + u.id; const kind = u.kind === 'largest' ? 'largest' : 'share';
+    const problems = [];
+    if (kind === 'share' && !condList(u.numOnly).length) problems.push({ list: 'numOnly', cond: '', err: 'Say which loans the test counts' });
+    if (u.limit === '' || u.limit == null || !isFinite(+u.limit)) problems.push({ list: 'limit', cond: '', err: 'Enter the limit, as a percentage' });
+    let groups = null; if (kind === 'largest') { const g = rowValues(M, st, R, u.field); if (g.err) problems.push({ list: 'field', cond: String(u.field || ''), err: g.err }); else groups = g.vals; }
+    const o = one(key, u, ALL);
+    if (!o) { errs[key] = (errs[key] || []).concat(problems); return; }
+    if (problems.length) { errs[key] = problems; return; }
+    adjust.custom.push(Object.assign({ id: u.id, label: String(u.label || '').trim() || 'Your test ' + u.id, kind, field: u.field, fieldLabel: String(u.field || ''), limit: +u.limit, op: u.op === '>=' ? '>=' : '<=', groups }, o)); any = true;
+  });
+  return { adjust: any ? adjust : null, errs, counts };
+}
+
 // ---------- the run: built-in figures first, then the calculations, then the run that uses them
 // opt.projection: only the replacements that make sense on a projected date; opt.skipLoanOverrides: the tape already has them
 function runWith(E, spec, tape, inp, calcs, opt) {
   opt = opt || {};
   const list = (calcs || []).filter(c => c && c.on !== false && (String(c.formula || '').trim() !== '' || String(c.name || '').trim() !== ''));
   const man = Array.isArray(inp.manual) ? inp.manual : [];
-  if (!list.length && !man.some(isFormulaRow)) return { result: E.run(spec, tape, inp), info: null };
+  const TR = hasTestRules(opt.tests) ? opt.tests : null;
+  if (!list.length && !man.some(isFormulaRow) && !TR) return { result: E.run(spec, tape, inp), info: null };
   const M = compile(list, spec, tape);
   const inpLite = Object.assign({}, inp, { lite: true, manual: man.map(m => isFormulaRow(m) ? Object.assign({}, m, { amount: 0 }) : m) });
   let pre = E.run(spec, tape, inpLite);
@@ -3374,15 +3608,21 @@ function runWith(E, spec, tape, inp, calcs, opt) {
     return evalManual(M, st, R, m.formula);
   });
   inp2.manual = man.map((m, i) => isFormulaRow(m) ? Object.assign({}, m, { amount: manOut[i].err ? 0 : manOut[i].amount, src: manOut[i].err ? 'formula with an error, counted as zero' : 'formula =' + m.formula.replace(/^\s*=/, '').trim() }) : m);
+  // your adjustments to the tests: each condition worked out on the loans as the run will see them
+  let tests = null;
+  if (TR) { tests = testAdjustFrom(M, st, R, TR); if (tests.adjust) inp2.testAdjust = tests.adjust; }
   const result = E.run(spec, tape2, inp2);
-  const info = { M, st, R, R0, pre, tape: tape2, tape0: tape, loanApplied, dealApplied, manual: manOut, projection: !!opt.projection };
+  const info = { M, st, R, R0, pre, tape: tape2, tape0: tape, loanApplied, dealApplied, manual: manOut, projection: !!opt.projection, tests, inp: inp2 };
   return { result, info };
 }
 // the engine the projection uses: replacements of the fee basis, collateral value and fees on every projected date
-function projectionEngine(E, calcs) {
+// coverage tests you adjusted change the cash, so they are applied on every projected date too, on that date's loans
+function projectionEngine(E, calcs, tests) {
   const list = (calcs || []).filter(c => c && c.on !== false && c.kind !== 'loan' && c.use && (targetOf('deal', c.use) || {}).proj);
-  if (!list.length) return E;
-  return Object.assign({}, E, { run: (spec, tape, inp) => runWith(E, spec, tape, inp, calcs, { projection: true, skipLoanOverrides: true }).result });
+  const cov = tests && tests.adj ? Object.keys(tests.adj).filter(k => /^coverage:/.test(k) && adjActive(tests.adj[k])) : [];
+  if (!list.length && !cov.length) return E;
+  const T = cov.length ? { adj: Object.fromEntries(cov.map(k => [k, tests.adj[k]])) } : null;
+  return Object.assign({}, E, { run: (spec, tape, inp) => runWith(E, spec, tape, inp, calcs, { projection: true, skipLoanOverrides: true, tests: T }).result });
 }
 
 // ---------- the working behind a calculation, in the same lines as every other figure
@@ -3497,7 +3737,7 @@ const EXAMPLES = [
     { name: 'Moodys_Rating_Final', kind: 'loan', use: 'moodysDPR', formula: 'IFBLANK(moodys_rating, NOTCH(SP_As_Moodys, 1))', note: 'Step 2: the Moody\'s rating, or one notch below the S&P equivalent where the loan has no Moody\'s rating.' }] }
 ];
 
-return { lc, parse, show, tokenize, refsOf, compile, evaluate, runWith, projectionEngine, working, groupWorking, builtinDefs, extraColumns, snake, cellValue, fmtV, isFormulaRow, FUNCS, STD_COLS, TARGETS, EXAMPLES, CalcError, hasAgg };
+return { lc, parse, show, tokenize, refsOf, compile, evaluate, runWith, projectionEngine, hasTestRules, adjActive, condList, rowsFor: (E, tape, res) => rowsOf(E, tape, res, extraColumns(tape)), working, groupWorking, builtinDefs, extraColumns, snake, cellValue, fmtV, isFormulaRow, FUNCS, STD_COLS, TARGETS, EXAMPLES, CalcError, hasAgg };
 })();
 // ---------- calculations tab: the user's own figures and loan columns, and what they replace
 const calcRows = () => (state.calcsByDeal[state.dealId] = state.calcsByDeal[state.dealId] || []);
@@ -3592,7 +3832,7 @@ function renderCalcs() {
   let h = '<div class="sec"><h2>Calculations</h2><p class="lead">Your own figures and loan columns, written as formulas. Use one where the interpreter does not work a figure out the way the indenture does: it can replace the Fee Basis Amount, Principal Collateral Value, a fee due, or a loan\'s par, price or rating, and everything that uses that figure then uses yours. Where it takes several steps, put them in a <b>group</b>, such as Principal Balance: each step can use the ones before it, and the last can replace the tape\'s figure. A calculation\'s name can also be used in Manual inputs, where an amount that starts with = is a formula.</p>' + overrideBanner(true);
   h += '<div class="toolbar"><button class="btn small" type="button" id="cvAddGroup">Add a group</button><button class="btn small" type="button" id="cvAddDeal">Add a deal figure</button><button class="btn small" type="button" id="cvAddLoan">Add a loan column</button>' +
     '<select id="cvEx" aria-label="Add an example"><option value="">Add an example…</option>' + CALC.EXAMPLES.map((x, i) => '<option value="' + i + '">' + esc(x.label || (x.name + (x.use ? ', replaces ' + CALC.lc((CALC.TARGETS[x.kind].find(t => t.id === x.use) || {}).label || '') : ''))) + '</option>').join('') + '</select>' +
-    (L.length ? '<button class="btn small" type="button" id="cvExport">' + (state.caps.downloads ? 'Download (JSON)' : 'Copy as JSON') + '</button>' : '') + '<label class="btn small" for="cvImport">Import</label><input type="file" id="cvImport" accept=".json,application/json" hidden></div>';
+    (L.length || CALC.hasTestRules(testRules()) ? '<button class="btn small" type="button" id="cvExport" title="Your calculations, with your adjustments to the tests and your own tests">' + (state.caps.downloads ? 'Download (JSON)' : 'Copy as JSON') + '</button>' : '') + '<label class="btn small" for="cvImport">Import</label><input type="file" id="cvImport" accept=".json,application/json" hidden></div>';
   if (!L.length) h += '<div class="box small" style="max-width:760px">No calculations for ' + esc(s.meta.name) + ' yet. A <b>deal figure</b> is one number for the Payment Date, such as <code class="f">SUM(par, NOT defaulted) + Principal_Proceeds</code>. A <b>loan column</b> is worked out for every loan, such as <code class="f">IFBLANK(principal_balance, par)</code>, and can stand in for par. A <b>group</b> holds the steps of one longer calculation. Pick an example to start from.</div>';
   const G = cvGroups(L); const grouped = G.some(Boolean);
   h += '<div class="cvlist">' + G.map((g, gi) => g ? cvGroupHTML(g, gi, G, L) : (grouped ? '<h3 class="cvg-plain">Not in a group</h3>' : '') + L.map((c, k) => (c.group || '') === '' ? cvCardHTML(c, k, L, 0) : '').join('')).join('') + '</div>';
@@ -3641,20 +3881,25 @@ function bindCalcs(P) {
     calcsChanged(); renderCalcs(); toast('Added the group ' + g + ' with ' + x.steps.length + ' steps.' + (lost ? ' Its last step replaces nothing yet: another calculation already replaces ' + lost + '.' : ''));
   };
   const ex = $('#cvExport', P); if (ex) ex.onclick = async () => {
-    const json = JSON.stringify({ format: 'clo-interpreter-calculations', version: 2, deal: deal().meta.name, exported: new Date().toISOString().slice(0, 10), calculations: L.map(c => ({ group: c.group || '', name: c.name, kind: c.kind, formula: c.formula, use: c.use || '', note: c.note || '', on: c.on !== false })) }, null, 1);
+    const json = JSON.stringify({ format: 'clo-interpreter-calculations', version: 2, deal: deal().meta.name, exported: new Date().toISOString().slice(0, 10), calculations: L.map(c => ({ group: c.group || '', name: c.name, kind: c.kind, formula: c.formula, use: c.use || '', note: c.note || '', on: c.on !== false })), tests: CALC.hasTestRules(testRules()) ? { adj: testRules().adj, custom: testRules().custom } : undefined }, null, 1);
     if (state.caps.downloads) { saveFile('calculations-' + deal().meta.name.replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() + '.json', json); return; }
     try { await navigator.clipboard.writeText(json); toast('Calculations copied as JSON.'); } catch (e) { toast('Copying is blocked here.'); }
   };
   $('#cvImport', P).onchange = async e => {
     const f = e.target.files[0]; if (!f) return; let d; try { d = JSON.parse(await f.text()); } catch (er) { toast('That file is not JSON.'); return; }
     const list = Array.isArray(d) ? d : d && Array.isArray(d.calculations) ? d.calculations : null; if (!list) { toast('No calculations in that file.'); return; }
+    // your adjustments to the tests and your own tests, if the file has them: each replaces the one for the same test
+    let nT = 0; if (d && d.tests && typeof d.tests === 'object') { const R = testRules();
+      Object.entries(d.tests.adj || {}).forEach(([k, a]) => { if (/^(conc|quality|coverage):/.test(k) && a && typeof a === 'object') { R.adj[k] = a; nT++; } });
+      (Array.isArray(d.tests.custom) ? d.tests.custom : []).forEach(u => { if (!u || typeof u !== 'object' || !u.id) return; const i = R.custom.findIndex(x => x.id === u.id); if (i >= 0) R.custom[i] = u; else R.custom.push(u); nT++; });
+      if (nT) saveTestAdj(); }
     let added = 0, replaced = 0;
     list.filter(x => x && (x.name || x.formula)).forEach(x => {
       const c = { name: String(x.name || '').trim(), kind: x.kind === 'loan' ? 'loan' : 'deal', formula: String(x.formula || ''), use: String(x.use || ''), note: String(x.note || ''), on: x.on !== false, group: String(x.group || '').trim() };
       const i = L.findIndex(y => y.name && String(y.name).toLowerCase() === c.name.toLowerCase());
       if (i >= 0) { L[i] = Object.assign({ id: L[i].id }, c); replaced++; } else { L.push(Object.assign({ id: cvId() }, c)); added++; }
     });
-    calcsChanged(); toast('Imported ' + (added + replaced) + ' calculation' + (added + replaced === 1 ? '' : 's') + (replaced ? ' (' + replaced + ' replaced one with the same name)' : '') + '.');
+    calcsChanged(); toast('Imported ' + (added + replaced) + ' calculation' + (added + replaced === 1 ? '' : 's') + (replaced ? ' (' + replaced + ' replaced one with the same name)' : '') + (nT ? ', and ' + nT + ' test adjustment' + (nT === 1 ? '' : 's') + ' or test' + (nT === 1 ? '' : 's') + ' of your own' : '') + '.');
   };
   $$('.cv', P).forEach(card => {
     const i = +card.dataset.ci; const c = L[i]; if (!c) return;
@@ -3750,10 +3995,13 @@ function acEnsure() {
 function acClose() { if (!AC.list || AC.list.hidden) return; AC.list.hidden = true; if (AC.field) { AC.field.setAttribute('aria-expanded', 'false'); AC.field.removeAttribute('aria-activedescendant'); } AC.field = null; }
 function acPlace() {
   const f = AC.field, u = AC.list; if (!f || !document.body.contains(f)) { acClose(); return; }
+  // inside the side panel (a modal dialog) the list must sit in the dialog to show above it
+  const host = f.closest('dialog[open]') || document.body; if (u.parentNode !== host) host.appendChild(u);
+  const o = host === document.body ? { left: -window.scrollX, top: -window.scrollY } : host.getBoundingClientRect();
   const r = f.getBoundingClientRect(); const W = Math.min(440, window.innerWidth - 16);
-  u.style.width = W + 'px'; u.style.left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8)) + window.scrollX + 'px';
+  u.style.width = W + 'px'; u.style.left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8)) - o.left + 'px';
   const h = u.offsetHeight; const below = window.innerHeight - r.bottom; const up = below < h + 8 && r.top > h + 8;
-  u.style.top = (up ? r.top - h - 4 : r.bottom + 4) + window.scrollY + 'px';
+  u.style.top = (up ? r.top - h - 4 : r.bottom + 4) - o.top + 'px';
 }
 function acShow() {
   const u = AC.list; const w = AC.word.toLowerCase();
@@ -3794,6 +4042,237 @@ function attachComplete(f, eqOnly) {
   });
   f.addEventListener('blur', () => setTimeout(() => { if (AC.field === f && document.activeElement !== f) acClose(); }, 150));
 }
+// ---------- Tests tab: your adjustments to a test (loans left out of the numerator or the denominator, your own numerator) and tests of your own
+const testRules = () => { const R = (state.testsByDeal[state.dealId] = state.testsByDeal[state.dealId] || {}); R.adj = R.adj || {}; R.custom = R.custom || []; return R; };
+const fmtQv = (q, x) => x == null ? '—' : q.fmt === 'int' ? Math.round(x).toLocaleString('en-US') : q.fmt === 'pct1' ? pct(x, 1) : q.fmt === 'yrs' ? x.toFixed(2) + ' yrs' : q.fmt === 'dec1' ? x.toFixed(1) : pct(x, 2);
+const ADJ_FLAGS = ['defaulted', 'cov_lite', 'pik', 'revolver', 'dip', 'current_pay', 'participation', 'zero_coupon', 'is_ccc', 'is_discount'];
+const ADJ_DATES = ['maturity', 'default_date'];
+const ADJ_QUICK = [['defaulted', 'Defaulted'], ['is_ccc', 'CCC'], ['is_discount', 'Discount'], ['cov_lite', 'Cov-lite'], ['pik', 'PIK']];
+const LIST_NAME = { numOnly: 'Count only loans where', numSkip: 'Leave out of the numerator', denSkip: 'Leave out of the denominator' };
+function testsChanged(focusSel) { state.adjFocus = focusSel || null; saveTestAdj(); run(); }
+const adjKeyId = key => key.slice(key.indexOf(':') + 1);
+// what a test is, where its figures are, and which of your lists apply to it
+function adjTest(key) {
+  const s = deal(); const g = key.slice(0, key.indexOf(':')), id = adjKeyId(key); const cov = s.coverage || {};
+  const ratio = (res, f) => { const x = res && f(res); return x == null ? null : x; };
+  if (g === 'coverage') {
+    if (id === 'irt' || id === 'eod') {
+      const t = id === 'irt' ? cov.reinvestmentTest : cov.eodTest; if (!t) return null; const k = id === 'irt' ? 'preIRT' : 'preEoD';
+      return { g, id, key, label: t.label, lists: ['numSkip'], value: res => ratio(res, x => x[k] && x[k].ratio), show: v => pct(v), limit: '≥ ' + pct(t.trigger), pass: res => res[k] ? res[k].ratio >= t.trigger - 1e-9 : null, tc: id + '|||num', num: 'Principal Collateral Value', den: 'Principal of Class ' + t.ocClasses.join(', ') };
+    }
+    const i = (cov.tests || []).findIndex(t => t.id === id); if (i < 0) return null; const t = cov.tests[i];
+    return { g, id, key, label: t.label + ' OC test', lists: ['numSkip'], value: res => ratio(res, x => x.preTests[i] && x.preTests[i].oc.ratio), show: v => pct(v), limit: '≥ ' + pct(t.oc.trigger), pass: res => res.preTests[i] ? res.preTests[i].ocPass : null, tc: 'coverage|' + id + '|oc|num', num: 'Principal Collateral Value', den: 'Principal of Class ' + t.oc.classes.join(', ') };
+  }
+  if (g === 'quality') {
+    const t = (s.qualityTests || []).find(x => x.id === id); if (!t || t.metric === 'external') return null; const one = t.metric === 'diversity';
+    const q = res => res.quality.find(x => x.id === id) || {};
+    return { g, id, key, label: t.label, metric: t.metric, one, lists: one ? ['numOnly', 'numSkip'] : ['numOnly', 'numSkip', 'denSkip'], value: res => q(res).value, show: v => fmtQv(q(state.result), v), limit: () => { const x = q(state.result); return x.op && x.limit != null ? (x.op === '<=' ? '≤ ' : '≥ ') + fmtQv(x, x.limit) : ''; }, pass: res => q(res).pass, tc: 'quality|' + id + '||num' };
+  }
+  if (g === 'conc') {
+    const t = (s.concentrations || []).find(x => x.id === id); if (!t) return null; const group = /^max/.test(t.metric || '');
+    const c = res => res.conc.find(x => x.id === id) || {};
+    return { g, id, key, label: 'Portfolio Profile Test ' + id + ', ' + t.label, group, clause: t, lists: ['numOnly', 'numSkip', 'denSkip'], cash: true, value: res => c(res).value, show: v => pct(v), limit: (t.op === '>=' ? '≥ ' : '≤ ') + pct(t.limit, t.limit % 1 ? 1 : 0), pass: res => c(res).pass, tc: 'conc|' + id + '||num' };
+  }
+  if (g === 'custom') {
+    const u = testRules().custom.find(x => x.id === id); if (!u) return null; const c = res => res.conc.find(x => x.id === id) || {};
+    return { g, id, key, label: u.label || 'Your test ' + id, custom: u, group: u.kind === 'largest', lists: ['numOnly', 'numSkip', 'denSkip'], cash: true, value: res => c(res).value, show: v => pct(v), limit: u.limit === '' || u.limit == null ? '' : (u.op === '>=' ? '≥ ' : '≤ ') + pct(+u.limit, +u.limit % 1 ? 2 : 0), pass: res => c(res).pass, tc: 'conc|' + id + '||num' };
+  }
+  return null;
+}
+const adjOf = key => key.startsWith('custom:') ? testRules().custom.find(u => u.id === adjKeyId(key)) : testRules().adj[key];
+const adjErrs = key => (state.calcInfo && state.calcInfo.tests && state.calcInfo.tests.errs[key]) || null;
+const adjCounts = key => (state.calcInfo && state.calcInfo.tests && state.calcInfo.tests.counts[key]) || {};
+// is the adjustment in force on this run (as against saved but broken, or empty)?
+function adjApplied(key) {
+  const r = state.result; if (!r || !r.testAdjust) return false; const g = key.slice(0, key.indexOf(':')), id = adjKeyId(key); const A = r.testAdjust;
+  return g === 'conc' ? A.conc.includes(id) : g === 'quality' ? A.quality.includes(id) : g === 'coverage' ? A.coverage.includes(id) : A.custom.includes(id);
+}
+const adjSummary = a => { if (!a) return ''; const L = k => CALC.condList(a[k]); const only = a.numMode === 'all' ? [] : L('numOnly');
+  return [only.length ? 'only ' + only.join(' and ') : '', L('numSkip').length ? 'numerator without ' + L('numSkip').join(' or ') : '', L('denSkip').length ? 'denominator without ' + L('denSkip').join(' or ') : '', a.denCash === false ? 'no Principal Proceeds in the denominator' : ''].filter(Boolean).join('; '); };
+// the button and the note shown in each test's row
+function adjCell(key, name) {
+  const a = adjOf(key); const on = !!a && (key.startsWith('custom:') || CALC.adjActive(a)); const err = adjErrs(key); const applied = adjApplied(key);
+  let h = '<div class="adjc"><button type="button" class="linkbtn adjb" data-adj="' + esc(key) + '" aria-label="' + esc((on ? 'Change your adjustment to ' : 'Adjust ') + name) + '">' + (on ? 'Change adjustment' : 'Adjust') + '</button>';
+  if (on && err) h += ' <span class="adjtag err" title="' + esc(err.map(e => e.err).join('; ')) + '">Not applied: ' + (err.length === 1 ? 'a condition has an error' : err.length + ' problems') + '</span>';
+  else if (on && applied && !key.startsWith('custom:')) h += ' <span class="adjtag">Adjusted</span><div class="small adjsum">' + esc(adjSummary(a)) + '</div>';
+  return h + '</div>';
+}
+// a notice at the top of the Tests tab, and on the Waterfall when a coverage test's numerator is yours
+function testsNotice(where) {
+  const R = testRules(); const keys = Object.keys(R.adj).filter(k => CALC.adjActive(R.adj[k]) && adjTest(k)); const cov = keys.filter(k => /^coverage:/.test(k)); const nC = R.custom.length;
+  const bad = keys.concat(R.custom.map(u => 'custom:' + u.id)).filter(k => adjErrs(k));
+  if (where === 'waterfall') return cov.length ? '<div class="notice">You left loans out of the numerator of ' + cov.map(k => '<b>' + esc(adjTest(k).label) + '</b>').join(', ') + '. The cures and diversions on this page follow your version of ' + (cov.length > 1 ? 'those tests' : 'that test') + '. <button class="linkbtn" type="button" data-gotab="tests">Open Tests</button></div>' : '';
+  if (!keys.length && !nC) return '';
+  return '<div class="notice' + (bad.length ? ' warn' : '') + '">' + (keys.length ? 'You adjusted ' + keys.length + ' test' + (keys.length > 1 ? 's' : '') + '. ' : '') + (nC ? 'You added ' + nC + ' test' + (nC > 1 ? 's' : '') + ' of your own, at the end of the Portfolio Profile Test. ' : '') +
+    (bad.length ? bad.length + (bad.length > 1 ? ' have problems and are' : ' has a problem and is') + ' not applied; open ' + (bad.length > 1 ? 'them' : 'it') + ' to see why. ' : '') + 'Every figure, and the working behind it, shows your version. ' +
+    (keys.length ? '<button class="linkbtn" type="button" id="adjResetAll">Put every test back as the indenture reads</button>' : '') + '</div>';
+}
+function bindTestsNotice(P) {
+  const b = $('#adjResetAll', P); if (!b) return;
+  b.onclick = () => { if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Select again to remove every adjustment (your own tests stay)'; return; } testRules().adj = {}; testsChanged(); toast('Every test is back as the indenture reads.'); };
+}
+
+// ---------- the side panel for one test
+function adjFields() {
+  const F = CALC.STD_COLS.map(([k, label]) => ({ key: k, name: k, label }));
+  CALC.extraColumns(state.tape || []).forEach(c => F.push({ key: c.key, name: c.name, label: 'Your tape: ' + c.raw }));
+  calcRows().filter(c => c.kind === 'loan' && c.on !== false && c.name && /^[A-Za-z_]\w*$/.test(c.name)).forEach(c => F.push({ key: c.name.toLowerCase(), name: c.name, label: 'Your calculation' + (c.group ? ' in ' + c.group : '') }));
+  return F;
+}
+// each loan's value of a field, as the run sees it
+function adjValues(key) {
+  const I = state.calcInfo;
+  if (I && I.M && I.M.byKey.has(key) && I.M.byKey.get(key).kind === 'loan') return (I.st.vals.get(key) || []).slice();
+  try { const R = I ? I.R : CALC.rowsFor(E, effectiveTape(), state.result); return Array.from({ length: R.count }, (_, i) => R.col(i, key)); } catch (e) { return []; }
+}
+function adjType(key, vals) {
+  if (ADJ_FLAGS.includes(key)) return 'flag'; if (ADJ_DATES.includes(key)) return 'date';
+  const v = vals.filter(x => x != null && x !== ''); if (!v.length) return 'text';
+  if (v.every(x => typeof x === 'number')) return v.every(x => x === 0 || x === 1) && v.length > 1 ? 'flag' : 'num';
+  if (v.every(x => /^\d{4}-\d{2}-\d{2}$/.test(String(x)))) return 'date';
+  return 'text';
+}
+const ADJ_OPS = {
+  flag: [['yes', 'is yes'], ['no', 'is no']],
+  text: [['=', 'is'], ['<>', 'is not'], ['in', 'is one of'], ['has', 'contains'], ['blank', 'is blank'], ['nb', 'is not blank']],
+  num: [['=', '='], ['<>', '≠'], ['<', '<'], ['<=', '≤'], ['>', '>'], ['>=', '≥'], ['blank', 'is blank']],
+  date: [['<', 'before'], ['<=', 'on or before'], ['>', 'after'], ['>=', 'on or after'], ['=', 'on'], ['blank', 'is blank']]
+};
+const qstr = v => { const s = String(v); return s.includes('"') ? (s.includes("'") ? '"' + s.replace(/"/g, '') + '"' : "'" + s + "'") : '"' + s + '"'; };
+// the condition the builder's choices make, in the formula language
+function adjBuild(b) {
+  const f = b.field, op = b.op; if (!f) return '';
+  if (op === 'yes') return f; if (op === 'no') return 'NOT ' + f;
+  if (op === 'blank') return 'ISBLANK(' + f + ')'; if (op === 'nb') return 'NOT ISBLANK(' + f + ')';
+  if (op === 'has') return b.value ? 'CONTAINS(' + f + ', ' + qstr(b.value) + ')' : '';
+  if (op === 'in') { const L = (b.values || []).filter(x => x !== ''); return L.length ? (L.length === 1 ? f + ' = ' + qstr(L[0]) : '(' + L.map(v => f + ' = ' + qstr(v)).join(' OR ') + ')') : ''; }
+  if (b.value === '' || b.value == null) return '';
+  const val = b.type === 'num' ? (isFinite(+b.value) ? String(+b.value) : '') : qstr(b.value); if (!val) return '';
+  return f + ' ' + op + ' ' + val;
+}
+function adjBuilderHTML(list, B) {
+  const F = adjFields(); const b = B[list] = B[list] || { field: '', op: '', value: '', values: [] };
+  if (!b.field) b.field = list === 'numOnly' ? 'industry' : 'is_ccc';
+  const vals = adjValues(b.field); const type = b.type = adjType(b.field, vals); const ops = ADJ_OPS[type];
+  if (!ops.some(o => o[0] === b.op)) { b.op = ops[0][0]; b.value = ''; b.values = []; }
+  let ctl = '';
+  if (type === 'text' && (b.op === '=' || b.op === '<>' || b.op === 'in')) {
+    const cnt = new Map(); vals.forEach(v => { if (v == null || v === '') return; const k = String(v); cnt.set(k, (cnt.get(k) || 0) + 1); });
+    const opts = [...cnt].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, 400);
+    if (b.op !== 'in' && !opts.some(o => o[0] === b.value)) b.value = opts.length ? opts[0][0] : '';
+    ctl = '<select data-bv' + (b.op === 'in' ? ' multiple size="5"' : '') + ' aria-label="Value">' + opts.map(([v, n]) => '<option value="' + esc(v) + '"' + ((b.op === 'in' ? (b.values || []).includes(v) : v === b.value) ? ' selected' : '') + '>' + esc(v) + ' (' + n + ')</option>').join('') + '</select>';
+  } else if (type === 'text' && b.op === 'has') ctl = '<input type="text" data-bv aria-label="Text the value contains" value="' + esc(b.value || '') + '" placeholder="text">';
+  else if (type === 'num' && b.op !== 'blank') ctl = '<input type="number" step="any" data-bv aria-label="Number" value="' + esc(b.value || '') + '" placeholder="number">';
+  else if (type === 'date' && b.op !== 'blank') ctl = '<input type="date" data-bv aria-label="Date" value="' + esc(b.value || '') + '">';
+  const cond = adjBuild(b);
+  return '<div class="adjbuild" data-for="' + list + '"><select data-bf aria-label="Field">' + F.map(x => '<option value="' + esc(x.key) + '"' + (x.key === b.field ? ' selected' : '') + ' title="' + esc(x.label) + '">' + esc(x.name) + '</option>').join('') + '</select>' +
+    '<select data-bo aria-label="Test">' + ops.map(([k, l]) => '<option value="' + k + '"' + (k === b.op ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>' + ctl +
+    '<button type="button" class="btn small" data-badd' + (cond ? '' : ' disabled') + '>Add</button></div>' +
+    '<p class="adjpreview small">' + (cond ? 'Adds <code class="f">' + esc(cond) + '</code>' : 'Choose a value to add the condition') + '</p>' +
+    '<div class="adjtype"><input type="text" data-bt aria-label="' + esc(LIST_NAME[list]) + ': type a condition" placeholder="or type a condition, e.g. defaulted OR price < 80" spellcheck="false" autocomplete="off"><button type="button" class="btn small" data-btadd>Add</button></div>';
+}
+function adjListHTML(key, list, a, B, title, hint, T) {
+  const L = CALC.condList(a && a[list]); const errs = (adjErrs(key) || []).filter(e => e.list === list); const C = adjCounts(key); const each = C[list + 'Each'] || [];
+  const joinW = list === 'numOnly' ? 'and' : 'or';
+  let h = '<div class="adjlist" data-list="' + list + '"><h4>' + esc(title) + '</h4>' + (hint ? '<p class="small">' + hint + '</p>' : '');
+  if (L.length) h += '<ul class="chips">' + L.map((c, i) => { const e = errs.find(x => x.cond === c); return '<li class="' + (e ? 'bad' : '') + '">' + (i ? '<span class="jw">' + joinW + '</span>' : '') + '<code class="f">' + esc(c) + '</code>' + (e ? '' : each[i] != null ? '<span class="small">' + each[i] + ' loan' + (each[i] === 1 ? '' : 's') + '</span>' : '') + '<button type="button" class="chipx" data-rm="' + list + ':' + i + '" aria-label="Remove ' + esc(c) + '">×</button>' + (e ? '<div class="cv-err">' + esc(e.err) + '</div>' : '') + '</li>'; }).join('') + '</ul>' +
+    (C[list] != null && L.length > 1 ? '<p class="small">' + C[list] + ' loan' + (C[list] === 1 ? '' : 's') + ' in all</p>' : '');
+  if (list !== 'numOnly') h += '<div class="quick" role="group" aria-label="Common choices">' + ADJ_QUICK.filter(([k]) => !(k === 'defaulted' && T && T.g === 'quality')).map(([k, l]) => '<button type="button" class="btn small" data-quick="' + k + '"' + (L.includes(k) ? ' disabled' : '') + '>' + esc(l) + '</button>').join('') + '</div>';
+  return h + adjBuilderHTML(list, B) + '</div>';
+}
+function renderAdjust(c, d) {
+  const T = adjTest(c.adj); const r = state.result; if (!T || !r) { d.close(); return; }
+  d.classList.remove('wide');
+  const R = testRules(); let a = adjOf(c.adj); const B = (state.adjB = state.adjB || {})[c.adj] = (state.adjB[c.adj] || {});
+  const base = adjBaseline(); const now = T.value(r), was = base ? T.value(base) : null; const pNow = T.pass(r), pWas = base ? T.pass(base) : null;
+  const lim = typeof T.limit === 'function' ? T.limit() : T.limit;
+  const pill = p => p == null ? '' : '<span class="pill ' + (p ? 'pass' : 'fail') + '">' + (p ? 'Pass' : 'Fail') + '</span>';
+  const U = T.custom; const errs = adjErrs(c.adj) || [];
+  let h = '<header class="cd-head"><div><p class="cd-kicker">' + (U ? 'A test of your own' : 'Adjust a test') + '</p><h2 id="calcTitle">' + esc(T.label) + '</h2></div><button type="button" class="cd-x" aria-label="Close">×</button></header><div class="cd-body adjbody">';
+  h += '<div class="adjres">' + (U ? '' : '<div><span class="small">As the indenture reads</span><b>' + (was == null ? '—' : T.show(was)) + '</b>' + pill(pWas) + '</div>') +
+    '<div><span class="small">' + (U ? 'This Payment Date' : 'As you adjusted it') + '</span><b>' + (now == null || !adjApplied(c.adj) && U ? '—' : T.show(now)) + '</b>' + (U && !adjApplied(c.adj) ? '' : pill(pNow)) + '</div>' + (lim ? '<div><span class="small">Limit</span><b>' + esc(lim) + '</b></div>' : '') + '</div>';
+  if (U) {
+    const top = errs.filter(e => e.list === 'limit' || e.list === 'field' || (e.list === 'numOnly' && !e.cond));
+    h += '<div class="adjsec"><h3>The test</h3><div class="adjgrid"><label>Name <input type="text" data-u="label" value="' + esc(U.label || '') + '"></label>' +
+      '<label>Measures <select data-u="kind"><option value="share"' + (U.kind !== 'largest' ? ' selected' : '') + '>Share of loans that meet conditions</option><option value="largest"' + (U.kind === 'largest' ? ' selected' : '') + '>Largest single value of a field</option></select></label>' +
+      (U.kind === 'largest' ? '<label>Field to group by <select data-u="field">' + adjFields().map(x => '<option value="' + esc(x.name) + '"' + (x.name === U.field ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select></label>' : '') +
+      '<label>Limit, % <span class="adjlim"><select data-u="op" aria-label="At most or at least"><option value="<="' + (U.op !== '>=' ? ' selected' : '') + '>at most</option><option value=">="' + (U.op === '>=' ? ' selected' : '') + '>at least</option></select><input type="number" step="any" data-u="limit" value="' + esc(U.limit == null ? '' : U.limit) + '" aria-label="Limit, percent"></span></label></div>' +
+      (top.length ? '<p class="cv-err">To show this test: ' + top.map(e => esc(e.err)).join('; ') + '.</p>' : '') + '</div>';
+  }
+  // numerator
+  const fText = t => (t.filter || []).length ? t.filter.map(x => x.f + (x.in ? ' is ' + x.in.join(' or ') : x.notIn ? ' is not ' + x.notIn.join(' or ') : x.eq !== undefined ? (x.eq ? ' = yes' : ' = no') : x.lt !== undefined ? ' below ' + x.lt : x.gt !== undefined ? ' above ' + x.gt : '')).join(' and ') : 'every loan';
+  h += '<div class="adjsec"><h3>Numerator</h3>';
+  if (T.g === 'coverage') h += '<p class="small">' + esc(T.num) + ': par less the haircuts for defaulted, discount and excess CCC loans, plus Principal Proceeds. The loans you leave out come off at their carrying value, for this test only. When the test fails, the waterfall cures your version of it.</p>';
+  const only = U && !T.group ? true : !!(a && a.numMode !== 'all' && CALC.condList(a.numOnly).length) || (a && a.numMode === 'only');
+  if (T.lists.includes('numOnly')) {
+    if (U && !T.group) h += adjListHTML(c.adj, 'numOnly', a, B, 'Count loans where', 'Pick a field and a value, such as industry is Healthcare. Add more to narrow it: every condition must hold.', T);
+    else {
+      const what = T.g === 'conc' && !T.group ? 'the loans the clause describes (' + esc(fText(T.clause)) + ')' : T.group ? 'every loan' : 'every loan the test measures' + (T.metric === 'was' ? ' (floating rate, performing)' : T.metric === 'wac' ? ' (fixed rate, performing)' : ' (performing)');
+      h += '<fieldset class="adjmode"><legend>' + (T.group ? 'Group' : 'Count') + '</legend><label><input type="radio" name="adjmode" value="all"' + (only ? '' : ' checked') + '> ' + what + '</label><label><input type="radio" name="adjmode" value="only"' + (only ? ' checked' : '') + '> only loans where…' + (T.g === 'conc' && !T.group ? ' (in place of the clause\'s own test)' : '') + '</label></fieldset>';
+      if (only) h += adjListHTML(c.adj, 'numOnly', a, B, 'Count only loans where', 'Every condition must hold. Pick a field and a value, such as asset_type is 2L.', T);
+    }
+  }
+  if (T.lists.includes('numSkip')) h += adjListHTML(c.adj, 'numSkip', a, B, T.one ? 'Leave out of the score' : 'Leave out of the numerator', 'A loan that meets any of these is left out' + (T.g === 'coverage' ? ' of this test\'s numerator.' : T.g === 'quality' ? '. Defaulted loans are already left out of this test.' : '.'), T);
+  h += '</div>';
+  // denominator
+  h += '<div class="adjsec"><h3>Denominator</h3>';
+  if (T.g === 'coverage') h += '<p class="small">' + esc(T.den) + ': the notes, so loans do not enter it.</p>';
+  else if (T.one) h += '<p class="small">The Diversity Score is not a ratio of two sums: the loans you leave out above leave the whole score, including the Average Par Amount it divides by.</p>';
+  else {
+    h += '<p class="small">' + (T.g === 'quality' ? 'Par of the loans the test measures' + (T.metric === 'was' ? ' (floating rate, performing)' : T.metric === 'wac' ? ' (fixed rate, performing)' : ' (performing)') : 'Principal Collateral Value at par: every loan, plus Principal Proceeds') + '.</p>';
+    h += adjListHTML(c.adj, 'denSkip', a, B, 'Leave out of the denominator', 'A loan that meets any of these is left out.' + (T.g === 'quality' ? ' Defaulted loans are already left out of this test.' : ''), T);
+    if (T.cash) h += '<label class="chk"><input type="checkbox" data-cash' + (a && a.denCash === false ? '' : ' checked') + '> Count Principal Proceeds on deposit in the denominator</label>';
+  }
+  h += '</div>';
+  const other = errs.filter(e => !['limit', 'field'].includes(e.list) && e.cond && !CALC.condList(a && a[e.list]).includes(e.cond));
+  if (other.length) h += '<p class="cv-err">' + other.map(e => esc(e.err)).join('; ') + '</p>';
+  h += '<p class="cd-fine">Conditions use the names on the Calculations tab: tape columns, the interpreter\'s columns such as is_ccc and oc_balance, and your loan calculations. Your changes apply at once and are kept for this deal in this browser.</p></div>';
+  h += '<footer class="cd-foot">' + (U ? '<button type="button" class="btn small" id="adjDel">Remove this test</button>' : '<button type="button" class="btn small" id="adjReset"' + (a ? '' : ' disabled') + '>As the indenture reads</button>') +
+    '<button type="button" class="btn small" id="adjWork"' + (adjApplied(c.adj) || !U ? '' : ' disabled') + '>Show the working</button><button type="button" class="btn small primary" id="adjDone">Done</button></footer>';
+  d.innerHTML = h;
+  bindAdjust(c, d, T, B);
+}
+// the run as the indenture reads, for comparison: the same inputs, without your adjustments
+function adjBaseline() {
+  const I = state.calcInfo; if (!I || !I.inp || !I.inp.testAdjust) return state.result;
+  if (I._base === undefined) { try { const inp = Object.assign({}, I.inp, { lite: true }); delete inp.testAdjust; I._base = E.run(deal(), I.tape, inp); } catch (e) { I._base = null; } }
+  return I._base;
+}
+function bindAdjust(c, d, T, B) {
+  const key = c.adj; const R = testRules();
+  const get = (make) => { if (key.startsWith('custom:')) return T.custom; let a = R.adj[key]; if (!a && make) a = R.adj[key] = {}; return a; };
+  const tidy = () => { const a = R.adj[key]; if (a && !CALC.adjActive(a) && a.numMode !== 'only') delete R.adj[key]; };
+  $('.cd-x', d).onclick = () => d.close(); $('#adjDone', d).onclick = () => d.close();
+  const add = (list, cond, sel, sel2) => { cond = String(cond || '').trim().replace(/^=\s*/, ''); if (!cond) return; const a = get(true); a[list] = CALC.condList(a[list]); if (a[list].includes(cond)) { toast('That condition is already there.'); return; } a[list].push(cond); if (list === 'numOnly' && !T.custom) a.numMode = 'only'; state.adjFocus2 = sel2 || null; testsChanged(sel); };
+  $$('.adjlist', d).forEach(box => {
+    const list = box.dataset.list; const b = B[list]; const at = s => '.adjlist[data-list="' + list + '"] ' + s;
+    $$('[data-rm]', box).forEach(x => x.onclick = () => { const a = get(); const i = +x.dataset.rm.split(':')[1]; a[list] = CALC.condList(a[list]); a[list].splice(i, 1); tidy(); testsChanged(at('[data-bt]')); });
+    $$('[data-quick]', box).forEach(x => x.onclick = () => add(list, x.dataset.quick, at('.quick button:not([disabled])'), at('[data-bt]')));
+    const bf = $('[data-bf]', box), bo = $('[data-bo]', box), bv = $('[data-bv]', box);
+    const redraw = sel => { renderAdjust(c, d); const f = $(sel, d); if (f) f.focus(); };
+    bf.onchange = () => { b.field = bf.value; b.op = ''; b.value = ''; b.values = []; redraw(at('[data-bf]')); };
+    bo.onchange = () => { b.op = bo.value; redraw(at('[data-bo]')); };
+    if (bv) bv.addEventListener(bv.tagName === 'SELECT' ? 'change' : 'input', () => { if (bv.multiple) b.values = [...bv.selectedOptions].map(o => o.value); else b.value = bv.value; const cond = adjBuild(b); $('[data-badd]', box).disabled = !cond; $('.adjpreview', box).innerHTML = cond ? 'Adds <code class="f">' + esc(cond) + '</code>' : 'Choose a value to add the condition'; });
+    $('[data-badd]', box).onclick = () => { const cond = adjBuild(b); if (cond) { b.value = ''; b.values = []; add(list, cond, at('[data-bf]')); } };
+    const bt = $('[data-bt]', box); attachComplete(bt);
+    const typed = () => add(list, bt.value, at('[data-bt]'));
+    $('[data-btadd]', box).onclick = typed; bt.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.defaultPrevented) { e.preventDefault(); typed(); } });
+  });
+  $$('input[name="adjmode"]', d).forEach(x => x.onchange = () => { const a = get(true); a.numMode = x.value; tidy(); testsChanged('input[name="adjmode"][value="' + x.value + '"]'); });
+  const cash = $('[data-cash]', d); if (cash) cash.onchange = () => { const a = get(true); if (cash.checked) delete a.denCash; else a.denCash = false; tidy(); testsChanged('[data-cash]'); };
+  $$('[data-u]', d).forEach(x => x.onchange = () => { const u = T.custom; const k = x.dataset.u; u[k] = k === 'limit' ? (x.value === '' ? '' : +x.value) : x.value; if (k === 'kind' && u.kind === 'largest' && !u.field) u.field = 'industry'; testsChanged('[data-u="' + k + '"]'); });
+  const rs = $('#adjReset', d); if (rs) rs.onclick = () => { delete R.adj[key]; delete state.adjB[key]; testsChanged('#adjDone'); toast('This test is back as the indenture reads.'); };
+  const del = $('#adjDel', d); if (del) del.onclick = () => { if (del.dataset.sure !== '1') { del.dataset.sure = '1'; del.textContent = 'Select again to remove it'; return; } R.custom = R.custom.filter(u => u.id !== T.id); d.close(); testsChanged(); toast('Your test ' + T.label + ' is removed.'); };
+  const wk = $('#adjWork', d); if (wk) wk.onclick = () => { if (tcPart(T.tc)) openCalc({ tc: T.tc, name: T.label }); };
+  if (state.adjFocus) { const f = $(state.adjFocus, d), f2 = state.adjFocus2 && $(state.adjFocus2, d); state.adjFocus = state.adjFocus2 = null; const g = f && !f.disabled ? f : f2 && !f2.disabled ? f2 : $('#adjDone', d); if (g) g.focus(); }
+}
+function addCustomTest() {
+  const R = testRules(); let k = R.custom.length + 1; while (R.custom.some(u => u.id === 'U' + k)) k++;
+  const u = { id: 'U' + k, label: 'Your test ' + k, kind: 'share', numOnly: [], numSkip: [], denSkip: [], limit: '', op: '<=' };
+  R.custom.push(u); saveTestAdj(); run(); openCalc({ adj: 'custom:' + u.id });
+  const f = $('#calcd [data-u="label"]'); if (f) { f.focus(); f.select(); }
+}
+function bindAdjButtons(P) { $$('button.adjb[data-adj]', P).forEach(b => b.onclick = () => openCalc({ adj: b.dataset.adj })); const n = $('#adjNew', P); if (n) n.onclick = addCustomTest; }
 // ---------- manual inputs: every amount the user supplies, tagged to a waterfall step
 const manRows = () => (state.manualByDeal[state.dealId] = state.manualByDeal[state.dealId] || []);
 const manId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -4246,7 +4725,7 @@ function bindProjChart(fig, o) {
 }
 function runProjection() {
   // the starting tape carries any loan-level replacements; fee and collateral-value replacements apply on every projected date
-  const S = projState(); const s = deal(); const tape = state.calcInfo ? state.calcInfo.tape : effectiveTape(); const I = clone(state.inputs); const first = state.result; const out = {}; let k = 0; const PE = CALC.projectionEngine(E, calcRows());
+  const S = projState(); const s = deal(); const tape = state.calcInfo ? state.calcInfo.tape : effectiveTape(); const I = clone(state.inputs); const first = state.result; const out = {}; let k = 0; const PE = CALC.projectionEngine(E, calcRows(), testRules());
   S.running = S.sc[0].label; renderProjection();
   const next = () => {
     if (k >= S.sc.length) { S.res = out; S.running = false; S.stamp = projStamp(); renderProjection(); toast('Projection done'); return; }
@@ -4305,7 +4784,7 @@ function renderTests() {
   const sgn = x => x >= 0 ? mm(x) : '−' + mm(-x);
   r.preTests.forEach((t, i) => {
     const post = r.postTests[i]; const cush = t.oc.num - t.ocTrigger / 100 * t.oc.den; const span = t.ic ? ' rowspan="2"' : '';
-    h += '<tr><td' + span + '><b>' + esc(t.label) + '</b></td><td>OC</td><td class="num">' + tcLink('coverage|' + t.id + '|oc|num', t.label + ' OC test') + '</td><td class="num">' + tcLink('coverage|' + t.id + '|oc|den', t.label + ' OC test') + '</td><td class="num">' + pct(t.oc.ratio) + '</td><td class="num">' + pct(t.ocTrigger) + '</td><td class="num">' + sgn(cush) + '</td><td><span class="res ' + (t.ocPass ? 'pass' : 'fail') + '">' + (t.ocPass ? 'Pass' : 'Fail') + '</span></td>' +
+    h += '<tr><td' + span + '><b>' + esc(t.label) + '</b>' + adjCell('coverage:' + t.id, t.label + ' OC test') + '</td><td>OC</td><td class="num">' + tcLink('coverage|' + t.id + '|oc|num', t.label + ' OC test') + '</td><td class="num">' + tcLink('coverage|' + t.id + '|oc|den', t.label + ' OC test') + '</td><td class="num">' + pct(t.oc.ratio) + '</td><td class="num">' + pct(t.ocTrigger) + '</td><td class="num">' + sgn(cush) + '</td><td><span class="res ' + (t.ocPass ? 'pass' : 'fail') + '">' + (t.ocPass ? 'Pass' : 'Fail') + '</span></td>' +
       '<td class="num">' + (tcPart('coverage|' + t.id + '|ocAfter|num') ? '<button type="button" class="calc" data-tc="coverage|' + esc(t.id) + '|ocAfter|den" data-name="' + esc(t.label + ' OC test after payments') + '">' + pct(post.oc.ratio) + '</button>' : pct(post.oc.ratio)) + '</td><td class="ref">' + esc(t.ocRef || '') + '</td></tr>';
     if (t.ic) {
       const icush = t.ic.num - t.icTrigger / 100 * t.ic.den;
@@ -4327,8 +4806,8 @@ function renderTests() {
     '<p class="small" style="margin-top:8px">CCC bucket: ' + mm(pb.cccAmtMoodys) + ' by Moody\'s, ' + mm(pb.cccAmtSP) + ' by S&amp;P, against a limit of ' + s.haircuts.ccc.limitPct + '% = ' + mm(pb.cccLimit) + '.</p></div>';
   // other ratio tests
   h += '<div class="sec"><h2>Other ratio tests</h2><p class="lead">Tests that divert cash or trigger default rather than cure by paydown.</p><div class="scroll"><table><thead><tr><th>Test</th><th class="num">Numerator</th><th class="num">Denominator</th><th class="num">Ratio</th><th class="num">Trigger</th><th>Result</th><th class="num">After</th></tr></thead><tbody>';
-  if (r.preIRT) { const rt = s.coverage.reinvestmentTest; h += '<tr><td><b>' + esc(rt.label) + '</b><div class="small">Diverts up to ' + rt.maxDiversionPct + '% of remaining interest <span class="ref">' + esc(rt.ref || '') + '</span></div></td><td class="num">' + tcLink('irt|||num', rt.label) + '</td><td class="num">' + tcLink('irt|||den', rt.label) + '</td><td class="num">' + pct(r.preIRT.ratio) + '</td><td class="num">' + pct(rt.trigger) + '</td><td><span class="res ' + (r.preIRT.ratio >= rt.trigger ? 'pass' : 'fail') + '">' + (r.preIRT.ratio >= rt.trigger ? 'Pass' : 'Fail') + '</span></td><td class="num">' + (tcPart('irtAfter|||den') ? '<button type="button" class="calc" data-tc="irtAfter|||den" data-name="' + esc(rt.label + ' after payments') + '">' + pct(r.postIRT.ratio) + '</button>' : pct(r.postIRT.ratio)) + '</td></tr>'; }
-  if (r.preEoD) { const et = s.coverage.eodTest; h += '<tr><td><b>' + esc(et.label) + '</b><div class="small">Breach is an Event of Default <span class="ref">' + esc(et.ref || '') + '</span></div></td><td class="num">' + tcLink('eod|||num', et.label) + '</td><td class="num">' + tcLink('eod|||den', et.label) + '</td><td class="num">' + pct(r.preEoD.ratio) + '</td><td class="num">' + pct(et.trigger) + '</td><td><span class="res ' + (r.preEoD.ratio >= et.trigger ? 'pass' : 'fail') + '">' + (r.preEoD.ratio >= et.trigger ? 'Clear' : 'Breach') + '</span></td><td class="num">' + (tcPart('eodAfter|||den') ? '<button type="button" class="calc" data-tc="eodAfter|||den" data-name="' + esc(et.label + ' after payments') + '">' + pct(r.postEoD.ratio) + '</button>' : pct(r.postEoD.ratio)) + '</td></tr>'; }
+  if (r.preIRT) { const rt = s.coverage.reinvestmentTest; h += '<tr><td><b>' + esc(rt.label) + '</b><div class="small">Diverts up to ' + rt.maxDiversionPct + '% of remaining interest <span class="ref">' + esc(rt.ref || '') + '</span></div>' + adjCell('coverage:irt', rt.label) + '</td><td class="num">' + tcLink('irt|||num', rt.label) + '</td><td class="num">' + tcLink('irt|||den', rt.label) + '</td><td class="num">' + pct(r.preIRT.ratio) + '</td><td class="num">' + pct(rt.trigger) + '</td><td><span class="res ' + (r.preIRT.ratio >= rt.trigger ? 'pass' : 'fail') + '">' + (r.preIRT.ratio >= rt.trigger ? 'Pass' : 'Fail') + '</span></td><td class="num">' + (tcPart('irtAfter|||den') ? '<button type="button" class="calc" data-tc="irtAfter|||den" data-name="' + esc(rt.label + ' after payments') + '">' + pct(r.postIRT.ratio) + '</button>' : pct(r.postIRT.ratio)) + '</td></tr>'; }
+  if (r.preEoD) { const et = s.coverage.eodTest; h += '<tr><td><b>' + esc(et.label) + '</b><div class="small">Breach is an Event of Default <span class="ref">' + esc(et.ref || '') + '</span></div>' + adjCell('coverage:eod', et.label) + '</td><td class="num">' + tcLink('eod|||num', et.label) + '</td><td class="num">' + tcLink('eod|||den', et.label) + '</td><td class="num">' + pct(r.preEoD.ratio) + '</td><td class="num">' + pct(et.trigger) + '</td><td><span class="res ' + (r.preEoD.ratio >= et.trigger ? 'pass' : 'fail') + '">' + (r.preEoD.ratio >= et.trigger ? 'Clear' : 'Breach') + '</span></td><td class="num">' + (tcPart('eodAfter|||den') ? '<button type="button" class="calc" data-tc="eodAfter|||den" data-name="' + esc(et.label + ' after payments') + '">' + pct(r.postEoD.ratio) + '</button>' : pct(r.postEoD.ratio)) + '</td></tr>'; }
   h += '</tbody></table></div></div></div>';
 
   // quality tests
@@ -4337,22 +4816,24 @@ function renderTests() {
   if (S.moodysModifier) h += '<label>' + esc(S.moodysModifier.label) + ' <select data-sel="moodysModifier">' + S.moodysModifier.options.map(o => '<option' + (o === sel.moodysModifier ? ' selected' : '') + ' value="' + o + '">' + o + '%</option>').join('') + '</select></label>';
   if (S.spCase) h += '<label>' + esc(S.spCase.label) + ' <select data-sel="spCase">' + S.spCase.options.map(o => '<option' + (o === sel.spCase ? ' selected' : '') + ' value="' + o + '">Case ' + o + '</option>').join('') + '</select></label>';
   h += '</div><div class="scroll"><table><thead><tr><th>Test</th><th class="num">Numerator</th><th class="num">Denominator</th><th class="num">Portfolio</th><th class="num">Limit</th><th>Result</th><th>How the limit is set</th><th>Source</th></tr></thead><tbody>';
-  const fmtQ = (q, x) => x == null ? '—' : q.fmt === 'int' ? Math.round(x).toLocaleString('en-US') : q.fmt === 'pct1' ? pct(x, 1) : q.fmt === 'yrs' ? x.toFixed(2) + ' yrs' : q.fmt === 'dec1' ? x.toFixed(1) : pct(x, 2);
+  const fmtQ = fmtQv;
   r.quality.forEach(q => {
     let res;
     if (q.failed) res = '<span class="res na">Not evaluated</span>';
     else if (q.pass == null) res = '<select data-ext="' + esc(q.id) + '" aria-label="' + esc(q.label) + ' result"><option value="">Not entered</option><option value="1"' + (sel.external && sel.external[q.id] === true ? ' selected' : '') + '>Pass</option><option value="0"' + (sel.external && sel.external[q.id] === false ? ' selected' : '') + '>Fail</option></select>';
     else res = '<span class="res ' + (q.pass ? 'pass' : 'fail') + '">' + (q.pass ? 'Pass' : 'Fail') + '</span>';
     const lim = q.op ? (q.op === '<=' ? '≤ ' : '≥ ') + fmtQ(q, q.limit) : '';
-    h += '<tr><td><b>' + esc(q.label) + '</b>' + (q.sub ? '<div class="small">' + q.sub.map(x => x.col + ' ' + pct(x.value, 1) + ' / ' + pct(x.limit, 1) + (x.pass ? '' : ' ✗')).join(', ') + '</div>' : '') + '</td><td class="num">' + tcLink('quality|' + q.id + '||num', q.label) + '</td><td class="num">' + tcLink('quality|' + q.id + '||den', q.label) + '</td><td class="num">' + fmtQ(q, q.value) + '</td><td class="num">' + (q.limit != null ? lim : '—') + '</td><td>' + res + '</td><td class="small">' + esc(q.note || '') + '</td><td class="ref">' + esc(q.ref || '') + '</td></tr>';
+    h += '<tr><td><b>' + esc(q.label) + '</b>' + (q.sub ? '<div class="small">' + q.sub.map(x => x.col + ' ' + pct(x.value, 1) + ' / ' + pct(x.limit, 1) + (x.pass ? '' : ' ✗')).join(', ') + '</div>' : '') + (adjTest('quality:' + q.id) ? adjCell('quality:' + q.id, q.label) : '') + '</td><td class="num">' + tcLink('quality|' + q.id + '||num', q.label) + '</td><td class="num">' + tcLink('quality|' + q.id + '||den', q.label) + '</td><td class="num">' + fmtQ(q, q.value) + '</td><td class="num">' + (q.limit != null ? lim : '—') + '</td><td>' + res + '</td><td class="small">' + esc(q.note || '') + '</td><td class="ref">' + esc(q.ref || '') + '</td></tr>';
   });
   h += '</tbody></table></div></div>';
 
   // concentrations
   h += '<div class="sec"><h2>Portfolio Profile Test</h2><p class="lead">Percentages of Principal Collateral Value at par (' + mm(r.pb.pcvGeneral) + '). The indenture applies these when buying, requiring a breached limit to be maintained or improved.</p><div class="scroll"><table><thead><tr><th>Clause</th><th>Limit on</th><th class="num">Numerator</th><th class="num">Denominator</th><th class="num">Portfolio</th><th class="num">Limit</th><th>Result</th><th>Note</th><th>Source</th></tr></thead><tbody>';
-  r.conc.forEach(c => { h += '<tr><td class="ref" style="color:var(--ink-2)">' + esc(c.id) + '</td><td>' + esc(c.label) + '</td><td class="num">' + tcLink('conc|' + c.id + '||num', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + tcLink('conc|' + c.id + '||den', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + pct(c.value) + '</td><td class="num">' + (c.op === '>=' ? '≥ ' : '≤ ') + pct(c.limit, c.limit % 1 ? 1 : 0) + '</td><td><span class="res ' + (c.pass ? 'pass' : 'fail') + '">' + (c.pass ? 'Pass' : 'Fail') + '</span></td><td class="small">' + esc(c.note || '') + '</td><td class="ref">' + esc(c.ref || '') + '</td></tr>'; });
-  h += '</tbody></table></div></div>';
-  const P = $('#p-tests'); P.innerHTML = overrideBanner() + h; bindTestLinks(P); bindBanner(P);
+  r.conc.forEach(c => { h += '<tr' + (c.custom ? ' class="mine"' : '') + '><td class="ref" style="color:var(--ink-2)">' + esc(c.id) + '</td><td>' + esc(c.label) + (c.custom ? ' <span class="adjtag">Your test</span><div class="adjc"><button type="button" class="linkbtn adjb" data-adj="custom:' + esc(c.id) + '" aria-label="Change your test ' + esc(c.label) + '">Change</button></div>' : adjCell('conc:' + c.id, 'Portfolio Profile Test ' + c.id + ', ' + c.label)) + '</td><td class="num">' + tcLink('conc|' + c.id + '||num', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + tcLink('conc|' + c.id + '||den', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + pct(c.value) + '</td><td class="num">' + (c.op === '>=' ? '≥ ' : '≤ ') + pct(c.limit, c.limit % 1 ? 1 : 0) + '</td><td>' + (c.pass == null ? '<span class="res na">Not evaluated</span>' : '<span class="res ' + (c.pass ? 'pass' : 'fail') + '">' + (c.pass ? 'Pass' : 'Fail') + '</span>') + '</td><td class="small">' + esc(c.note || '') + '</td><td class="ref">' + esc(c.ref || '') + '</td></tr>'; });
+  // your own tests that are not finished: shown so they can be finished or removed
+  testRules().custom.filter(u => !r.conc.some(c => c.id === u.id)).forEach(u => { const er = adjErrs('custom:' + u.id) || []; h += '<tr class="mine"><td class="ref" style="color:var(--ink-2)">' + esc(u.id) + '</td><td>' + esc(u.label || u.id) + ' <span class="adjtag err">Not finished</span><div class="adjc"><button type="button" class="linkbtn adjb" data-adj="custom:' + esc(u.id) + '" aria-label="Finish your test ' + esc(u.label || u.id) + '">Finish</button></div></td><td colspan="7" class="small">' + esc(er.map(e => e.err).join('; ') || 'Open it to finish it') + '</td></tr>'; });
+  h += '</tbody></table></div><div class="toolbar adjnew"><button type="button" class="btn small" id="adjNew">Add a test of your own</button><span class="small">A share of loans that meet conditions you set (a field and a value, such as industry is Healthcare), or the largest single value of any field, against a limit.</span></div></div>';
+  const P = $('#p-tests'); P.innerHTML = overrideBanner() + testsNotice() + h; bindTestLinks(P); bindBanner(P); bindAdjButtons(P); bindTestsNotice(P);
   $$('select[data-sel]', P).forEach(x => x.onchange = () => { state.inputs.selections[x.dataset.sel] = +x.value; run(); });
   $$('select[data-ext]', P).forEach(x => x.onchange = () => { state.inputs.selections.external = state.inputs.selections.external || {}; state.inputs.selections.external[x.dataset.ext] = x.value === '' ? null : x.value === '1'; run(); });
 }
@@ -4726,7 +5207,7 @@ function interpHTML() {
     if (I.found && I.found.length) {
       const order = ['Notes', 'Dates', 'Fees', 'Coverage tests', 'Waterfall', 'Haircuts', 'Quality tests', 'Concentration limits'];
       const gaps = I.found.filter(f => !RR_DONE.includes(f.how)).length;
-      const STL = { found: 'Found', taught: 'Taught', entered: 'Entered by you', missing: 'Not found', estimated: 'Estimated', default: 'Standard value' };
+      const STL = { found: 'Found', taught: 'Taught', entered: 'Entered by you', missing: 'Not found', estimated: 'Estimated', default: 'Standard value', absent: 'Not in this deal' };
       const tlink = f => { if (!f.teach || RR_DONE.includes(f.how) && f.how === 'found') return ''; const lab = RR_DONE.includes(f.how) ? 'Change' : 'Teach'; return ' <button class="linkbtn tl" type="button" ' + (f.teach === 'clause' ? 'data-tclause="' + esc(f.k + '|' + f.cid) + '"' : f.teach === 'concItem' ? 'data-tconc="' + esc(f.cid) + '"' : 'data-tfield="' + esc(f.teach) + '"') + ' aria-label="' + lab + ': ' + esc(f.field) + '">' + lab + '</button>'; };
       h += '<details class="readlist" id="readList"' + (I.readOpen != null ? (I.readOpen ? ' open' : '') : gaps ? ' open' : '') + '><summary>What was read, with pages' + (gaps ? ' <span class="tag warn" style="margin-left:6px">' + gaps + ' to check or enter</span>' : '') + '</summary><div class="scroll" style="margin-top:8px"><table><thead><tr><th>Item</th><th>Value</th><th>Page</th><th>Status</th></tr></thead><tbody>' +
         order.filter(g => I.found.some(f => f.group === g)).map(g => '<tr class="grp"><td colspan="4"><b>' + esc(g) + '</b></td></tr>' + I.found.filter(f => f.group === g).map(f => '<tr' + (!RR_DONE.includes(f.how) ? ' class="gap"' : '') + '><td>' + esc(f.field) + '</td><td' + (f.snippet ? ' title="' + esc(f.snippet) + '"' : '') + '>' + esc(f.value) + '</td><td class="ref">' + (f.page ? esc(pageLabel(f.page)) : '—') + '</td><td class="stc"><span class="res ' + (RR_DONE.includes(f.how) ? 'pass' : f.how === 'missing' ? 'fail' : 'na') + '">' + esc(STL[f.how] || f.how) + '</span>' + tlink(f) + '</td></tr>').join('')).join('') +
@@ -4972,7 +5453,7 @@ function rrDate(s, payDay) {
 // A defined term: "Term": ..., "Term" means ..., Term ........ (summary), or (the "Term") inline
 function rrDef(J, term, len, test, after) {
   len = len || 900; const T = J.text; const t = term.replace(/ /g, '\\s+');
-  const tries = [new RegExp('"' + t + '"\\s*(?::|means|shall mean|has the meaning|will be|is)', 'i'), new RegExp('\\n\\s*' + t + '\\s*[:.]{1}\\s?\\.{2,}', 'i'), new RegExp('\\(\\s*(?:the|each,? a|each)\\s+"' + t + '"\\s*\\)', 'i'), new RegExp('"' + t + '"', 'i')];
+  const tries = [new RegExp('"' + t + '"\\s*(?::|means|shall mean|has the meaning|will be|is)', 'i'), new RegExp('\\n\\s*' + t + '\\s*[:.]{1}\\s?\\.{2,}', 'i'), new RegExp('\\(\\s*(?:such\\s+period,?\\s+)?(?:the|each,? a|each)\\s+"' + t + '"\\s*\\)', 'i'), new RegExp('"' + t + '"', 'i')];
   for (let k = 0; k < tries.length; k++) {
     const g = new RegExp(tries[k].source, 'gi'); let m;
     while ((m = g.exec(T))) {
@@ -5096,7 +5577,7 @@ function rrTeachKey(group, field) {
   if (group === 'Quality tests') { const f = RR_FIELDS.find(x => x.label === field); return f ? f.key : null; }
   return null;
 }
-const RR_DONE = ['found', 'taught', 'entered'];
+const RR_DONE = ['found', 'taught', 'entered', 'absent'];
 function readDealText(pages, fileName, lessons, alsoKeys) {
   const J = rrJoin(pages); const T = J.text;
   const found = []; const assumptions = [];
@@ -5126,6 +5607,8 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
     const parseNames = sg => { const out = []; const ng = /Class\s+([A-Z](?:-?[0-9A-Z]{1,3})?)\b((?:\s+(?:Senior|Mezzanine|Junior|Deferrable|Floating|Fixed|Rate|Secured|Notes|Loans|Debt|Note))*)|(Subordinated(?:\s+Notes)?|Preferred\s+Shares|Income\s+Notes)|^\s*([A-Z](?:-\d)?)\s*$/gm; let n;
       while ((n = ng.exec(sg))) out.push(n[1] ? { id: n[1], kind: /Loans/i.test(n[2] || '') ? 'Loans' : 'Notes', deferrable: /Deferrable/i.test(n[2] || '') } : n[3] ? { equity: true, name: n[3].replace(/\s+/g, ' ') } : { id: n[4], kind: 'Notes' }); return out; };
     let names = parseNames(seg);
+    // a PDF prints the table a row per line: "Class Designation A-1 A-2 B Subordinated"
+    if (names.length !== toks.length) { const row = seg.match(/^(?:Designation|Securities Offered)[:\s]*([^\n]+)/); if (row) { const out = []; const rg = /(Subordinated(?:\s+Notes)?|Preferred\s+Shares|Income\s+Notes)|(?:Class\s+)?\b([A-Z](?:-?[0-9A-Z]{1,3})?)\b/g; let n; while ((n = rg.exec(row[1]))) out.push(n[1] ? { equity: true, name: n[1].replace(/\s+/g, ' ') } : { id: n[2], kind: 'Notes' }); if (out.length === toks.length) names = out; } }
     // the class names can sit just above the column heading ("Class A Notes ... Subordinated Notes / Class Designation / Original Principal Amount")
     if (names.length !== toks.length && hk >= 0) { const alt = parseNames(before.slice(Math.max(0, hk - 700), hk)); if (alt.length >= toks.length && alt.slice(-toks.length).filter(x => x.equity).length <= 1) names = alt.slice(alt.length - toks.length); }
     if (names.length !== toks.length) continue;
@@ -5165,9 +5648,9 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
       while ((m = g.exec(H))) { if (prev >= 0 && m.index - prev > 400) { if (seq.length >= rated.length) break; seq.length = 0; } seq.push(+m[1]); prev = m.index + m[0].length; }
       if (seq.length >= rated.length) rates = seq.slice(0, rated.length);
     } else rates = rates.filter((x, i) => !(cls[i] && cls[i].equity));
-    const fixedRow = tail.match(/Fixed\s+Rate(?:\s+Notes?)?\s*\n((?:\s*(?:Yes|No|N\/A)\s*\n?){2,})/);
+    const fixedRow = tail.match(/Fixed\s+Rate(?:\s+Notes?)?[ \t]*\n?((?:[ \t]*(?:Yes|No|N\/A)[ \t]*\n?){2,})/); // one cell per line, or the whole row on one line (PDF)
     const fixedFlags = fixedRow ? fixedRow[1].trim().split(/\s+/) : [];
-    const defRow = tail.match(/(?:Interest\s+)?[Dd]eferrable\s*\n?((?:\s*(?:Yes|No|N\/A)\s*\n?){2,})/);
+    const defRow = tail.match(/(?:Interest\s+)?[Dd]eferrable[ \t]*\n?((?:[ \t]*(?:Yes|No|N\/A)[ \t]*\n?){2,})/);
     const defFlags = defRow ? defRow[1].trim().split(/\s+/) : [];
     rated.forEach((c, i) => {
       const fx = fixedFlags[i] === 'Yes';
@@ -5197,7 +5680,7 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   const classesIn = s => { const set = new Set(); const g = /Class(?:es)?\s+((?:[A-Z](?:-?[0-9A-Z]{1,3})?)(?:\s*(?:\/|,|and|or|&)\s*(?:the\s+)?(?:Class\s+)?[A-Z](?:-?[0-9A-Z]{1,3})?\b)*)/g; let m; while ((m = g.exec(s))) m[1].split(/\s*(?:\/|,|and|or|&)\s*(?:the\s+)?(?:Class\s+)?/).forEach(r => refIdx(r.trim()).forEach(i => set.add(i))); return [...set].sort((a, b) => a - b); };
 
   // ---- 2. dates and amounts
-  const pd = (() => { const m = T.match(new RegExp('(\\d{1,2})(?:st|nd|rd|th)?\\s+day\\s+of\\s+((?:(?:' + RR_MON + ')\\s*,?\\s*(?:and\\s+)?){3,4})(?:of\\s+each\\s+year)?[\\s\\S]{0,300}?commencing\\s+(?:on\\s+the\\s+Payment\\s+Date\\s+)?(?:in\\s+)?(' + RR_MON + ')\\s*(\\d{1,2},?\\s*)?(\\d{4})', 'i')); return m ? { day: +m[1], first: m[5] + '-' + rrPad(RR_MONTHS[m[3].toLowerCase()]) + '-' + rrPad(m[1]), page: J.pageAt(T.indexOf(m[0])), s: m[0] } : null; })();
+  const pd = (() => { const m = T.match(new RegExp('(\\d{1,2})\\s?(?:st|nd|rd|th)?\\s+day\\s+of\\s+((?:(?:' + RR_MON + ')\\s*,?\\s*(?:and\\s+)?){3,4})(?:of\\s+each\\s+year)?[\\s\\S]{0,300}?commencing\\s+(?:on\\s+the\\s+Payment\\s+Date\\s+)?(?:in\\s+)?(' + RR_MON + ')\\s*(\\d{1,2},?\\s*)?(\\d{4})', 'i')); return m ? { day: +m[1], first: m[5] + '-' + rrPad(RR_MONTHS[m[3].toLowerCase()]) + '-' + rrPad(m[1]), page: J.pageAt(T.indexOf(m[0])), s: m[0] } : null; })();
   if (pd) { spec.meta.paymentDay = pd.day; spec.meta.firstPaymentDate = pd.first; spec.meta.paymentFrequencyMonths = 3; log('Dates', 'First Payment Date', pd.first + ' (day ' + pd.day + ', quarterly)', pd.page, 'found', pd.s); }
   const yr = d => +String(d || '').slice(0, 4);
   const sane = (field, v) => { const c = spec.meta.closingDate; if (!v || !c || field === 'Closing Date' || field === 'Effective Date') return !!v; const dy = yr(v) - yr(c); return field === 'Stated Maturity' ? dy >= 4 && dy <= 40 : dy >= 0 && dy <= 15 && v >= c; };
@@ -5225,11 +5708,16 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   if (mgr) spec.meta.manager = mgr[1].trim();
 
   // ---- 3. fees
+  // a fee the document sets at zero while a named manager serves (the rate for a successor is in the management agreement)
+  const ownOf = x => { const k = x.slice(12).search(/\n?\s*["\u201c]\s?[A-Z][^"\u201d\n]{2,90}\s?["\u201d]\s*(?::|means|shall mean|has the meaning)/); return k < 0 ? x : x.slice(0, k + 12); }; // up to the next defined term
+  const zeroFee = d => { if (!d) return null; const m = ownOf(d.s).slice(0, 1600).match(/(?:for\s+)?(?:so\s+long\s+as|while)\s+([^,;]{3,80}?)\s+is\s+the\s+(?:Collateral|Investment|Portfolio)\s+Manager,?\s+(?:the\s+)?[^.;]{0,90}?\bFees?\s+(?:shall|will)\s+be\s+(?:zero|U\.S\.\s?\$\s?0\b|\$\s?0\b)/i);
+    return m ? { shown: '0%, while ' + m[1].trim() + ' is the manager; a successor\'s rate is set in the management agreement', note: 'Zero while ' + m[1].trim() + ' is the Collateral Manager.' } : null; };
   const perAnnum = s => rrPct(s, /(\d{1,2}\.\d{1,4})\s*%\s*(?:per\s+annum|of the Fee Basis|of the Collateral|of the Aggregate)/i);
   const sfT = tau('seniorFee', 1600, x => anyRate(x) != null);
   const sf = sfT || rrDef(J, '(?:Senior|Base) (?:Collateral |Investment |Portfolio )?Management Fee', 900) || rrDef(J, '(?:Collateral|Investment|Portfolio) Management Fee', 900);
   const sf2 = sfT || rrDef(J, '(?:Senior|Base) (?:Collateral |Investment |Portfolio )?Management Fee', 900, s => perAnnum(s) != null) || rrDef(J, '(?:Collateral|Investment|Portfolio) Management Fee', 900, s => perAnnum(s) != null) || sf;
-  if (sfT || (sf2 && perAnnum(sf2.s) != null)) {
+  if (!sfT && zeroFee(sf)) { const z = zeroFee(sf); spec.fees.seniorMgmt = { label: 'Senior management fee', schedule: [{ bps: 0 }], ref: 'p. ' + sf.page, note: z.note }; log('Fees', 'Senior management fee', z.shown, sf.page, 'found', sf.s); }
+  else if (sfT || (sf2 && perAnnum(sf2.s) != null)) {
     const W = sfT ? sfT.s : (rrDef(J, '(?:Senior|Base) (?:Collateral |Investment |Portfolio )?Management Fee', 1600, x => perAnnum(x) != null) || rrDef(J, '(?:Collateral|Investment|Portfolio) Management Fee', 1600, x => perAnnum(x) != null)).s;
     let rs = [...W.matchAll(/(\d{1,2}\.\d{1,4})\s*%\s*per\s+annum/gi)].map(m => +m[1]); if (!rs.length) rs = [anyRate(W)]; const sw = W.slice(0, 900).match(new RegExp('(?:Payment\\s+Date\\s+(?:occurring\\s+)?in\\s+)?(?:' + RR_MON + ')(?:\\s+\\d{1,2},)?\\s+\\d{4}'));
     const sched = rs.length >= 2 && rs[0] !== rs[1] && sw ? [{ through: rrDate(sw[0], spec.meta.paymentDay), bps: Math.round(rs[0] * 10000) / 100 }, { bps: Math.round(rs[1] * 10000) / 100 }] : [{ bps: Math.round(rs[0] * 10000) / 100 }];
@@ -5240,9 +5728,11 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
     const sched = until ? [{ through: rrDate(until[0], spec.meta.paymentDay), bps: Math.round(r1 * 10000) / 100 }, { bps: 0 }] : [{ bps: Math.round(r1 * 10000) / 100 }];
     spec.fees.structuring = { label: 'Structuring fee', schedule: sched, ref: 'p. ' + stD.page }; log('Fees', 'Structuring fee', r1 + '% a year' + (until ? ' to ' + sched[0].through + ', nothing after' : ''), stD.page, hw(stD), stD.s); }
   const ubT = tau('subFee', 900, x => anyRate(x) != null);
-  const ub = ubT || rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900, s => perAnnum(s) != null) || rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900);
-  const ubR = ub ? (ubT ? anyRate(ub.s) : perAnnum(ub.s)) : null;
-  if (ub && ubR != null) { spec.fees.subMgmt = { label: 'Subordinated management fee', bps: Math.round(ubR * 100 * 100) / 100, ref: 'p. ' + ub.page }; log('Fees', 'Subordinated management fee', ubR + '% a year', ub.page, hw(ub), ub.s); }
+  const ubZ = !ubT && rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900, s => !!zeroFee({ s }));
+  const ub = ubT || ubZ || rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900, s => perAnnum(s) != null) || rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900);
+  const ubR = ub && !ubZ ? (ubT ? anyRate(ub.s) : perAnnum(ub.s)) : null;
+  if (ubZ) { const z = zeroFee(ub); spec.fees.subMgmt = { label: 'Subordinated management fee', bps: 0, ref: 'p. ' + ub.page, note: z.note }; log('Fees', 'Subordinated management fee', z.shown, ub.page, 'found', ub.s); }
+  else if (ub && ubR != null) { spec.fees.subMgmt = { label: 'Subordinated management fee', bps: Math.round(ubR * 100 * 100) / 100, ref: 'p. ' + ub.page }; log('Fees', 'Subordinated management fee', ubR + '% a year', ub.page, hw(ub), ub.s); }
   else log('Fees', 'Subordinated management fee', 'rate not stated in this document', ub && ub.page, 'missing');
   const icT = tau('incentive', 1200, s => /\d\s*%/.test(s));
   const ic = icT || rrDef(J, 'Incentive (?:Collateral |Investment |Portfolio )?(?:Management )?Fee', 1200) || rrDef(J, 'Investment Manager Incentive Fee Amount', 1200);
@@ -5259,7 +5749,7 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   const groups = new Map(); // tested level (class index) -> {oc, ic, label, page}
   const put = (classesRef, kind, pct, page, snippet, lesson) => {
     const idx = typeof classesRef === 'string' ? (/Secured Notes|Secured Debt|Rated Notes/i.test(classesRef) ? [spec.classes.length - 1] : classesIn(/Class/.test(classesRef) ? classesRef : 'Class ' + classesRef)) : classesRef;
-    if (!idx.length || !(pct > 50 && pct < 400)) return; let lv = Math.max(...idx);
+    if (!idx.length || !(pct > 50 && pct < 400)) return; let lv = Math.max(...idx); if (!spec.classes[lv]) return; // no class read for it (e.g. no notes table)
     const base = spec.classes[lv].id.replace(/[LN]$/, '').replace(/-\d+$/, ''); while (lv + 1 < spec.classes.length && spec.classes[lv + 1].id.replace(/[LN]$/, '').replace(/-\d+$/, '') === base) lv++; // pari passu siblings
     const g = groups.get(lv) || { lv, page };
     if (g[kind] == null) { g[kind] = pct; g[kind + 'Page'] = page; g[kind + 'Snip'] = snippet; if (lesson) { g[kind + 'How'] = 'taught'; usedL.add(lesson.id); } }
@@ -5315,12 +5805,13 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   if (irtD) { const p = rrPct(irtD.s, /at\s+least\s+(?:equal\s+to\s+)?(\d{2,3}(?:\.\d+)?)\s*%/i) || (irtD.taught ? rrPct(irtD.s, /(\d{2,3}(?:\.\d+)?)\s*%/) : null); const cl = classesIn(irtD.s); const lv = cl.length ? Math.max(...cl) : spec.classes.length - 1;
     if (p) { spec.coverage.reinvestmentTest = { label: (irtD.taught && irtD.taught.term) || (irtD.s.match(/(Interest Diversion Test|Interest Reinvestment Test|Reinvestment Overcollateralization Test|Reinvestment Test)/) || [])[1] || 'Interest Reinvestment Test', ocClasses: spec.classes.slice(0, lv + 1).map(c => c.id), trigger: p, maxDiversionPct: 50, ref: 'p. ' + irtD.page }; log('Coverage tests', spec.coverage.reinvestmentTest.label, p + '% on Class ' + spec.classes[lv].id + ' and above', irtD.page, hw(irtD), irtD.s); } }
   const eodT = tau('eod', 600, s => { const p = rrPct(s, /(\d{2,3}(?:\.\d+)?)\s*%/); return p >= 90 && p <= 130; });
-  const eodRes = [/Event of Default (?:Trigger|Ratio)"?\s*[:\-]?[^%]{0,40}?(\d{2,3}(?:\.\d+)?)\s*%/, /(?:if|that)\s+the\s+Class\s+[A-Z][A-Z0-9-]*\s+(?:Overcollateralization|Par Value)\s+Ratio\s+(?:is\s+)?less\s+than\s+(\d{2,3}(?:\.\d+)?)\s*%/, /Event of Default[^.]{0,300}?less\s+than\s+(\d{2,3}(?:\.\d+)?)\s*%/, /Aggregate\s+Outstanding\s+Amount\s+of\s+the\s+Class\s+[A-Z][A-Z0-9-]*\s+Notes[^%]{0,120}?to\s+equal\s+or\s+exceed\s+(\d{2,3}(?:\.\d+)?)\s*%/];
+  const eodRes = [/Event of Default (?:Trigger|Ratio)"?\s*[:\-]?[^%]{0,40}?(\d{2,3}(?:\.\d+)?)\s*%/, /(?:if|that)\s+the\s+Class\s+[A-Z][A-Z0-9-]*\s+(?:Overcollateralization|Par Value)\s+Ratio\s+(?:is\s+)?less\s+than\s+(\d{2,3}(?:\.\d+)?)\s*%/, /Event of Default[^.]{0,300}?less\s+than\s+(\d{2,3}(?:\.\d+)?)\s*%/, /Aggregate\s+Outstanding\s+Amount\s+of\s+the\s+Class\s+[A-Z][A-Z0-9-]*\s+(?:Notes|Debt|Loans)[^%]{0,120}?to\s+equal\s+or\s+exceed\s+(\d{2,3}(?:\.\d+)?)\s*%/,
+    /failure\s+of\s+the\s+(?:Class\s+[A-Z][A-Z0-9-]*\s+)?(?:Overcollateralization|Over-collateralization|Par\s+Value)\s+Ratio\s+to\s+(?:equal\s+or\s+exceed|be\s+at\s+least|be\s+equal\s+to\s+or\s+greater\s+than)\s+(\d{2,3}(?:\.\d+)?)\s*%/];
   const eodOk = m => { const p = m && +(m[1] || m[2]); return p >= 90 && p <= 130; };
   const eod = eodT ? Object.assign([eodT.s.slice(0, 200), rrPct(eodT.s, /(\d{2,3}(?:\.\d+)?)\s*%/)], { page: eodT.page }) : eodRes.map(re => { const g = new RegExp(re.source, 'g'); let m; while ((m = g.exec(T))) if (eodOk(m)) return m; return null; }).find(Boolean) || null;
   if (eod && spec.classes.length) { const p = +(eod[1] || eod[2]); const top = spec.classes[0].id.replace(/[LN]$/, '').replace(/-\d+$/, ''); const ids = spec.classes.filter(c => c.id.replace(/[LN]$/, '').replace(/-\d+$/, '') === top).map(c => c.id);
     const pg = eod.page || J.pageAt(T.indexOf(eod[0]));
-    { const named = String(eod[0]).match(/Aggregate\s+Outstanding\s+Amount\s+of\s+the\s+(Class\s+[A-Z][A-Z0-9-]*)\s+Notes/); const cl = named ? classesIn(named[1]) : []; if (cl.length) { ids.length = 0; cl.forEach(i => ids.push(spec.classes[i].id)); } }
+    { const named = String(eod[0]).match(/Aggregate\s+Outstanding\s+Amount\s+of\s+the\s+(Class\s+[A-Z][A-Z0-9-]*)\s+(?:Notes|Debt|Loans)/) || String(eod[0]).match(/failure\s+of\s+the\s+(Class\s+[A-Z][A-Z0-9-]*)\s+(?:Overcollateralization|Over-collateralization|Par\s+Value)/); const cl = named ? classesIn(named[1]) : []; if (cl.length) { ids.length = 0; cl.forEach(i => ids.push(spec.classes[i].id)); } }
     if (p >= 90 && p <= 130) { spec.coverage.eodTest = { label: 'Class ' + (ids.length === 1 ? ids[0] : top) + ' OC (Event of Default)', ocClasses: ids, trigger: p, ref: 'p. ' + pg }; log('Coverage tests', 'Event of Default test', p + '% on Class ' + (ids.length === 1 ? ids[0] : top), pg, eodT ? 'taught' : 'found', eod[0]); } }
   if (!spec.coverage.eodTest && spec.classes.length) log('Coverage tests', 'Event of Default test', 'no par ratio Event of Default found', null, 'missing');
 
@@ -5393,6 +5884,8 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
       if (k === 'principal' && has(/after\s+the\s+Reinvestment\s+Period|Redemption Date/i) && has(/Payment Sequence|principal of|pay principal|payments in accordance/i) && !has(/Subordinated Notes until|Internal Rate/i)) return Object.assign(st, { type: 'amortize', paydown: rated.slice(), includeDeferredOf: defer, label: 'Sequential paydown', when: has(/after\s+the\s+Reinvestment\s+Period/i) ? 'afterRP' : undefined });
       if (has(/Incentive/i) && has(/\d{1,2}(?:\.\d+)?\s*%/)) { incentiveSeen = true; return Object.assign(st, { type: 'incentiveSplit', label: 'Residual split with the incentive fee', when: k === 'principal' ? 'noRatedOutstanding' : undefined }); }
       if (has(/Internal Rate of Return|Target Return|Incentive (?:Management )?Fee Threshold/i)) return Object.assign(st, { type: 'equityHurdle', label: 'Subordinated Notes to the hurdle', when: k === 'principal' ? 'noRatedOutstanding' : undefined });
+      // principal of the equity until it is repaid: cash to the equity like the residual after it
+      if (has(/Subordinated Notes|Preferred Shares|Income Notes/) && has(/(?:principal\s+amount|Aggregate\s+Outstanding\s+Amount)\s+of\s+(?:the\s+|such\s+)?(?:Subordinated Notes|Preferred Shares|Income Notes)\s+(?:is|has\s+been)\s+(?:reduced\s+to\s+zero|paid\s+in\s+full)/i) && !has(/Class\s+[A-Z]/)) return Object.assign(st, { type: 'equityHurdle', label: ((t.match(/Subordinated Notes|Preferred Shares|Income Notes/) || ['Subordinated Notes'])[0]) + ' principal, until repaid', when: k === 'principal' ? 'noRatedOutstanding' : undefined });
       const cl = ratedFor(t);
       if (cl.length && has(/interest/i) && k === 'liquidation' && has(/principal/i) && cl.length === 1) return Object.assign(st, { type: 'interestAndPrincipal', class: cl[0], label: 'Class ' + cl[0] + ' interest and principal' });
       if (cl.length && k === 'liquidation' && has(/principal/i) && !has(/interest/i)) return Object.assign(st, { type: 'principal', classes: cl, includeDeferredOf: defer.filter(c => cl.includes(c)), label: 'Class ' + cl.join(', ') + ' principal' });
@@ -5457,18 +5950,62 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
     if (!spec.fees.incentive && [].concat(I, spec.waterfalls.principal || []).some(s => s.type === 'incentiveSplit')) assumptions.push('An incentive fee clause was found but its hurdle and share were not; the residual goes to the subordinated notes.');
   }
   // ---- 6. haircuts (defaults where the document's text was not recognised)
-  const ccc = tau('ccc', 1200, s => /\d\s*%/.test(s)) || rrDef(J, '(?:Excess CCC Adjustment Amount|CCC Excess|Caa Excess|Excess Caa)', 1200);
-  const cccLim = ccc && ccc.taught ? rrPct(ccc.s, /(\d{1,2}(?:\.\d+)?)\s*%/) : ccc ? rrPct(ccc.s, /(\d{1,2}(?:\.\d+)?)\s*%\s*of\s+(?:the\s+)?(?:Collateral Principal Amount|Aggregate Principal Balance|aggregate principal balance|Principal Collateral Value)/i) : null;
+  const ccc = tau('ccc', 1200, s => /\d\s*%/.test(s)) || rrDef(J, '(?:Excess CCC Adjustment Amount|CCC Excess|Caa Excess|Excess Caa|CCC/Caa Excess|Excess CCC/Caa Adjustment Amount)', 1200, s => /\d\s*%/.test(s));
+  const cccLim = ccc && ccc.taught ? rrPct(ccc.s, /(\d{1,2}(?:\.\d+)?)\s*%/) : ccc ? rrPct(ccc.s, /(\d{1,2}(?:\.\d+)?)\s*%\s*of\s+(?:the\s+)?(?:Collateral\s+Principal\s+Amount|Aggregate\s+Principal\s+Balance|Principal\s+Collateral\s+Value)/i) : null;
   if (cccLim) { spec.haircuts.ccc = { limitPct: cccLim, haircutPct: ccc && /Market Value/i.test(ccc.s) && !/\d{2}\s*%\s*of\s+(?:its\s+)?(?:par|principal balance)/i.test(ccc.s) ? 100 : 70, moodysAtOrBelow: 'Caa1', spAtOrBelow: 'CCC+', ref: 'p. ' + ccc.page }; log('Haircuts', 'CCC Excess limit', cccLim + '% of the collateral; excess carried at ' + (spec.haircuts.ccc.haircutPct === 100 ? 'market value' : 'the lesser of 70% and market value'), ccc.page, hw(ccc), ccc.s); }
   else log('Haircuts', 'CCC Excess', 'not recognised: standard values used', null, 'default');
   // ---- 7. collateral quality tests: single-number limits only; matrices and models are left to you
-  const qt = (id, metric, label, term, re, op, conv, loose) => { const d = tau(id, 900, s => re.test(s) || loose.test(s)) || rrDef(J, term, 900); if (!d) return; const m = d.s.match(re) || (d.taught ? d.s.match(loose) : null); if (!m) { log('Quality tests', label, 'found, but the limit is a matrix or table: enter it by hand', d.page, 'missing'); return; } let v = +String(m[1]).replace(/,/g, ''); if (conv) v = conv(v); const q = { id, label, metric, op, limit: v, ref: 'p. ' + d.page }; if (metric === 'wal' && /elapsed|minus|less\s+the|reduced/i.test(d.s)) q.limit = { type: 'declining', startYears: v, from: 'closingDate' }; spec.qualityTests.push(q); log('Quality tests', label, (op === '<=' ? '≤ ' : '≥ ') + v, d.page, hw(d), d.s); };
+  // a limit given in a second definition ("... equals or exceeds the Minimum Weighted Average Coupon" / "Minimum Weighted Average Coupon": ... 7.50%)
+  const RR_GE = '(?:' + ['at least', 'equal to or greater than', 'not less than', 'greater than or equal to', 'equals or exceeds', 'equal or exceed', 'is equal to or greater than', 'at least equals', 'at least equal to'].map(x => x.replace(/ /g, '\\s+')).join('|') + ')'; // phrases may break across lines
+  const ownDef = x => { const k = x.slice(12).search(/\n\s*"[A-Z][^"\n]{2,90}"\s*(?::|means|shall mean|has the meaning)/); return k < 0 ? x : x.slice(0, k + 12); }; // up to the next defined term
+  const viaTerm = (d, loose) => { const r = ownDef(d.s).slice(0, 700).match(new RegExp('(?:' + RR_GE + '|less\\s+than\\s+or\\s+equal\\s+to|does\\s+not\\s+exceed|not\\s+(?:more|greater)\\s+than)\\s+the\\s+((?:Minimum|Maximum)\\s+[A-Z][\\w\'&]*(?:\\s+[A-Z][\\w\'&]*){1,6})')); if (!r) return null;
+    const d2 = rrDef(J, rrWords(r[1].replace(/\s+/g, ' ').trim()), 500); if (!d2 || d2.at === d.at) return null; const head = ownDef(d2.s).slice(0, 320); if (/matrix|column|row|set forth in|chosen|selected|CDO Monitor|Schedule/i.test(head)) return { matrix: true, d: d2 };
+    const m = head.match(loose); return m ? { m, d: d2 } : null; };
+  // the Weighted Average Life limit by Payment Date: a table ("January 2020 7.68"), or a base plus a step for each date left in the Reinvestment Period
+  const walForm = d => {
+    const st = d.s.match(/(\d{1,2}(?:\.\d+)?)\s+plus\s+(?:\([ivx]+\)\s+)?(?:\([a-z]\)\s+)?(\d(?:\.\d+)?)\s+multiplied\s+by\s+(?:\([a-z]\)\s+)?the\s+(?:aggregate\s+)?number\s+of\s+(?:Determination|Payment)\s+Dates\s+remaining/i);
+    if (st) return { type: 'stepped', base: +st[1], step: +st[2], pivot: 'reinvestmentPeriodEnd', shown: st[1] + ' years plus ' + st[2] + ' for each Payment Date left in the Reinvestment Period (less after it)' };
+    if (!/table|Number of Years/i.test(d.s.slice(0, 700))) return null;
+    const rows = []; const g = new RegExp('(?:^|\\n)\\s*(Closing Date|(' + RR_MON + ')\\s+(\\d{4}))\\s+(\\d{1,2}\\.\\d{1,2})\\s*(?=\\n|$)', 'gi'); let m;
+    while ((m = g.exec(d.s))) { if (/^Closing/i.test(m[1])) { if (spec.meta.closingDate) rows.push({ from: spec.meta.closingDate, value: +m[4] }); } else rows.push({ from: m[3] + '-' + rrPad(RR_MONTHS[m[2].toLowerCase()]) + '-' + rrPad(spec.meta.paymentDay || 15), value: +m[4] }); }
+    return rows.length >= 4 ? { type: 'table', rows, shown: 'a table by Payment Date, ' + rows[0].value + ' to ' + rows[rows.length - 1].value + ' years (' + rows.length + ' rows)' } : null;
+  };
+  const qmx = (() => {
+    const d = rrDef(J, '(?:Asset|Collateral) Quality Matrix', 2500); if (!d) return null;
+    const tk = [...d.s.matchAll(/(\d{1,2}\.\d{1,3})\s*%|(\d{1,2},\d{3}|\d+)(?![\d.,]*\s*%)/g)].map(m => m[1] ? { pct: +m[1] } : { n: +m[2].replace(/,/g, '') });
+    for (let i = 0; i < tk.length; i++) {
+      let k = 0; while (tk[i + k] && tk[i + k].n != null && tk[i + k].n >= 5 && tk[i + k].n <= 150) k++;
+      const cols = tk.slice(i, i + k).map(x => x.n); if (k < 2 || !cols.every((c, j) => !j || c > cols[j - 1])) continue;
+      const rows = [], values = []; let q = i + k;
+      while (tk[q] && tk[q].pct != null && tk.slice(q + 1, q + 1 + k).length === k && tk.slice(q + 1, q + 1 + k).every(x => x.n != null && x.n >= 100 && x.n <= 10000)) { rows.push(tk[q].pct); values.push(tk.slice(q + 1, q + 1 + k).map(x => x.n)); q += k + 1; }
+      if (rows.length >= 2 && rows.every((r, j) => !j || r > rows[j - 1])) return { rows, cols, values, page: d.page, s: d.s, name: (d.s.match(/(Asset|Collateral) Quality Matrix/i) || ['Quality Matrix'])[0] };
+    }
+    return null;
+  })();
+  // a limit set by the manager's choice of row and column in that matrix
+  const fromMatrix = (id, metric, label, own) => {
+    if (!qmx || !['warf', 'was', 'div'].includes(id)) return false; const where = qmx.name + ' (' + qmx.rows.length + ' spreads by ' + qmx.cols.length + ' diversity scores)';
+    if (id === 'warf') {
+      // "the lesser of (i) the matrix number plus the Recovery Adjustment and (ii) 3200": the cap is read; the adjustment is flagged, not applied
+      const cap = (own || '').slice(0, 900).match(/lesser\s+of[\s\S]{0,400}?\(ii\)\s*(\d,?\d{3})\b/i); const adj = /Recovery\s+Adjustment|Recovery\s+Rate\s+Modifier|Modifier/i.test((own || '').slice(0, 900));
+      const lim = { type: 'matrix', main: { rows: qmx.rows, cols: qmx.cols, values: qmx.values } }; if (cap) lim.cap = rrNum(cap[1]);
+      spec.qualityTests.push({ id, label, metric, op: '<=', limit: lim, ref: 'p. ' + qmx.page, note: 'Looked up in the ' + qmx.name + ' at the portfolio\'s own spread and diversity score' + (adj ? '; the recovery adjustment the definition adds is not applied' : '') });
+      log('Quality tests', label, 'from the ' + where + ', looked up at the portfolio\'s spread and diversity score' + (cap ? ', capped at ' + rrNum(cap[1]) : '') + (adj ? '; the recovery adjustment the definition adds is not applied, so the limit may be too low' : ''), qmx.page, adj ? 'estimated' : 'found', qmx.s); return true; }
+    const v = id === 'was' ? qmx.rows[0] : qmx.cols[0];
+    spec.qualityTests.push({ id, label, metric, op: '>=', limit: v, ref: 'p. ' + qmx.page, note: 'The lowest ' + (id === 'was' ? 'row' : 'column') + ' of the ' + qmx.name + '; the manager\'s chosen combination may set a higher minimum' });
+    log('Quality tests', label, '≥ ' + v + ', the lowest ' + (id === 'was' ? 'row' : 'column') + ' of the ' + where + '; enter the manager\'s chosen combination if it is higher', qmx.page, 'estimated', qmx.s); return true;
+  };
+  const qt = (id, metric, label, term, re, op, conv, loose) => { const d = tau(id, 900, s => re.test(s) || loose.test(s)) || rrDef(J, term, metric === 'wal' ? 4000 : 900); if (!d) return;
+    if (metric === 'wal' && !d.taught) { const w = walForm({ s: ownDef(d.s) }); if (w) { const shown = w.shown; delete w.shown; spec.qualityTests.push({ id, label, metric, op, limit: w, ref: 'p. ' + d.page }); log('Quality tests', label, shown, d.page, 'found', d.s); return; } }
+    const own = d.taught ? d.s : ownDef(d.s); let m = own.slice(0, 900).match(re) || (d.taught ? d.s.match(loose) : null); let page = d.page, src = own;
+    if (!m) { const v2 = viaTerm(d, loose); if (v2 && v2.m) { m = v2.m; page = v2.d.page; src = v2.d.s; } else { if (!d.taught && fromMatrix(id, metric, label, own)) return; log('Quality tests', label, 'found, but the limit is a matrix or table: enter it by hand', (v2 && v2.d.page) || d.page, 'missing'); return; } }
+    let v = +String(m[1]).replace(/,/g, ''); if (conv) v = conv(v); const q = { id, label, metric, op, limit: v, ref: 'p. ' + page }; if (metric === 'wal' && /elapsed|minus|less\s+the|reduced/i.test(own.slice(0, 900))) q.limit = { type: 'declining', startYears: v, from: /since\s+the\s+Effective\s+Date/i.test(own.slice(0, 900)) ? 'effectiveDate' : 'closingDate' }; spec.qualityTests.push(q); log('Quality tests', label, (op === '<=' ? '≤ ' : '≥ ') + v, page, hw(d), src); };
   qt('warf', 'warf', "Maximum Weighted Average Rating Factor", "(?:Maximum (?:Moody's )?Weighted Average (?:Moody's )?Rating Factor Test|Maximum Moody's Rating Factor Test|Weighted Average Rating Factor Test)", /(?:exceed|greater than|or less than|equal to or less than|at most)\s+(\d,?\d{3})/i, '<=', null, /(\d,?\d{3})/);
-  qt('was', 'was', 'Minimum Weighted Average Spread', '(?:Minimum (?:Weighted Average |Floating )?Spread Test|Minimum Weighted Average Spread Test|Weighted Average Spread Test)', /(?:at least|equal to or greater than|not less than|greater than or equal to)\s+(?:equal\s+to\s+)?(\d\.\d{1,3})\s*%/i, '>=', null, /(\d\.\d{1,3})\s*%/);
-  qt('wac', 'wac', 'Minimum Weighted Average Coupon', '(?:Minimum Weighted Average Coupon Test|Weighted Average Coupon Test)', /(?:at least|equal to or greater than|not less than|greater than or equal to)\s+(?:equal\s+to\s+)?(\d{1,2}\.\d{1,3})\s*%/i, '>=', null, /(\d{1,2}\.\d{1,3})\s*%/);
+  qt('was', 'was', 'Minimum Weighted Average Spread', '(?:Minimum (?:Weighted Average |Floating )?Spread Test|Minimum Weighted Average Spread Test|Weighted Average Spread Test)', new RegExp(RR_GE + '\\s+(?:equal\\s+to\\s+)?(\\d\\.\\d{1,3})\\s*%', 'i'), '>=', null, /(\d\.\d{1,3})\s*%/);
+  qt('wac', 'wac', 'Minimum Weighted Average Coupon', '(?:Minimum Weighted Average Coupon Test|Weighted Average Coupon Test)', new RegExp(RR_GE + '\\s+(?:equal\\s+to\\s+)?(\\d{1,2}\\.\\d{1,3})\\s*%', 'i'), '>=', null, /(\d{1,2}\.\d{1,3})\s*%/);
   qt('wal', 'wal', 'Weighted Average Life', '(?:Weighted Average Life Test|Maximum Weighted Average Life Test)', /(\d{1,2}(?:\.\d+)?)\s*years/i, '<=', null, /(\d{1,2}(?:\.\d+)?)\s*years/i);
-  qt('div', 'diversity', 'Minimum Diversity Score', "(?:Minimum Diversity Test|Diversity Test|Moody's Diversity Test|Minimum Diversity Score)", /(?:at least|equal to or greater than|not less than|greater than or equal to)\s+(?:equal\s+to\s+)?(\d{2,3})\b/i, '>=', null, /\b(\d{2,3})\b/);
-  qt('mwarr', 'moodysWARR', "Minimum Moody's Weighted Average Recovery Rate", "(?:Moody's Minimum Weighted Average Recovery Rate Test|Minimum Weighted Average Moody's Recovery Rate Test|Minimum Moody's Weighted Average Recovery Rate)", /(?:at least|equal to or greater than|not less than|greater than)\s+(?:equal\s+to\s+)?(\d{2}(?:\.\d+)?)\s*%/i, '>=', null, /(\d{2}(?:\.\d+)?)\s*%/);
+  qt('div', 'diversity', 'Minimum Diversity Score', "(?:Minimum Diversity Test|Diversity Test|Moody's Diversity Test|Minimum Diversity Score)", new RegExp(RR_GE + '\\s+(?:equal\\s+to\\s+)?(\\d{2,3})\\b', 'i'), '>=', null, /\b(\d{2,3})\b/);
+  qt('mwarr', 'moodysWARR', "Minimum Moody's Weighted Average Recovery Rate", "(?:Moody's Minimum Weighted Average Recovery Rate Test|Minimum Weighted Average Moody's Recovery Rate Test|Minimum Moody's Weighted Average Recovery Rate)", new RegExp('(?:' + RR_GE.slice(3, -1) + '|greater than)\\s+(?:equal\\s+to\\s+)?(\\d{2}(?:\\.\\d+)?)\\s*%', 'i'), '>=', null, /(\d{2}(?:\.\d+)?)\s*%/);
   if (/S&P CDO Monitor|CDO Monitor Test/.test(T)) { spec.qualityTests.push({ id: 'cdom', label: 'S&P CDO Monitor', metric: 'external', ref: 'p. ' + J.pageAt(T.indexOf('CDO Monitor')), note: 'Requires the S&P model; enter the result by hand.' }); log('Quality tests', 'S&P CDO Monitor', 'found; result entered by hand', J.pageAt(T.indexOf('CDO Monitor')), 'found'); }
   // ---- 8. concentration limits: each numbered item, matched to a tape field where it can be
   const cd = tau('conc', 14000, s => /\(i\)[\s\S]{0,1500}\(ii\)/.test(s.slice(0, 4000)), true) || rrDef(J, '(?:Concentration Limitations|Portfolio Profile Test)', 14000, s => /\(i\)[\s\S]{0,1500}\(ii\)/.test(s.slice(0, 4000)), true);
@@ -5504,7 +6041,9 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
         [/Synthetic Securit/i, () => add('Synthetic securities', { filter: [{ f: 'synthetic', eq: true }] })],
         [/issuance\s+size|facility\s+size|tranche\s+size|total\s+potential\s+indebtedness/i, () => { const lt = rrMoney(u); return lt ? add('Facility size under ' + rrM(lt), { filter: [{ f: 'facilitySize', lt }] }) : null; }],
         [/Canad/i, () => /not\s+Domiciled|other\s+than/i.test(u) ? null : add('Canadian obligors', { filter: [{ f: 'country', in: ['CA'] }] })],
-        [/Domiciled|organized/i, () => /United States/i.test(u) && /not|outside|other than/i.test(t) ? add('Non-US obligors', { filter: [{ f: 'country', notIn: ['US'] }] }) : null]
+        [/Domiciled|organized/i, () => { const tb = t.match(/(\d{1,2}(?:\.\d+)?)\s*%\s*(?:all\s+)?countries\s*\(\s*in\s+the\s+aggregate\s*\)\s*other\s+than\s+the\s+United\s+States\b/i);
+          if (tb) return add('Non-US obligors (the aggregate limit; the limits by country are not modelled)', { limit: +tb[1], filter: [{ f: 'country', notIn: ['US'] }] }); // a table of limits by country
+          return /United States/i.test(u) && /not|outside|other than/i.test(t) ? add('Non-US obligors', { filter: [{ f: 'country', notIn: ['US'] }] }) : null; }]
       ];
       const applyC = q => { usedL.add(q.id); if (q.cat === 'skip') { lab = 'Not a tape test'; Object.assign(log('Concentration limits', id + ' not a tape test', 'skipped, as taught', pg, 'taught', t), { teach: 'concItem', cid: id }); return true; } const c = RR_CONC[q.cat]; add(c[0], c[1]({ u, ge, exO }), 'taught'); return true; };
       let done = false, lessonId = null; const pre = LS.conc.find(q => q.override && rrHas(t, q.phrase));
@@ -5520,7 +6059,15 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   spec.labels = { taxes: 'Taxes and governmental fees', admin: 'Administrative Expenses (capped)', adminExcess: 'Administrative Expenses above cap', hedge: 'Hedge payments', hedgeTermSenior: 'Senior hedge termination', hedgeTermSub: 'Subordinated hedge termination', seniorMgmt: 'Senior management fee', structuring: 'Structuring fee', revolverFunding: 'Unfunded commitments' };
   // things a reader must check
   spec.classes.forEach(c => { if (c.spread == null) { c.spread = 0; assumptions.push('Class ' + c.id + ' spread not found: set to 0%. Enter it in the deal spec.'); } });
+  if (!spec.equity) { // "The Issuer shall issue 55,400,000 Preferred Shares", at the notional amount per share the document gives
+    const m = T.match(/\bissue[sd]?\s+([\d,]{6,})\s+(Preferred Shares|Preference Shares|Ordinary Shares|Subordinated Notes|Income Notes)\b/i);
+    if (m && rrNum(m[1]) >= 1e5) { const per = T.match(/notional\s+amount\s+of\s+(?:U\.S\.)?\s?\$\s?(\d{1,4}(?:\.\d+)?)\s+per\s+(?:Preferred\s+|Preference\s+)?share/i); const pg = J.pageAt(m.index); const n = rrNum(m[1]); const bal = n * (per ? +per[1] : 1); const nm = m[2].replace(/\b\w/g, c => c.toUpperCase());
+      spec.equity = { id: 'SUB', name: nm, balance: bal, ref: 'p. ' + pg }; log('Notes', nm, rrM(bal) + ' (' + m[1] + ' shares at ' + (per ? '$' + per[1] : 'an assumed $1') + ' each)', pg, per ? 'found' : 'estimated', m[0]); }
+  }
   if (!spec.equity) { const est = Math.max(0, (spec.meta.targetPar || 0) - sum(spec.classes, c => c.balance)); const nmE = /Preferred Shares/.test(T) ? 'Preferred Shares' : /Income Notes/.test(T) ? 'Income Notes' : 'Subordinated Notes'; spec.equity = { id: 'SUB', name: nmE, balance: est || 1 }; log('Notes', nmE, est ? rrM(est) + ', estimated as Target Par less the rated notes' : 'not found', null, est ? 'estimated' : 'missing'); assumptions.push('The ' + nmE + ' amount is not stated in this document; ' + (est ? 'it is estimated as Target Par less the rated notes (' + rrM(est) + ').' : 'enter it in the deal spec.') + ' It drives the IRR hurdle.'); }
+  // a subordinated fee the Priority of Payments never pays is not in this deal, rather than a gap
+  if (!spec.fees.subMgmt && !/"Subordinated (?:Collateral |Investment |Portfolio )?Management Fee"/i.test(T) && !['interest', 'principal', 'liquidation'].some(k => (spec.waterfalls[k] || []).some(st => st.type === 'subMgmtFee' && /Subordinated/i.test(st.clause || '')))) {
+    const f = found.find(x => x.group === 'Fees' && x.field === 'Subordinated management fee' && x.how === 'missing'); if (f) { f.how = 'absent'; f.value = 'none: no clause of the Priority of Payments pays one'; } }
   // values entered by hand for this document (or for one of the documents read together here) replace what was read
   for (const x of LS.values.filter(q => q.value && (q.doc === docKey || (alsoKeys || []).includes(q.doc)))) {
     const r = rrParseValue(x.field, x.value); if (!r.ok) continue; const v = r.v; const f = RR_FIELDS.find(q => q.key === x.field); let group = f.group, field = f.label, shown = x.value; const ref = 'entered by you'; const drop = re => { for (let i = assumptions.length - 1; i >= 0; i--) if (re.test(assumptions[i])) assumptions.splice(i, 1); };
@@ -5725,7 +6272,7 @@ $$('#tabs button').forEach(b => b.addEventListener('click', () => selectTab(b.da
 $('#tabs').addEventListener('keydown', e => { const tabs = $$('#tabs button'); const i = tabs.findIndex(b => b.dataset.tab === state.tab); if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; selectTab(n.dataset.tab); n.focus(); } });
 $('#dealSel').onchange = e => loadDeal(e.target.value);
 $('#calcd').addEventListener('click', e => { if (e.target === $('#calcd')) $('#calcd').close(); });
-$('#calcd').addEventListener('close', () => { const c = state.calc; state.calc = null; if (!c) return; const sel = c.cg ? '#p-calcs [data-gwork="' + c.gi + '"]' : c.cv ? 'button.calc[data-cv="' + c.cv + '"]' : c.tc ? 'button.calc[data-tc="' + c.tc + '"]' : c.src ? 'button.calc[data-src="' + c.src + '"]' : 'button.calc[data-k="' + c.k + '"][data-i="' + c.i + '"][data-part="' + (c.part === 'due' ? 'due' : 'paid') + '"]'; const b = $(sel); if (b) b.focus(); });
+$('#calcd').addEventListener('close', () => { const c = state.calc; state.calc = null; if (!c) return; const sel = c.adj ? '#p-tests button.adjb[data-adj="' + c.adj + '"]' : c.cg ? '#p-calcs [data-gwork="' + c.gi + '"]' : c.cv ? 'button.calc[data-cv="' + c.cv + '"]' : c.tc ? 'button.calc[data-tc="' + c.tc + '"]' : c.src ? 'button.calc[data-src="' + c.src + '"]' : 'button.calc[data-k="' + c.k + '"][data-i="' + c.i + '"][data-part="' + (c.part === 'due' ? 'due' : 'paid') + '"]'; const b = $(sel); if (b) b.focus(); });
 $('#goInterpret').onclick = () => { selectTab('rules'); $('#interpBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 $('#railToggle').onclick = () => { const r = $('#rail'); const c = r.classList.toggle('collapsed'); $('#railToggle').setAttribute('aria-expanded', String(!c)); $('#railToggleState').textContent = c ? 'Show' : 'Hide'; };
 window.addEventListener('resize', () => { if (state.result) renderStrip(); });

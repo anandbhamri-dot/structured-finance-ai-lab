@@ -364,6 +364,47 @@ h3.cvg-plain { font: 600 13px/1.3 var(--sans); color: var(--muted); margin: 6px 
 .refs .nm em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
 .refs .nm span { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
 code.f { font: 12px/1.4 var(--mono); background: var(--panel-2); border: 1px solid var(--rule-2); padding: 0 4px; border-radius: 4px; overflow-wrap: anywhere; }
+/* your adjustments to the tests */
+.adjc { margin-top: 3px; font-weight: 400; }
+.adjb { font-size: 12px; }
+.adjtag { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); vertical-align: 1px; }
+.adjtag.err { background: var(--fail-soft); color: var(--fail); }
+.adjsum { overflow-wrap: anywhere; max-width: 34ch; }
+tr.mine > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.adjnew { margin-top: 10px; align-items: center; }
+.adjnew .small { flex: 1 1 260px; }
+.adjres { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 0 0 16px; }
+.adjres > div { background: var(--panel-2); border: 1px solid var(--rule-2); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.adjres b { font-size: 18px; font-weight: 600; }
+.adjsec { border-top: 1px solid var(--rule-2); padding: 12px 0 4px; }
+.adjsec h3 { font: 600 15px/1.3 var(--sans); margin: 0 0 6px; }
+.adjsec > .small { margin: 0 0 8px; }
+.adjlist { margin: 8px 0 14px; }
+.adjlist h4 { font-size: 13px; margin: 0 0 2px; }
+.adjlist > .small { margin: 0 0 6px; }
+ul.chips { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+ul.chips li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 6px 4px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); }
+ul.chips li.bad { border-color: var(--fail); }
+ul.chips li .cv-err { flex-basis: 100%; }
+ul.chips .jw { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.chipx { margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 17px; line-height: 1; padding: 2px 6px; cursor: pointer; border-radius: 4px; min-height: 26px; }
+.chipx:hover { color: var(--fail); background: var(--fail-soft); }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.adjbuild { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.adjbuild select, .adjbuild input { min-width: 0; max-width: 100%; font: inherit; font-size: 13px; color: var(--ink); }
+.adjbuild select[data-bf] { flex: 1 1 150px; } .adjbuild select[data-bo] { flex: 0 1 120px; } .adjbuild [data-bv] { flex: 1 1 150px; }
+input[type=date] { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 5px 8px; min-height: 32px; color: var(--ink); font: inherit; }
+.adjpreview { margin: 4px 0 6px; }
+.adjtype { display: flex; gap: 6px; }
+.adjtype input { flex: 1; min-width: 0; font: 12.5px/1.4 var(--mono); color: var(--ink); }
+.adjmode { border: 0; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.adjmode legend { font-size: 13px; font-weight: 600; padding: 0; margin-bottom: 2px; }
+.adjmode label, label.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
+.adjmode input, label.chk input { margin-top: 3px; }
+.adjgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 12px; }
+.adjgrid label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--ink-2); }
+.adjgrid input, .adjgrid select { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; font-size: 13px; color: var(--ink); }
+.adjlim { display: flex; gap: 6px; } .adjlim select { flex: 0 0 auto; width: auto; } .adjlim input { flex: 1; }
 table.manual tr.hasfx td { border-bottom: 0; }
 table.manual tr.fxrow td { padding-top: 0; }
 table.manual .fxv { font-variant-numeric: tabular-nums; font-weight: 500; }

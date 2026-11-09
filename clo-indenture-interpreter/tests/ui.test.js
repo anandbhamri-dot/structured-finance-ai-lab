@@ -110,6 +110,61 @@ let fails = 0; const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + 
   await pg.click('[data-ddel="1"]'); await pg.waitForTimeout(300); ok((await pg.$$eval('.doclist li', x => x.length)) === 1, 'and removed');
   await pg.setInputFiles('#addDocFile', path.join(ROOT, 'sample_inputs', 'example-clo-supplemental-indenture.txt')); await pg.waitForTimeout(400);
   ok((await pg.$$eval('.doclist li', x => x.length)) === 2, 'a document can be added from a file');
+  console.log('## adjusting tests');
+  { await pg.goto(PAGE); await pg.waitForTimeout(600); await pg.click('#tabs button[data-tab="tests"]'); await pg.waitForTimeout(150);
+    const val = async id => (await pg.textContent('#p-tests tr:has(button.adjb[data-adj="' + id + '"]) td:nth-child(5)')).trim();
+    const before = await val('conc:(v)a');
+    ok(await pg.$$eval('#p-tests button.adjb', x => x.length) > 30, 'every coverage, quality and Portfolio Profile test can be adjusted');
+    await pg.click('#p-tests button.adjb[data-adj="conc:(v)a"]'); await pg.waitForSelector('#calcd .adjres');
+    await pg.click('#calcd .adjlist[data-list="numSkip"] [data-quick="defaulted"]'); await pg.waitForTimeout(250);
+    await pg.click('#calcd .adjlist[data-list="numSkip"] [data-quick="is_ccc"]'); await pg.waitForTimeout(250);
+    await pg.click('#calcd .adjlist[data-list="denSkip"] [data-quick="defaulted"]'); await pg.waitForTimeout(250);
+    const figs = async () => { const t = (await pg.textContent('#calcd .adjres')).replace(/\s+/g, ' '); const m = t.match(/As the indenture reads\s*([\d.]+)%\s*(Pass|Fail)?\s*As you adjusted it\s*([\d.]+)%\s*(Pass|Fail)?/); return m ? { was: +m[1], now: +m[3], pass: m[4], t } : { t }; };
+    const f1 = await figs(); ok(f1.now < f1.was, 'leaving defaulted and CCC loans out of the numerator and defaulted loans out of the denominator: ' + f1.was + '% to ' + f1.now + '%');
+    ok(/5 loans/.test(await pg.textContent('#calcd .adjlist[data-list="denSkip"] .chips')), 'each condition says how many loans it catches');
+    // a field and a value as the numerator
+    await pg.click('#calcd input[name="adjmode"][value="only"]'); await pg.waitForTimeout(250);
+    await pg.selectOption('#calcd .adjlist[data-list="numOnly"] [data-bf]', 'asset_type'); await pg.waitForTimeout(150);
+    await pg.selectOption('#calcd .adjlist[data-list="numOnly"] [data-bv]', 'SSL'); await pg.waitForTimeout(100);
+    ok((await pg.textContent('#calcd .adjlist[data-list="numOnly"] .adjpreview')).includes('asset_type = "SSL"'), 'the builder makes the condition from a field and a value');
+    await pg.click('#calcd .adjlist[data-list="numOnly"] [data-badd]'); await pg.waitForTimeout(300);
+    ok(/asset_type = "SSL"/.test(await pg.textContent('#calcd .adjlist[data-list="numOnly"] .chips')), 'and adds it as the numerator');
+    { const f = await figs(); ok(f.now > 80, 'the numerator is now the senior secured loans: ' + f.now + '%'); }
+    await pg.click('#adjWork'); await pg.waitForTimeout(200);
+    ok(/Left out of the numerator by your adjustment/.test(await pg.textContent('#calcd')), 'the working lists the loans left out');
+    await pg.keyboard.press('Escape'); await pg.waitForTimeout(150);
+    ok((await pg.textContent('#p-tests tr:has(button.adjb[data-adj="conc:(v)a"])')).includes('Adjusted'), 'the test is marked as adjusted');
+    ok((await val('conc:(v)a')) !== before, 'and shows your figure');
+    // a coverage test, typed with suggestions
+    await pg.click('#p-tests button.adjb[data-adj="coverage:AB"]'); await pg.waitForSelector('#calcd .adjres');
+    await pg.fill('#calcd .adjlist[data-list="numSkip"] [data-bt]', 'asset_t'); await pg.waitForTimeout(150);
+    ok(await pg.evaluate(() => { const u = document.getElementById('acList'); return !!u && !u.hidden && !!u.closest('dialog'); }), 'names are suggested inside the panel');
+    await pg.keyboard.press('Enter'); await pg.type('#calcd .adjlist[data-list="numSkip"] [data-bt]', ' = "2L"'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(350);
+    { const f = await figs(); ok(f.now < f.was, 'Class A/B OC without second-lien loans: ' + f.was + '% to ' + f.now + '% ' + f.pass); }
+    ok(await pg.evaluate(() => document.activeElement && document.activeElement.matches('[data-bt]')), 'focus stays in the condition box');
+    await pg.fill('#calcd .adjlist[data-list="numSkip"] [data-bt]', 'Nope > 1'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(350);
+    ok(/Unknown name Nope/.test(await pg.textContent('#calcd .chips')), 'a condition with an error says why');
+    await pg.click('#calcd .chips li.bad .chipx'); await pg.waitForTimeout(300);
+    await pg.click('#adjDone'); await pg.click('#tabs button[data-tab="waterfall"]'); await pg.waitForTimeout(150);
+    ok(/You left loans out of the numerator of Class A\/B OC test/.test(await pg.textContent('#p-waterfall')), 'the waterfall says the cures follow your version');
+    // a test of your own
+    await pg.click('#tabs button[data-tab="tests"]'); await pg.click('#adjNew'); await pg.waitForSelector('#calcd [data-u="label"]');
+    await pg.fill('#calcd [data-u="label"]', 'Largest country'); await pg.press('#calcd [data-u="label"]', 'Tab'); await pg.waitForTimeout(250);
+    await pg.selectOption('#calcd [data-u="kind"]', 'largest'); await pg.waitForTimeout(250); await pg.selectOption('#calcd [data-u="field"]', 'country'); await pg.waitForTimeout(250);
+    await pg.fill('#calcd [data-u="limit"]', '90'); await pg.press('#calcd [data-u="limit"]', 'Tab'); await pg.waitForTimeout(300);
+    { const t = (await pg.textContent('#calcd .adjres')).replace(/\s+/g, ' '); ok(/This Payment Date\s*\d+\.\d\d%\s*(Pass|Fail)\s*Limit\s*≤ 90%/.test(t), 'your test: the largest country against 90%: ' + t); }
+    await pg.click('#adjDone'); await pg.waitForTimeout(150);
+    ok(/Largest country\s*Your test/.test(await pg.textContent('#p-tests tr.mine')) && /Largest: US/.test(await pg.textContent('#p-tests tr.mine')), 'it is listed with the Portfolio Profile Test');
+    await pg.reload(); await pg.waitForTimeout(600); await pg.click('#tabs button[data-tab="tests"]');
+    ok((await pg.$$eval('#p-tests .adjtag', x => x.map(e => e.textContent))).join(',') === 'Adjusted,Adjusted,Your test', 'adjustments and your test survive a reload');
+    const ph = await ctx.newPage(); await ph.setViewportSize({ width: 390, height: 844 }); await ph.goto(PAGE); await ph.waitForTimeout(500); await ph.click('#tabs button[data-tab="tests"]');
+    await ph.click('#p-tests button.adjb[data-adj="conc:(v)a"]'); await ph.waitForSelector('#calcd .adjres');
+    ok(await ph.evaluate(() => { const b = document.querySelector('#calcd .cd-body'); return b.scrollWidth <= b.clientWidth + 1; }), 'the panel fits a phone');
+    await ph.close();
+    await pg.click('#adjResetAll'); await pg.click('#adjResetAll'); await pg.waitForTimeout(250);
+    ok((await pg.$$eval('#p-tests .adjtag', x => x.map(e => e.textContent))).join(',') === 'Your test', 'every test can be put back as the indenture reads; your own test stays');
+    await pg.click('#p-tests tr.mine button.adjb'); await pg.click('#adjDel'); await pg.click('#adjDel'); await pg.waitForTimeout(250);
+    ok(!(await pg.$('#p-tests tr.mine')), 'and your test can be removed'); }
   console.log('## a tape with more columns');
   { const lines = fs.readFileSync(path.join(ROOT, 'sample_inputs', 'example-tape-apr09.csv'), 'utf8').trim().split('\n'); const tmp = path.join(require('os').tmpdir(), 'tape-extra-' + process.pid + '.csv');
     fs.writeFileSync(tmp, [lines[0] + ',Capitalised Interest'].concat(lines.slice(1).map((l, i) => l + ',' + (i % 7 ? '' : '25000'))).join('\n'));

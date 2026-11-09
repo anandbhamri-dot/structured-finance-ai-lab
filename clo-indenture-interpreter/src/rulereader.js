@@ -23,7 +23,7 @@ function rrDate(s, payDay) {
 // A defined term: "Term": ..., "Term" means ..., Term ........ (summary), or (the "Term") inline
 function rrDef(J, term, len, test, after) {
   len = len || 900; const T = J.text; const t = term.replace(/ /g, '\\s+');
-  const tries = [new RegExp('"' + t + '"\\s*(?::|means|shall mean|has the meaning|will be|is)', 'i'), new RegExp('\\n\\s*' + t + '\\s*[:.]{1}\\s?\\.{2,}', 'i'), new RegExp('\\(\\s*(?:the|each,? a|each)\\s+"' + t + '"\\s*\\)', 'i'), new RegExp('"' + t + '"', 'i')];
+  const tries = [new RegExp('"' + t + '"\\s*(?::|means|shall mean|has the meaning|will be|is)', 'i'), new RegExp('\\n\\s*' + t + '\\s*[:.]{1}\\s?\\.{2,}', 'i'), new RegExp('\\(\\s*(?:such\\s+period,?\\s+)?(?:the|each,? a|each)\\s+"' + t + '"\\s*\\)', 'i'), new RegExp('"' + t + '"', 'i')];
   for (let k = 0; k < tries.length; k++) {
     const g = new RegExp(tries[k].source, 'gi'); let m;
     while ((m = g.exec(T))) {
@@ -147,7 +147,7 @@ function rrTeachKey(group, field) {
   if (group === 'Quality tests') { const f = RR_FIELDS.find(x => x.label === field); return f ? f.key : null; }
   return null;
 }
-const RR_DONE = ['found', 'taught', 'entered'];
+const RR_DONE = ['found', 'taught', 'entered', 'absent'];
 function readDealText(pages, fileName, lessons, alsoKeys) {
   const J = rrJoin(pages); const T = J.text;
   const found = []; const assumptions = [];
@@ -177,6 +177,8 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
     const parseNames = sg => { const out = []; const ng = /Class\s+([A-Z](?:-?[0-9A-Z]{1,3})?)\b((?:\s+(?:Senior|Mezzanine|Junior|Deferrable|Floating|Fixed|Rate|Secured|Notes|Loans|Debt|Note))*)|(Subordinated(?:\s+Notes)?|Preferred\s+Shares|Income\s+Notes)|^\s*([A-Z](?:-\d)?)\s*$/gm; let n;
       while ((n = ng.exec(sg))) out.push(n[1] ? { id: n[1], kind: /Loans/i.test(n[2] || '') ? 'Loans' : 'Notes', deferrable: /Deferrable/i.test(n[2] || '') } : n[3] ? { equity: true, name: n[3].replace(/\s+/g, ' ') } : { id: n[4], kind: 'Notes' }); return out; };
     let names = parseNames(seg);
+    // a PDF prints the table a row per line: "Class Designation A-1 A-2 B Subordinated"
+    if (names.length !== toks.length) { const row = seg.match(/^(?:Designation|Securities Offered)[:\s]*([^\n]+)/); if (row) { const out = []; const rg = /(Subordinated(?:\s+Notes)?|Preferred\s+Shares|Income\s+Notes)|(?:Class\s+)?\b([A-Z](?:-?[0-9A-Z]{1,3})?)\b/g; let n; while ((n = rg.exec(row[1]))) out.push(n[1] ? { equity: true, name: n[1].replace(/\s+/g, ' ') } : { id: n[2], kind: 'Notes' }); if (out.length === toks.length) names = out; } }
     // the class names can sit just above the column heading ("Class A Notes ... Subordinated Notes / Class Designation / Original Principal Amount")
     if (names.length !== toks.length && hk >= 0) { const alt = parseNames(before.slice(Math.max(0, hk - 700), hk)); if (alt.length >= toks.length && alt.slice(-toks.length).filter(x => x.equity).length <= 1) names = alt.slice(alt.length - toks.length); }
     if (names.length !== toks.length) continue;
@@ -216,9 +218,9 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
       while ((m = g.exec(H))) { if (prev >= 0 && m.index - prev > 400) { if (seq.length >= rated.length) break; seq.length = 0; } seq.push(+m[1]); prev = m.index + m[0].length; }
       if (seq.length >= rated.length) rates = seq.slice(0, rated.length);
     } else rates = rates.filter((x, i) => !(cls[i] && cls[i].equity));
-    const fixedRow = tail.match(/Fixed\s+Rate(?:\s+Notes?)?\s*\n((?:\s*(?:Yes|No|N\/A)\s*\n?){2,})/);
+    const fixedRow = tail.match(/Fixed\s+Rate(?:\s+Notes?)?[ \t]*\n?((?:[ \t]*(?:Yes|No|N\/A)[ \t]*\n?){2,})/); // one cell per line, or the whole row on one line (PDF)
     const fixedFlags = fixedRow ? fixedRow[1].trim().split(/\s+/) : [];
-    const defRow = tail.match(/(?:Interest\s+)?[Dd]eferrable\s*\n?((?:\s*(?:Yes|No|N\/A)\s*\n?){2,})/);
+    const defRow = tail.match(/(?:Interest\s+)?[Dd]eferrable[ \t]*\n?((?:[ \t]*(?:Yes|No|N\/A)[ \t]*\n?){2,})/);
     const defFlags = defRow ? defRow[1].trim().split(/\s+/) : [];
     rated.forEach((c, i) => {
       const fx = fixedFlags[i] === 'Yes';
@@ -248,7 +250,7 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   const classesIn = s => { const set = new Set(); const g = /Class(?:es)?\s+((?:[A-Z](?:-?[0-9A-Z]{1,3})?)(?:\s*(?:\/|,|and|or|&)\s*(?:the\s+)?(?:Class\s+)?[A-Z](?:-?[0-9A-Z]{1,3})?\b)*)/g; let m; while ((m = g.exec(s))) m[1].split(/\s*(?:\/|,|and|or|&)\s*(?:the\s+)?(?:Class\s+)?/).forEach(r => refIdx(r.trim()).forEach(i => set.add(i))); return [...set].sort((a, b) => a - b); };
 
   // ---- 2. dates and amounts
-  const pd = (() => { const m = T.match(new RegExp('(\\d{1,2})(?:st|nd|rd|th)?\\s+day\\s+of\\s+((?:(?:' + RR_MON + ')\\s*,?\\s*(?:and\\s+)?){3,4})(?:of\\s+each\\s+year)?[\\s\\S]{0,300}?commencing\\s+(?:on\\s+the\\s+Payment\\s+Date\\s+)?(?:in\\s+)?(' + RR_MON + ')\\s*(\\d{1,2},?\\s*)?(\\d{4})', 'i')); return m ? { day: +m[1], first: m[5] + '-' + rrPad(RR_MONTHS[m[3].toLowerCase()]) + '-' + rrPad(m[1]), page: J.pageAt(T.indexOf(m[0])), s: m[0] } : null; })();
+  const pd = (() => { const m = T.match(new RegExp('(\\d{1,2})\\s?(?:st|nd|rd|th)?\\s+day\\s+of\\s+((?:(?:' + RR_MON + ')\\s*,?\\s*(?:and\\s+)?){3,4})(?:of\\s+each\\s+year)?[\\s\\S]{0,300}?commencing\\s+(?:on\\s+the\\s+Payment\\s+Date\\s+)?(?:in\\s+)?(' + RR_MON + ')\\s*(\\d{1,2},?\\s*)?(\\d{4})', 'i')); return m ? { day: +m[1], first: m[5] + '-' + rrPad(RR_MONTHS[m[3].toLowerCase()]) + '-' + rrPad(m[1]), page: J.pageAt(T.indexOf(m[0])), s: m[0] } : null; })();
   if (pd) { spec.meta.paymentDay = pd.day; spec.meta.firstPaymentDate = pd.first; spec.meta.paymentFrequencyMonths = 3; log('Dates', 'First Payment Date', pd.first + ' (day ' + pd.day + ', quarterly)', pd.page, 'found', pd.s); }
   const yr = d => +String(d || '').slice(0, 4);
   const sane = (field, v) => { const c = spec.meta.closingDate; if (!v || !c || field === 'Closing Date' || field === 'Effective Date') return !!v; const dy = yr(v) - yr(c); return field === 'Stated Maturity' ? dy >= 4 && dy <= 40 : dy >= 0 && dy <= 15 && v >= c; };
@@ -276,11 +278,16 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   if (mgr) spec.meta.manager = mgr[1].trim();
 
   // ---- 3. fees
+  // a fee the document sets at zero while a named manager serves (the rate for a successor is in the management agreement)
+  const ownOf = x => { const k = x.slice(12).search(/\n?\s*["\u201c]\s?[A-Z][^"\u201d\n]{2,90}\s?["\u201d]\s*(?::|means|shall mean|has the meaning)/); return k < 0 ? x : x.slice(0, k + 12); }; // up to the next defined term
+  const zeroFee = d => { if (!d) return null; const m = ownOf(d.s).slice(0, 1600).match(/(?:for\s+)?(?:so\s+long\s+as|while)\s+([^,;]{3,80}?)\s+is\s+the\s+(?:Collateral|Investment|Portfolio)\s+Manager,?\s+(?:the\s+)?[^.;]{0,90}?\bFees?\s+(?:shall|will)\s+be\s+(?:zero|U\.S\.\s?\$\s?0\b|\$\s?0\b)/i);
+    return m ? { shown: '0%, while ' + m[1].trim() + ' is the manager; a successor\'s rate is set in the management agreement', note: 'Zero while ' + m[1].trim() + ' is the Collateral Manager.' } : null; };
   const perAnnum = s => rrPct(s, /(\d{1,2}\.\d{1,4})\s*%\s*(?:per\s+annum|of the Fee Basis|of the Collateral|of the Aggregate)/i);
   const sfT = tau('seniorFee', 1600, x => anyRate(x) != null);
   const sf = sfT || rrDef(J, '(?:Senior|Base) (?:Collateral |Investment |Portfolio )?Management Fee', 900) || rrDef(J, '(?:Collateral|Investment|Portfolio) Management Fee', 900);
   const sf2 = sfT || rrDef(J, '(?:Senior|Base) (?:Collateral |Investment |Portfolio )?Management Fee', 900, s => perAnnum(s) != null) || rrDef(J, '(?:Collateral|Investment|Portfolio) Management Fee', 900, s => perAnnum(s) != null) || sf;
-  if (sfT || (sf2 && perAnnum(sf2.s) != null)) {
+  if (!sfT && zeroFee(sf)) { const z = zeroFee(sf); spec.fees.seniorMgmt = { label: 'Senior management fee', schedule: [{ bps: 0 }], ref: 'p. ' + sf.page, note: z.note }; log('Fees', 'Senior management fee', z.shown, sf.page, 'found', sf.s); }
+  else if (sfT || (sf2 && perAnnum(sf2.s) != null)) {
     const W = sfT ? sfT.s : (rrDef(J, '(?:Senior|Base) (?:Collateral |Investment |Portfolio )?Management Fee', 1600, x => perAnnum(x) != null) || rrDef(J, '(?:Collateral|Investment|Portfolio) Management Fee', 1600, x => perAnnum(x) != null)).s;
     let rs = [...W.matchAll(/(\d{1,2}\.\d{1,4})\s*%\s*per\s+annum/gi)].map(m => +m[1]); if (!rs.length) rs = [anyRate(W)]; const sw = W.slice(0, 900).match(new RegExp('(?:Payment\\s+Date\\s+(?:occurring\\s+)?in\\s+)?(?:' + RR_MON + ')(?:\\s+\\d{1,2},)?\\s+\\d{4}'));
     const sched = rs.length >= 2 && rs[0] !== rs[1] && sw ? [{ through: rrDate(sw[0], spec.meta.paymentDay), bps: Math.round(rs[0] * 10000) / 100 }, { bps: Math.round(rs[1] * 10000) / 100 }] : [{ bps: Math.round(rs[0] * 10000) / 100 }];
@@ -291,9 +298,11 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
     const sched = until ? [{ through: rrDate(until[0], spec.meta.paymentDay), bps: Math.round(r1 * 10000) / 100 }, { bps: 0 }] : [{ bps: Math.round(r1 * 10000) / 100 }];
     spec.fees.structuring = { label: 'Structuring fee', schedule: sched, ref: 'p. ' + stD.page }; log('Fees', 'Structuring fee', r1 + '% a year' + (until ? ' to ' + sched[0].through + ', nothing after' : ''), stD.page, hw(stD), stD.s); }
   const ubT = tau('subFee', 900, x => anyRate(x) != null);
-  const ub = ubT || rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900, s => perAnnum(s) != null) || rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900);
-  const ubR = ub ? (ubT ? anyRate(ub.s) : perAnnum(ub.s)) : null;
-  if (ub && ubR != null) { spec.fees.subMgmt = { label: 'Subordinated management fee', bps: Math.round(ubR * 100 * 100) / 100, ref: 'p. ' + ub.page }; log('Fees', 'Subordinated management fee', ubR + '% a year', ub.page, hw(ub), ub.s); }
+  const ubZ = !ubT && rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900, s => !!zeroFee({ s }));
+  const ub = ubT || ubZ || rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900, s => perAnnum(s) != null) || rrDef(J, 'Subordinated (?:Collateral |Investment |Portfolio )?Management Fee', 900);
+  const ubR = ub && !ubZ ? (ubT ? anyRate(ub.s) : perAnnum(ub.s)) : null;
+  if (ubZ) { const z = zeroFee(ub); spec.fees.subMgmt = { label: 'Subordinated management fee', bps: 0, ref: 'p. ' + ub.page, note: z.note }; log('Fees', 'Subordinated management fee', z.shown, ub.page, 'found', ub.s); }
+  else if (ub && ubR != null) { spec.fees.subMgmt = { label: 'Subordinated management fee', bps: Math.round(ubR * 100 * 100) / 100, ref: 'p. ' + ub.page }; log('Fees', 'Subordinated management fee', ubR + '% a year', ub.page, hw(ub), ub.s); }
   else log('Fees', 'Subordinated management fee', 'rate not stated in this document', ub && ub.page, 'missing');
   const icT = tau('incentive', 1200, s => /\d\s*%/.test(s));
   const ic = icT || rrDef(J, 'Incentive (?:Collateral |Investment |Portfolio )?(?:Management )?Fee', 1200) || rrDef(J, 'Investment Manager Incentive Fee Amount', 1200);
@@ -310,7 +319,7 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   const groups = new Map(); // tested level (class index) -> {oc, ic, label, page}
   const put = (classesRef, kind, pct, page, snippet, lesson) => {
     const idx = typeof classesRef === 'string' ? (/Secured Notes|Secured Debt|Rated Notes/i.test(classesRef) ? [spec.classes.length - 1] : classesIn(/Class/.test(classesRef) ? classesRef : 'Class ' + classesRef)) : classesRef;
-    if (!idx.length || !(pct > 50 && pct < 400)) return; let lv = Math.max(...idx);
+    if (!idx.length || !(pct > 50 && pct < 400)) return; let lv = Math.max(...idx); if (!spec.classes[lv]) return; // no class read for it (e.g. no notes table)
     const base = spec.classes[lv].id.replace(/[LN]$/, '').replace(/-\d+$/, ''); while (lv + 1 < spec.classes.length && spec.classes[lv + 1].id.replace(/[LN]$/, '').replace(/-\d+$/, '') === base) lv++; // pari passu siblings
     const g = groups.get(lv) || { lv, page };
     if (g[kind] == null) { g[kind] = pct; g[kind + 'Page'] = page; g[kind + 'Snip'] = snippet; if (lesson) { g[kind + 'How'] = 'taught'; usedL.add(lesson.id); } }
@@ -366,12 +375,13 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   if (irtD) { const p = rrPct(irtD.s, /at\s+least\s+(?:equal\s+to\s+)?(\d{2,3}(?:\.\d+)?)\s*%/i) || (irtD.taught ? rrPct(irtD.s, /(\d{2,3}(?:\.\d+)?)\s*%/) : null); const cl = classesIn(irtD.s); const lv = cl.length ? Math.max(...cl) : spec.classes.length - 1;
     if (p) { spec.coverage.reinvestmentTest = { label: (irtD.taught && irtD.taught.term) || (irtD.s.match(/(Interest Diversion Test|Interest Reinvestment Test|Reinvestment Overcollateralization Test|Reinvestment Test)/) || [])[1] || 'Interest Reinvestment Test', ocClasses: spec.classes.slice(0, lv + 1).map(c => c.id), trigger: p, maxDiversionPct: 50, ref: 'p. ' + irtD.page }; log('Coverage tests', spec.coverage.reinvestmentTest.label, p + '% on Class ' + spec.classes[lv].id + ' and above', irtD.page, hw(irtD), irtD.s); } }
   const eodT = tau('eod', 600, s => { const p = rrPct(s, /(\d{2,3}(?:\.\d+)?)\s*%/); return p >= 90 && p <= 130; });
-  const eodRes = [/Event of Default (?:Trigger|Ratio)"?\s*[:\-]?[^%]{0,40}?(\d{2,3}(?:\.\d+)?)\s*%/, /(?:if|that)\s+the\s+Class\s+[A-Z][A-Z0-9-]*\s+(?:Overcollateralization|Par Value)\s+Ratio\s+(?:is\s+)?less\s+than\s+(\d{2,3}(?:\.\d+)?)\s*%/, /Event of Default[^.]{0,300}?less\s+than\s+(\d{2,3}(?:\.\d+)?)\s*%/, /Aggregate\s+Outstanding\s+Amount\s+of\s+the\s+Class\s+[A-Z][A-Z0-9-]*\s+Notes[^%]{0,120}?to\s+equal\s+or\s+exceed\s+(\d{2,3}(?:\.\d+)?)\s*%/];
+  const eodRes = [/Event of Default (?:Trigger|Ratio)"?\s*[:\-]?[^%]{0,40}?(\d{2,3}(?:\.\d+)?)\s*%/, /(?:if|that)\s+the\s+Class\s+[A-Z][A-Z0-9-]*\s+(?:Overcollateralization|Par Value)\s+Ratio\s+(?:is\s+)?less\s+than\s+(\d{2,3}(?:\.\d+)?)\s*%/, /Event of Default[^.]{0,300}?less\s+than\s+(\d{2,3}(?:\.\d+)?)\s*%/, /Aggregate\s+Outstanding\s+Amount\s+of\s+the\s+Class\s+[A-Z][A-Z0-9-]*\s+(?:Notes|Debt|Loans)[^%]{0,120}?to\s+equal\s+or\s+exceed\s+(\d{2,3}(?:\.\d+)?)\s*%/,
+    /failure\s+of\s+the\s+(?:Class\s+[A-Z][A-Z0-9-]*\s+)?(?:Overcollateralization|Over-collateralization|Par\s+Value)\s+Ratio\s+to\s+(?:equal\s+or\s+exceed|be\s+at\s+least|be\s+equal\s+to\s+or\s+greater\s+than)\s+(\d{2,3}(?:\.\d+)?)\s*%/];
   const eodOk = m => { const p = m && +(m[1] || m[2]); return p >= 90 && p <= 130; };
   const eod = eodT ? Object.assign([eodT.s.slice(0, 200), rrPct(eodT.s, /(\d{2,3}(?:\.\d+)?)\s*%/)], { page: eodT.page }) : eodRes.map(re => { const g = new RegExp(re.source, 'g'); let m; while ((m = g.exec(T))) if (eodOk(m)) return m; return null; }).find(Boolean) || null;
   if (eod && spec.classes.length) { const p = +(eod[1] || eod[2]); const top = spec.classes[0].id.replace(/[LN]$/, '').replace(/-\d+$/, ''); const ids = spec.classes.filter(c => c.id.replace(/[LN]$/, '').replace(/-\d+$/, '') === top).map(c => c.id);
     const pg = eod.page || J.pageAt(T.indexOf(eod[0]));
-    { const named = String(eod[0]).match(/Aggregate\s+Outstanding\s+Amount\s+of\s+the\s+(Class\s+[A-Z][A-Z0-9-]*)\s+Notes/); const cl = named ? classesIn(named[1]) : []; if (cl.length) { ids.length = 0; cl.forEach(i => ids.push(spec.classes[i].id)); } }
+    { const named = String(eod[0]).match(/Aggregate\s+Outstanding\s+Amount\s+of\s+the\s+(Class\s+[A-Z][A-Z0-9-]*)\s+(?:Notes|Debt|Loans)/) || String(eod[0]).match(/failure\s+of\s+the\s+(Class\s+[A-Z][A-Z0-9-]*)\s+(?:Overcollateralization|Over-collateralization|Par\s+Value)/); const cl = named ? classesIn(named[1]) : []; if (cl.length) { ids.length = 0; cl.forEach(i => ids.push(spec.classes[i].id)); } }
     if (p >= 90 && p <= 130) { spec.coverage.eodTest = { label: 'Class ' + (ids.length === 1 ? ids[0] : top) + ' OC (Event of Default)', ocClasses: ids, trigger: p, ref: 'p. ' + pg }; log('Coverage tests', 'Event of Default test', p + '% on Class ' + (ids.length === 1 ? ids[0] : top), pg, eodT ? 'taught' : 'found', eod[0]); } }
   if (!spec.coverage.eodTest && spec.classes.length) log('Coverage tests', 'Event of Default test', 'no par ratio Event of Default found', null, 'missing');
 
@@ -444,6 +454,8 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
       if (k === 'principal' && has(/after\s+the\s+Reinvestment\s+Period|Redemption Date/i) && has(/Payment Sequence|principal of|pay principal|payments in accordance/i) && !has(/Subordinated Notes until|Internal Rate/i)) return Object.assign(st, { type: 'amortize', paydown: rated.slice(), includeDeferredOf: defer, label: 'Sequential paydown', when: has(/after\s+the\s+Reinvestment\s+Period/i) ? 'afterRP' : undefined });
       if (has(/Incentive/i) && has(/\d{1,2}(?:\.\d+)?\s*%/)) { incentiveSeen = true; return Object.assign(st, { type: 'incentiveSplit', label: 'Residual split with the incentive fee', when: k === 'principal' ? 'noRatedOutstanding' : undefined }); }
       if (has(/Internal Rate of Return|Target Return|Incentive (?:Management )?Fee Threshold/i)) return Object.assign(st, { type: 'equityHurdle', label: 'Subordinated Notes to the hurdle', when: k === 'principal' ? 'noRatedOutstanding' : undefined });
+      // principal of the equity until it is repaid: cash to the equity like the residual after it
+      if (has(/Subordinated Notes|Preferred Shares|Income Notes/) && has(/(?:principal\s+amount|Aggregate\s+Outstanding\s+Amount)\s+of\s+(?:the\s+|such\s+)?(?:Subordinated Notes|Preferred Shares|Income Notes)\s+(?:is|has\s+been)\s+(?:reduced\s+to\s+zero|paid\s+in\s+full)/i) && !has(/Class\s+[A-Z]/)) return Object.assign(st, { type: 'equityHurdle', label: ((t.match(/Subordinated Notes|Preferred Shares|Income Notes/) || ['Subordinated Notes'])[0]) + ' principal, until repaid', when: k === 'principal' ? 'noRatedOutstanding' : undefined });
       const cl = ratedFor(t);
       if (cl.length && has(/interest/i) && k === 'liquidation' && has(/principal/i) && cl.length === 1) return Object.assign(st, { type: 'interestAndPrincipal', class: cl[0], label: 'Class ' + cl[0] + ' interest and principal' });
       if (cl.length && k === 'liquidation' && has(/principal/i) && !has(/interest/i)) return Object.assign(st, { type: 'principal', classes: cl, includeDeferredOf: defer.filter(c => cl.includes(c)), label: 'Class ' + cl.join(', ') + ' principal' });
@@ -508,18 +520,62 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
     if (!spec.fees.incentive && [].concat(I, spec.waterfalls.principal || []).some(s => s.type === 'incentiveSplit')) assumptions.push('An incentive fee clause was found but its hurdle and share were not; the residual goes to the subordinated notes.');
   }
   // ---- 6. haircuts (defaults where the document's text was not recognised)
-  const ccc = tau('ccc', 1200, s => /\d\s*%/.test(s)) || rrDef(J, '(?:Excess CCC Adjustment Amount|CCC Excess|Caa Excess|Excess Caa)', 1200);
-  const cccLim = ccc && ccc.taught ? rrPct(ccc.s, /(\d{1,2}(?:\.\d+)?)\s*%/) : ccc ? rrPct(ccc.s, /(\d{1,2}(?:\.\d+)?)\s*%\s*of\s+(?:the\s+)?(?:Collateral Principal Amount|Aggregate Principal Balance|aggregate principal balance|Principal Collateral Value)/i) : null;
+  const ccc = tau('ccc', 1200, s => /\d\s*%/.test(s)) || rrDef(J, '(?:Excess CCC Adjustment Amount|CCC Excess|Caa Excess|Excess Caa|CCC/Caa Excess|Excess CCC/Caa Adjustment Amount)', 1200, s => /\d\s*%/.test(s));
+  const cccLim = ccc && ccc.taught ? rrPct(ccc.s, /(\d{1,2}(?:\.\d+)?)\s*%/) : ccc ? rrPct(ccc.s, /(\d{1,2}(?:\.\d+)?)\s*%\s*of\s+(?:the\s+)?(?:Collateral\s+Principal\s+Amount|Aggregate\s+Principal\s+Balance|Principal\s+Collateral\s+Value)/i) : null;
   if (cccLim) { spec.haircuts.ccc = { limitPct: cccLim, haircutPct: ccc && /Market Value/i.test(ccc.s) && !/\d{2}\s*%\s*of\s+(?:its\s+)?(?:par|principal balance)/i.test(ccc.s) ? 100 : 70, moodysAtOrBelow: 'Caa1', spAtOrBelow: 'CCC+', ref: 'p. ' + ccc.page }; log('Haircuts', 'CCC Excess limit', cccLim + '% of the collateral; excess carried at ' + (spec.haircuts.ccc.haircutPct === 100 ? 'market value' : 'the lesser of 70% and market value'), ccc.page, hw(ccc), ccc.s); }
   else log('Haircuts', 'CCC Excess', 'not recognised: standard values used', null, 'default');
   // ---- 7. collateral quality tests: single-number limits only; matrices and models are left to you
-  const qt = (id, metric, label, term, re, op, conv, loose) => { const d = tau(id, 900, s => re.test(s) || loose.test(s)) || rrDef(J, term, 900); if (!d) return; const m = d.s.match(re) || (d.taught ? d.s.match(loose) : null); if (!m) { log('Quality tests', label, 'found, but the limit is a matrix or table: enter it by hand', d.page, 'missing'); return; } let v = +String(m[1]).replace(/,/g, ''); if (conv) v = conv(v); const q = { id, label, metric, op, limit: v, ref: 'p. ' + d.page }; if (metric === 'wal' && /elapsed|minus|less\s+the|reduced/i.test(d.s)) q.limit = { type: 'declining', startYears: v, from: 'closingDate' }; spec.qualityTests.push(q); log('Quality tests', label, (op === '<=' ? '≤ ' : '≥ ') + v, d.page, hw(d), d.s); };
+  // a limit given in a second definition ("... equals or exceeds the Minimum Weighted Average Coupon" / "Minimum Weighted Average Coupon": ... 7.50%)
+  const RR_GE = '(?:' + ['at least', 'equal to or greater than', 'not less than', 'greater than or equal to', 'equals or exceeds', 'equal or exceed', 'is equal to or greater than', 'at least equals', 'at least equal to'].map(x => x.replace(/ /g, '\\s+')).join('|') + ')'; // phrases may break across lines
+  const ownDef = x => { const k = x.slice(12).search(/\n\s*"[A-Z][^"\n]{2,90}"\s*(?::|means|shall mean|has the meaning)/); return k < 0 ? x : x.slice(0, k + 12); }; // up to the next defined term
+  const viaTerm = (d, loose) => { const r = ownDef(d.s).slice(0, 700).match(new RegExp('(?:' + RR_GE + '|less\\s+than\\s+or\\s+equal\\s+to|does\\s+not\\s+exceed|not\\s+(?:more|greater)\\s+than)\\s+the\\s+((?:Minimum|Maximum)\\s+[A-Z][\\w\'&]*(?:\\s+[A-Z][\\w\'&]*){1,6})')); if (!r) return null;
+    const d2 = rrDef(J, rrWords(r[1].replace(/\s+/g, ' ').trim()), 500); if (!d2 || d2.at === d.at) return null; const head = ownDef(d2.s).slice(0, 320); if (/matrix|column|row|set forth in|chosen|selected|CDO Monitor|Schedule/i.test(head)) return { matrix: true, d: d2 };
+    const m = head.match(loose); return m ? { m, d: d2 } : null; };
+  // the Weighted Average Life limit by Payment Date: a table ("January 2020 7.68"), or a base plus a step for each date left in the Reinvestment Period
+  const walForm = d => {
+    const st = d.s.match(/(\d{1,2}(?:\.\d+)?)\s+plus\s+(?:\([ivx]+\)\s+)?(?:\([a-z]\)\s+)?(\d(?:\.\d+)?)\s+multiplied\s+by\s+(?:\([a-z]\)\s+)?the\s+(?:aggregate\s+)?number\s+of\s+(?:Determination|Payment)\s+Dates\s+remaining/i);
+    if (st) return { type: 'stepped', base: +st[1], step: +st[2], pivot: 'reinvestmentPeriodEnd', shown: st[1] + ' years plus ' + st[2] + ' for each Payment Date left in the Reinvestment Period (less after it)' };
+    if (!/table|Number of Years/i.test(d.s.slice(0, 700))) return null;
+    const rows = []; const g = new RegExp('(?:^|\\n)\\s*(Closing Date|(' + RR_MON + ')\\s+(\\d{4}))\\s+(\\d{1,2}\\.\\d{1,2})\\s*(?=\\n|$)', 'gi'); let m;
+    while ((m = g.exec(d.s))) { if (/^Closing/i.test(m[1])) { if (spec.meta.closingDate) rows.push({ from: spec.meta.closingDate, value: +m[4] }); } else rows.push({ from: m[3] + '-' + rrPad(RR_MONTHS[m[2].toLowerCase()]) + '-' + rrPad(spec.meta.paymentDay || 15), value: +m[4] }); }
+    return rows.length >= 4 ? { type: 'table', rows, shown: 'a table by Payment Date, ' + rows[0].value + ' to ' + rows[rows.length - 1].value + ' years (' + rows.length + ' rows)' } : null;
+  };
+  const qmx = (() => {
+    const d = rrDef(J, '(?:Asset|Collateral) Quality Matrix', 2500); if (!d) return null;
+    const tk = [...d.s.matchAll(/(\d{1,2}\.\d{1,3})\s*%|(\d{1,2},\d{3}|\d+)(?![\d.,]*\s*%)/g)].map(m => m[1] ? { pct: +m[1] } : { n: +m[2].replace(/,/g, '') });
+    for (let i = 0; i < tk.length; i++) {
+      let k = 0; while (tk[i + k] && tk[i + k].n != null && tk[i + k].n >= 5 && tk[i + k].n <= 150) k++;
+      const cols = tk.slice(i, i + k).map(x => x.n); if (k < 2 || !cols.every((c, j) => !j || c > cols[j - 1])) continue;
+      const rows = [], values = []; let q = i + k;
+      while (tk[q] && tk[q].pct != null && tk.slice(q + 1, q + 1 + k).length === k && tk.slice(q + 1, q + 1 + k).every(x => x.n != null && x.n >= 100 && x.n <= 10000)) { rows.push(tk[q].pct); values.push(tk.slice(q + 1, q + 1 + k).map(x => x.n)); q += k + 1; }
+      if (rows.length >= 2 && rows.every((r, j) => !j || r > rows[j - 1])) return { rows, cols, values, page: d.page, s: d.s, name: (d.s.match(/(Asset|Collateral) Quality Matrix/i) || ['Quality Matrix'])[0] };
+    }
+    return null;
+  })();
+  // a limit set by the manager's choice of row and column in that matrix
+  const fromMatrix = (id, metric, label, own) => {
+    if (!qmx || !['warf', 'was', 'div'].includes(id)) return false; const where = qmx.name + ' (' + qmx.rows.length + ' spreads by ' + qmx.cols.length + ' diversity scores)';
+    if (id === 'warf') {
+      // "the lesser of (i) the matrix number plus the Recovery Adjustment and (ii) 3200": the cap is read; the adjustment is flagged, not applied
+      const cap = (own || '').slice(0, 900).match(/lesser\s+of[\s\S]{0,400}?\(ii\)\s*(\d,?\d{3})\b/i); const adj = /Recovery\s+Adjustment|Recovery\s+Rate\s+Modifier|Modifier/i.test((own || '').slice(0, 900));
+      const lim = { type: 'matrix', main: { rows: qmx.rows, cols: qmx.cols, values: qmx.values } }; if (cap) lim.cap = rrNum(cap[1]);
+      spec.qualityTests.push({ id, label, metric, op: '<=', limit: lim, ref: 'p. ' + qmx.page, note: 'Looked up in the ' + qmx.name + ' at the portfolio\'s own spread and diversity score' + (adj ? '; the recovery adjustment the definition adds is not applied' : '') });
+      log('Quality tests', label, 'from the ' + where + ', looked up at the portfolio\'s spread and diversity score' + (cap ? ', capped at ' + rrNum(cap[1]) : '') + (adj ? '; the recovery adjustment the definition adds is not applied, so the limit may be too low' : ''), qmx.page, adj ? 'estimated' : 'found', qmx.s); return true; }
+    const v = id === 'was' ? qmx.rows[0] : qmx.cols[0];
+    spec.qualityTests.push({ id, label, metric, op: '>=', limit: v, ref: 'p. ' + qmx.page, note: 'The lowest ' + (id === 'was' ? 'row' : 'column') + ' of the ' + qmx.name + '; the manager\'s chosen combination may set a higher minimum' });
+    log('Quality tests', label, '≥ ' + v + ', the lowest ' + (id === 'was' ? 'row' : 'column') + ' of the ' + where + '; enter the manager\'s chosen combination if it is higher', qmx.page, 'estimated', qmx.s); return true;
+  };
+  const qt = (id, metric, label, term, re, op, conv, loose) => { const d = tau(id, 900, s => re.test(s) || loose.test(s)) || rrDef(J, term, metric === 'wal' ? 4000 : 900); if (!d) return;
+    if (metric === 'wal' && !d.taught) { const w = walForm({ s: ownDef(d.s) }); if (w) { const shown = w.shown; delete w.shown; spec.qualityTests.push({ id, label, metric, op, limit: w, ref: 'p. ' + d.page }); log('Quality tests', label, shown, d.page, 'found', d.s); return; } }
+    const own = d.taught ? d.s : ownDef(d.s); let m = own.slice(0, 900).match(re) || (d.taught ? d.s.match(loose) : null); let page = d.page, src = own;
+    if (!m) { const v2 = viaTerm(d, loose); if (v2 && v2.m) { m = v2.m; page = v2.d.page; src = v2.d.s; } else { if (!d.taught && fromMatrix(id, metric, label, own)) return; log('Quality tests', label, 'found, but the limit is a matrix or table: enter it by hand', (v2 && v2.d.page) || d.page, 'missing'); return; } }
+    let v = +String(m[1]).replace(/,/g, ''); if (conv) v = conv(v); const q = { id, label, metric, op, limit: v, ref: 'p. ' + page }; if (metric === 'wal' && /elapsed|minus|less\s+the|reduced/i.test(own.slice(0, 900))) q.limit = { type: 'declining', startYears: v, from: /since\s+the\s+Effective\s+Date/i.test(own.slice(0, 900)) ? 'effectiveDate' : 'closingDate' }; spec.qualityTests.push(q); log('Quality tests', label, (op === '<=' ? '≤ ' : '≥ ') + v, page, hw(d), src); };
   qt('warf', 'warf', "Maximum Weighted Average Rating Factor", "(?:Maximum (?:Moody's )?Weighted Average (?:Moody's )?Rating Factor Test|Maximum Moody's Rating Factor Test|Weighted Average Rating Factor Test)", /(?:exceed|greater than|or less than|equal to or less than|at most)\s+(\d,?\d{3})/i, '<=', null, /(\d,?\d{3})/);
-  qt('was', 'was', 'Minimum Weighted Average Spread', '(?:Minimum (?:Weighted Average |Floating )?Spread Test|Minimum Weighted Average Spread Test|Weighted Average Spread Test)', /(?:at least|equal to or greater than|not less than|greater than or equal to)\s+(?:equal\s+to\s+)?(\d\.\d{1,3})\s*%/i, '>=', null, /(\d\.\d{1,3})\s*%/);
-  qt('wac', 'wac', 'Minimum Weighted Average Coupon', '(?:Minimum Weighted Average Coupon Test|Weighted Average Coupon Test)', /(?:at least|equal to or greater than|not less than|greater than or equal to)\s+(?:equal\s+to\s+)?(\d{1,2}\.\d{1,3})\s*%/i, '>=', null, /(\d{1,2}\.\d{1,3})\s*%/);
+  qt('was', 'was', 'Minimum Weighted Average Spread', '(?:Minimum (?:Weighted Average |Floating )?Spread Test|Minimum Weighted Average Spread Test|Weighted Average Spread Test)', new RegExp(RR_GE + '\\s+(?:equal\\s+to\\s+)?(\\d\\.\\d{1,3})\\s*%', 'i'), '>=', null, /(\d\.\d{1,3})\s*%/);
+  qt('wac', 'wac', 'Minimum Weighted Average Coupon', '(?:Minimum Weighted Average Coupon Test|Weighted Average Coupon Test)', new RegExp(RR_GE + '\\s+(?:equal\\s+to\\s+)?(\\d{1,2}\\.\\d{1,3})\\s*%', 'i'), '>=', null, /(\d{1,2}\.\d{1,3})\s*%/);
   qt('wal', 'wal', 'Weighted Average Life', '(?:Weighted Average Life Test|Maximum Weighted Average Life Test)', /(\d{1,2}(?:\.\d+)?)\s*years/i, '<=', null, /(\d{1,2}(?:\.\d+)?)\s*years/i);
-  qt('div', 'diversity', 'Minimum Diversity Score', "(?:Minimum Diversity Test|Diversity Test|Moody's Diversity Test|Minimum Diversity Score)", /(?:at least|equal to or greater than|not less than|greater than or equal to)\s+(?:equal\s+to\s+)?(\d{2,3})\b/i, '>=', null, /\b(\d{2,3})\b/);
-  qt('mwarr', 'moodysWARR', "Minimum Moody's Weighted Average Recovery Rate", "(?:Moody's Minimum Weighted Average Recovery Rate Test|Minimum Weighted Average Moody's Recovery Rate Test|Minimum Moody's Weighted Average Recovery Rate)", /(?:at least|equal to or greater than|not less than|greater than)\s+(?:equal\s+to\s+)?(\d{2}(?:\.\d+)?)\s*%/i, '>=', null, /(\d{2}(?:\.\d+)?)\s*%/);
+  qt('div', 'diversity', 'Minimum Diversity Score', "(?:Minimum Diversity Test|Diversity Test|Moody's Diversity Test|Minimum Diversity Score)", new RegExp(RR_GE + '\\s+(?:equal\\s+to\\s+)?(\\d{2,3})\\b', 'i'), '>=', null, /\b(\d{2,3})\b/);
+  qt('mwarr', 'moodysWARR', "Minimum Moody's Weighted Average Recovery Rate", "(?:Moody's Minimum Weighted Average Recovery Rate Test|Minimum Weighted Average Moody's Recovery Rate Test|Minimum Moody's Weighted Average Recovery Rate)", new RegExp('(?:' + RR_GE.slice(3, -1) + '|greater than)\\s+(?:equal\\s+to\\s+)?(\\d{2}(?:\\.\\d+)?)\\s*%', 'i'), '>=', null, /(\d{2}(?:\.\d+)?)\s*%/);
   if (/S&P CDO Monitor|CDO Monitor Test/.test(T)) { spec.qualityTests.push({ id: 'cdom', label: 'S&P CDO Monitor', metric: 'external', ref: 'p. ' + J.pageAt(T.indexOf('CDO Monitor')), note: 'Requires the S&P model; enter the result by hand.' }); log('Quality tests', 'S&P CDO Monitor', 'found; result entered by hand', J.pageAt(T.indexOf('CDO Monitor')), 'found'); }
   // ---- 8. concentration limits: each numbered item, matched to a tape field where it can be
   const cd = tau('conc', 14000, s => /\(i\)[\s\S]{0,1500}\(ii\)/.test(s.slice(0, 4000)), true) || rrDef(J, '(?:Concentration Limitations|Portfolio Profile Test)', 14000, s => /\(i\)[\s\S]{0,1500}\(ii\)/.test(s.slice(0, 4000)), true);
@@ -555,7 +611,9 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
         [/Synthetic Securit/i, () => add('Synthetic securities', { filter: [{ f: 'synthetic', eq: true }] })],
         [/issuance\s+size|facility\s+size|tranche\s+size|total\s+potential\s+indebtedness/i, () => { const lt = rrMoney(u); return lt ? add('Facility size under ' + rrM(lt), { filter: [{ f: 'facilitySize', lt }] }) : null; }],
         [/Canad/i, () => /not\s+Domiciled|other\s+than/i.test(u) ? null : add('Canadian obligors', { filter: [{ f: 'country', in: ['CA'] }] })],
-        [/Domiciled|organized/i, () => /United States/i.test(u) && /not|outside|other than/i.test(t) ? add('Non-US obligors', { filter: [{ f: 'country', notIn: ['US'] }] }) : null]
+        [/Domiciled|organized/i, () => { const tb = t.match(/(\d{1,2}(?:\.\d+)?)\s*%\s*(?:all\s+)?countries\s*\(\s*in\s+the\s+aggregate\s*\)\s*other\s+than\s+the\s+United\s+States\b/i);
+          if (tb) return add('Non-US obligors (the aggregate limit; the limits by country are not modelled)', { limit: +tb[1], filter: [{ f: 'country', notIn: ['US'] }] }); // a table of limits by country
+          return /United States/i.test(u) && /not|outside|other than/i.test(t) ? add('Non-US obligors', { filter: [{ f: 'country', notIn: ['US'] }] }) : null; }]
       ];
       const applyC = q => { usedL.add(q.id); if (q.cat === 'skip') { lab = 'Not a tape test'; Object.assign(log('Concentration limits', id + ' not a tape test', 'skipped, as taught', pg, 'taught', t), { teach: 'concItem', cid: id }); return true; } const c = RR_CONC[q.cat]; add(c[0], c[1]({ u, ge, exO }), 'taught'); return true; };
       let done = false, lessonId = null; const pre = LS.conc.find(q => q.override && rrHas(t, q.phrase));
@@ -571,7 +629,15 @@ function readDealText(pages, fileName, lessons, alsoKeys) {
   spec.labels = { taxes: 'Taxes and governmental fees', admin: 'Administrative Expenses (capped)', adminExcess: 'Administrative Expenses above cap', hedge: 'Hedge payments', hedgeTermSenior: 'Senior hedge termination', hedgeTermSub: 'Subordinated hedge termination', seniorMgmt: 'Senior management fee', structuring: 'Structuring fee', revolverFunding: 'Unfunded commitments' };
   // things a reader must check
   spec.classes.forEach(c => { if (c.spread == null) { c.spread = 0; assumptions.push('Class ' + c.id + ' spread not found: set to 0%. Enter it in the deal spec.'); } });
+  if (!spec.equity) { // "The Issuer shall issue 55,400,000 Preferred Shares", at the notional amount per share the document gives
+    const m = T.match(/\bissue[sd]?\s+([\d,]{6,})\s+(Preferred Shares|Preference Shares|Ordinary Shares|Subordinated Notes|Income Notes)\b/i);
+    if (m && rrNum(m[1]) >= 1e5) { const per = T.match(/notional\s+amount\s+of\s+(?:U\.S\.)?\s?\$\s?(\d{1,4}(?:\.\d+)?)\s+per\s+(?:Preferred\s+|Preference\s+)?share/i); const pg = J.pageAt(m.index); const n = rrNum(m[1]); const bal = n * (per ? +per[1] : 1); const nm = m[2].replace(/\b\w/g, c => c.toUpperCase());
+      spec.equity = { id: 'SUB', name: nm, balance: bal, ref: 'p. ' + pg }; log('Notes', nm, rrM(bal) + ' (' + m[1] + ' shares at ' + (per ? '$' + per[1] : 'an assumed $1') + ' each)', pg, per ? 'found' : 'estimated', m[0]); }
+  }
   if (!spec.equity) { const est = Math.max(0, (spec.meta.targetPar || 0) - sum(spec.classes, c => c.balance)); const nmE = /Preferred Shares/.test(T) ? 'Preferred Shares' : /Income Notes/.test(T) ? 'Income Notes' : 'Subordinated Notes'; spec.equity = { id: 'SUB', name: nmE, balance: est || 1 }; log('Notes', nmE, est ? rrM(est) + ', estimated as Target Par less the rated notes' : 'not found', null, est ? 'estimated' : 'missing'); assumptions.push('The ' + nmE + ' amount is not stated in this document; ' + (est ? 'it is estimated as Target Par less the rated notes (' + rrM(est) + ').' : 'enter it in the deal spec.') + ' It drives the IRR hurdle.'); }
+  // a subordinated fee the Priority of Payments never pays is not in this deal, rather than a gap
+  if (!spec.fees.subMgmt && !/"Subordinated (?:Collateral |Investment |Portfolio )?Management Fee"/i.test(T) && !['interest', 'principal', 'liquidation'].some(k => (spec.waterfalls[k] || []).some(st => st.type === 'subMgmtFee' && /Subordinated/i.test(st.clause || '')))) {
+    const f = found.find(x => x.group === 'Fees' && x.field === 'Subordinated management fee' && x.how === 'missing'); if (f) { f.how = 'absent'; f.value = 'none: no clause of the Priority of Payments pays one'; } }
   // values entered by hand for this document (or for one of the documents read together here) replace what was read
   for (const x of LS.values.filter(q => q.value && (q.doc === docKey || (alsoKeys || []).includes(q.doc)))) {
     const r = rrParseValue(x.field, x.value); if (!r.ok) continue; const v = r.v; const f = RR_FIELDS.find(q => q.key === x.field); let group = f.group, field = f.label, shown = x.value; const ref = 'entered by you'; const drop = re => { for (let i = assumptions.length - 1; i >= 0; i--) if (re.test(assumptions[i])) assumptions.splice(i, 1); };

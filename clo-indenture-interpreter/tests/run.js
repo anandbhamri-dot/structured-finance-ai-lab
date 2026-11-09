@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Runs every Node test against the committed sources and sample data. No network, no documents needed.
 const { spawnSync } = require('child_process'); const path = require('path');
-const T = [['engine audit: every figure in the working re-evaluates and ties', 'audit.js'], ['calculations: the formula language and replacing figures', 'calc.test.js'], ['engine regression against the golden file', 'regress.test.js'],
-  ['reader on the sample indenture reproduces the built-in spec', 'sample-doc.test.js'], ['lessons carry between documents', 'teach.test.js'], ['a deal read from several documents', 'multidoc.test.js'],
+const T = [['engine audit: every figure in the working re-evaluates and ties', 'audit.js'], ['calculations: the formula language and replacing figures', 'calc.test.js'], ['adjusted tests: exclusions, your own numerators and tests of your own', 'testadjust.test.js'], ['engine regression against the golden file', 'regress.test.js'],
+  ['reader on the sample indenture reproduces the built-in spec', 'sample-doc.test.js'], ['reader on PDF text and other wordings', 'reader-forms.test.js'], ['lessons carry between documents', 'teach.test.js'], ['a deal read from several documents', 'multidoc.test.js'],
   ['projection conserves par and cash', 'projection.test.js'], ['random lessons never break the reader', 'lesson-fuzz.test.js'], ['deleting any part of the spec never crashes the engine', 'spec-fuzz.test.js']];
 let failed = 0;
 for (const [name, file] of T) {

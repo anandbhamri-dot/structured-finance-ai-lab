@@ -47,9 +47,14 @@ function audit(label, tape, inputs, runner) {
     P.tables.forEach(t => t.rows.forEach(rw => { if (rw.length !== t.cols.length) { console.log('ROW WIDTH', where, t.title); problems++; } }));
   }
   r.preTests.forEach((t, i) => { const ln = T.coverage[t.id].oc.num.lines.find(l => /OC ratio$/.test(l.label)); ties++; if (ln.value !== (t.oc.ratio === Infinity ? 'n/m (no notes outstanding)' : t.oc.ratio.toFixed(4) + '%')) { console.log('OC RATIO TIE', label, t.id, ln.value, t.oc.ratio); problems++; } });
-  const pcvT = T.coverage[r.preTests[0].id].oc.num; const all = pcvT.tables[pcvT.tables.length - 1]; const ci = all.cols.findIndex(c => c.label === 'Carried at');
-  ties++; if (Math.abs(all.total[ci] + (inputs.principalCashInPCV === false ? 0 : r.principalProceeds) - r.pcvInterp) > 0.011) { console.log('PCV TABLE TIE', label, all.total[ci], r.pcvInterp); problems++; }
-  ties++; if (Math.abs(r.pcvStart - pcvT.value) > 0.011) { console.log('PCV START TIE', label, r.pcvStart, pcvT.value); problems++; }
+  // a coverage test whose numerator you adjusted shows the same value less the loans left out; the first one you did not adjust shows the PCV itself
+  const adjCov = (r.testAdjust && r.testAdjust.coverage) || []; const t0 = r.preTests.find(t => !adjCov.includes(t.id));
+  if (t0) {
+    const pcvT = T.coverage[t0.id].oc.num; const all = pcvT.tables[pcvT.tables.length - 1]; const ci = all.cols.findIndex(c => c.label === 'Carried at');
+    ties++; if (Math.abs(all.total[ci] + (inputs.principalCashInPCV === false ? 0 : r.principalProceeds) - r.pcvInterp) > 0.011) { console.log('PCV TABLE TIE', label, all.total[ci], r.pcvInterp); problems++; }
+    ties++; if (Math.abs(r.pcvStart - pcvT.value) > 0.011) { console.log('PCV START TIE', label, r.pcvStart, pcvT.value); problems++; }
+  }
+  adjCov.forEach(id => { const P = id === 'irt' || id === 'eod' ? T[id] && T[id].num : T.coverage[id] && T.coverage[id].oc.num; if (!P) return; const left = P.tables[0]; const ln = P.lines.find(l => /^Loans you left out of the numerator/.test(l.label)); ties++; if (!ln || Math.abs(r.pcvStart - ln.value - P.value) > 0.011 || Math.abs(left.total[left.cols.length - 1] - ln.value) > 0.011) { console.log('ADJUSTED PCV TIE', label, id); problems++; } });
   r.conc.forEach(c => { const x = T.conc[c.id]; ties++; if (Math.abs(x.num.value / x.den.value * 100 - c.value) > 1e-9) { console.log('CONC TIE', label, c.id); problems++; } });
   return r;
 }
@@ -119,5 +124,21 @@ const cv = [['apr09 calculations', apr.tape, Object.assign({}, apr.inputs, { man
   ['apr09 calculations, proceeds and admin', apr.tape, apr.inputs, withCalcs([{ name: 'IP_2', kind: 'deal', use: 'interestProceeds', formula: 'Estimated_Interest_Proceeds * 0.97' }, { name: 'PP_2', kind: 'deal', use: 'principalProceeds', formula: '1250000' }, { name: 'Admin_2', kind: 'deal', use: 'adminDue', formula: '180000' }])],
   ['oct16 calculations, liquidation', oct.tape, Object.assign({}, oct.inputs, { mode: 'liquidation', liquidationProceeds: 200e6 }), withCalcs(CALCS)]];
 for (const [l, t, i, run] of cv) audit(l, t, i, run);
+// your adjustments to the tests: loans left out of numerators and denominators, your own numerators, tests of your own
+const RULES = { adj: {
+  'conc:(v)a': { numSkip: ['defaulted', 'is_ccc'], denSkip: ['defaulted'] }, 'conc:(xi)': { numOnly: ['asset_type = "2L" OR asset_type = "UNSEC"'], denCash: false },
+  'conc:(viii)': { numOnly: ['NOT defaulted'], numSkip: ['is_ccc'], denSkip: ['defaulted'] }, 'conc:(ix)': { numSkip: ['country <> "US"'] }, 'conc:(x)B4': { denSkip: ['par < 1000000'] }, 'conc:(x)A': { denCash: false },
+  'quality:warf': { numSkip: ['is_ccc'], denSkip: ['is_ccc'] }, 'quality:mwas': { numSkip: ['cov_lite'] }, 'quality:wal': { denSkip: ['years_to_maturity > 7'] }, 'quality:div': { numSkip: ['par < 1500000'] },
+  'quality:mwarr': { numOnly: ['asset_type = "SSL"'], denSkip: ['asset_type <> "SSL"'] }, 'quality:swarr': { numSkip: ['is_discount'] }, 'quality:wac': { numSkip: ['price < 90'] },
+  'coverage:AB': { numSkip: ['asset_type = "2L"'] }, 'coverage:E': { numSkip: ['is_ccc', 'price < 80'] }, 'coverage:irt': { numSkip: ['defaulted'] }, 'coverage:eod': { numSkip: ['is_ccc'] } },
+  custom: [{ id: 'U1', label: 'Healthcare', kind: 'share', numOnly: ['CONTAINS(industry, "Health")'], numSkip: ['defaulted'], limit: 12, op: '<=' },
+    { id: 'U2', label: 'Largest country', kind: 'largest', field: 'country', numSkip: ['defaulted'], denSkip: ['defaulted'], limit: 80, op: '<=' },
+    { id: 'U3', label: 'Second lien at least', kind: 'share', numOnly: ['asset_type = "2L"'], limit: 1, op: '>=', denCash: false }] };
+const withRules = (calcs, rules) => (s, t, i) => { const o = CALC.runWith(E, s, t, i, calcs, { tests: rules }); if (o.info && o.info.tests && Object.keys(o.info.tests.errs).length) { console.log('RULE ERRORS', JSON.stringify(o.info.tests.errs)); problems++; } return o.result; };
+const tr = [['apr09 adjusted tests', apr.tape, apr.inputs, withRules([], RULES)], ['oct16 adjusted tests', oct.tape, oct.inputs, withRules([], RULES)],
+  ['jan08 adjusted tests', S[0].tape, S[0].inputs, withRules([], RULES)], ['apr09 adjusted tests and calculations', apr.tape, Object.assign({}, apr.inputs, { manual: MANF }), withRules(CALCS, RULES)],
+  ['oct16 adjusted tests, liquidation', oct.tape, Object.assign({}, oct.inputs, { mode: 'liquidation', liquidationProceeds: 200e6 }), withRules([], RULES)],
+  ['apr09 adjusted tests, cash out of PCV', apr.tape, Object.assign({}, apr.inputs, { principalCashInPCV: false }), withRules([], RULES)]];
+for (const [l, t, i, run] of tr) { const r = audit(l, t, i, run); ties++; if (!r.testAdjust.any || r.conc.filter(c => c.custom).length !== 3 || r.quality.filter(q => q.adjusted).length !== 7) { console.log('ADJUSTMENTS NOT APPLIED', l, JSON.stringify(r.testAdjust)); problems++; } }
 console.log('expressions re-evaluated:', checked, ' ties checked:', ties, ' problems:', problems);
 process.exit(problems ? 1 : 0);

@@ -91,7 +91,7 @@ function renderCalcs() {
   let h = '<div class="sec"><h2>Calculations</h2><p class="lead">Your own figures and loan columns, written as formulas. Use one where the interpreter does not work a figure out the way the indenture does: it can replace the Fee Basis Amount, Principal Collateral Value, a fee due, or a loan\'s par, price or rating, and everything that uses that figure then uses yours. Where it takes several steps, put them in a <b>group</b>, such as Principal Balance: each step can use the ones before it, and the last can replace the tape\'s figure. A calculation\'s name can also be used in Manual inputs, where an amount that starts with = is a formula.</p>' + overrideBanner(true);
   h += '<div class="toolbar"><button class="btn small" type="button" id="cvAddGroup">Add a group</button><button class="btn small" type="button" id="cvAddDeal">Add a deal figure</button><button class="btn small" type="button" id="cvAddLoan">Add a loan column</button>' +
     '<select id="cvEx" aria-label="Add an example"><option value="">Add an example…</option>' + CALC.EXAMPLES.map((x, i) => '<option value="' + i + '">' + esc(x.label || (x.name + (x.use ? ', replaces ' + CALC.lc((CALC.TARGETS[x.kind].find(t => t.id === x.use) || {}).label || '') : ''))) + '</option>').join('') + '</select>' +
-    (L.length ? '<button class="btn small" type="button" id="cvExport">' + (state.caps.downloads ? 'Download (JSON)' : 'Copy as JSON') + '</button>' : '') + '<label class="btn small" for="cvImport">Import</label><input type="file" id="cvImport" accept=".json,application/json" hidden></div>';
+    (L.length || CALC.hasTestRules(testRules()) ? '<button class="btn small" type="button" id="cvExport" title="Your calculations, with your adjustments to the tests and your own tests">' + (state.caps.downloads ? 'Download (JSON)' : 'Copy as JSON') + '</button>' : '') + '<label class="btn small" for="cvImport">Import</label><input type="file" id="cvImport" accept=".json,application/json" hidden></div>';
   if (!L.length) h += '<div class="box small" style="max-width:760px">No calculations for ' + esc(s.meta.name) + ' yet. A <b>deal figure</b> is one number for the Payment Date, such as <code class="f">SUM(par, NOT defaulted) + Principal_Proceeds</code>. A <b>loan column</b> is worked out for every loan, such as <code class="f">IFBLANK(principal_balance, par)</code>, and can stand in for par. A <b>group</b> holds the steps of one longer calculation. Pick an example to start from.</div>';
   const G = cvGroups(L); const grouped = G.some(Boolean);
   h += '<div class="cvlist">' + G.map((g, gi) => g ? cvGroupHTML(g, gi, G, L) : (grouped ? '<h3 class="cvg-plain">Not in a group</h3>' : '') + L.map((c, k) => (c.group || '') === '' ? cvCardHTML(c, k, L, 0) : '').join('')).join('') + '</div>';
@@ -140,20 +140,25 @@ function bindCalcs(P) {
     calcsChanged(); renderCalcs(); toast('Added the group ' + g + ' with ' + x.steps.length + ' steps.' + (lost ? ' Its last step replaces nothing yet: another calculation already replaces ' + lost + '.' : ''));
   };
   const ex = $('#cvExport', P); if (ex) ex.onclick = async () => {
-    const json = JSON.stringify({ format: 'clo-interpreter-calculations', version: 2, deal: deal().meta.name, exported: new Date().toISOString().slice(0, 10), calculations: L.map(c => ({ group: c.group || '', name: c.name, kind: c.kind, formula: c.formula, use: c.use || '', note: c.note || '', on: c.on !== false })) }, null, 1);
+    const json = JSON.stringify({ format: 'clo-interpreter-calculations', version: 2, deal: deal().meta.name, exported: new Date().toISOString().slice(0, 10), calculations: L.map(c => ({ group: c.group || '', name: c.name, kind: c.kind, formula: c.formula, use: c.use || '', note: c.note || '', on: c.on !== false })), tests: CALC.hasTestRules(testRules()) ? { adj: testRules().adj, custom: testRules().custom } : undefined }, null, 1);
     if (state.caps.downloads) { saveFile('calculations-' + deal().meta.name.replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() + '.json', json); return; }
     try { await navigator.clipboard.writeText(json); toast('Calculations copied as JSON.'); } catch (e) { toast('Copying is blocked here.'); }
   };
   $('#cvImport', P).onchange = async e => {
     const f = e.target.files[0]; if (!f) return; let d; try { d = JSON.parse(await f.text()); } catch (er) { toast('That file is not JSON.'); return; }
     const list = Array.isArray(d) ? d : d && Array.isArray(d.calculations) ? d.calculations : null; if (!list) { toast('No calculations in that file.'); return; }
+    // your adjustments to the tests and your own tests, if the file has them: each replaces the one for the same test
+    let nT = 0; if (d && d.tests && typeof d.tests === 'object') { const R = testRules();
+      Object.entries(d.tests.adj || {}).forEach(([k, a]) => { if (/^(conc|quality|coverage):/.test(k) && a && typeof a === 'object') { R.adj[k] = a; nT++; } });
+      (Array.isArray(d.tests.custom) ? d.tests.custom : []).forEach(u => { if (!u || typeof u !== 'object' || !u.id) return; const i = R.custom.findIndex(x => x.id === u.id); if (i >= 0) R.custom[i] = u; else R.custom.push(u); nT++; });
+      if (nT) saveTestAdj(); }
     let added = 0, replaced = 0;
     list.filter(x => x && (x.name || x.formula)).forEach(x => {
       const c = { name: String(x.name || '').trim(), kind: x.kind === 'loan' ? 'loan' : 'deal', formula: String(x.formula || ''), use: String(x.use || ''), note: String(x.note || ''), on: x.on !== false, group: String(x.group || '').trim() };
       const i = L.findIndex(y => y.name && String(y.name).toLowerCase() === c.name.toLowerCase());
       if (i >= 0) { L[i] = Object.assign({ id: L[i].id }, c); replaced++; } else { L.push(Object.assign({ id: cvId() }, c)); added++; }
     });
-    calcsChanged(); toast('Imported ' + (added + replaced) + ' calculation' + (added + replaced === 1 ? '' : 's') + (replaced ? ' (' + replaced + ' replaced one with the same name)' : '') + '.');
+    calcsChanged(); toast('Imported ' + (added + replaced) + ' calculation' + (added + replaced === 1 ? '' : 's') + (replaced ? ' (' + replaced + ' replaced one with the same name)' : '') + (nT ? ', and ' + nT + ' test adjustment' + (nT === 1 ? '' : 's') + ' or test' + (nT === 1 ? '' : 's') + ' of your own' : '') + '.');
   };
   $$('.cv', P).forEach(card => {
     const i = +card.dataset.ci; const c = L[i]; if (!c) return;
@@ -249,10 +254,13 @@ function acEnsure() {
 function acClose() { if (!AC.list || AC.list.hidden) return; AC.list.hidden = true; if (AC.field) { AC.field.setAttribute('aria-expanded', 'false'); AC.field.removeAttribute('aria-activedescendant'); } AC.field = null; }
 function acPlace() {
   const f = AC.field, u = AC.list; if (!f || !document.body.contains(f)) { acClose(); return; }
+  // inside the side panel (a modal dialog) the list must sit in the dialog to show above it
+  const host = f.closest('dialog[open]') || document.body; if (u.parentNode !== host) host.appendChild(u);
+  const o = host === document.body ? { left: -window.scrollX, top: -window.scrollY } : host.getBoundingClientRect();
   const r = f.getBoundingClientRect(); const W = Math.min(440, window.innerWidth - 16);
-  u.style.width = W + 'px'; u.style.left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8)) + window.scrollX + 'px';
+  u.style.width = W + 'px'; u.style.left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8)) - o.left + 'px';
   const h = u.offsetHeight; const below = window.innerHeight - r.bottom; const up = below < h + 8 && r.top > h + 8;
-  u.style.top = (up ? r.top - h - 4 : r.bottom + 4) + window.scrollY + 'px';
+  u.style.top = (up ? r.top - h - 4 : r.bottom + 4) - o.top + 'px';
 }
 function acShow() {
   const u = AC.list; const w = AC.word.toLowerCase();

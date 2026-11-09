@@ -9,7 +9,7 @@
     "build": "node build.js",
     "test": "node tests/run.js",
     "test:ui": "node tests/ui.test.js",
-    "test:fuzz": "FUZZ_STEP=1 FUZZ_N=600 node tests/spec-fuzz.test.js && FUZZ_N=600 node tests/lesson-fuzz.test.js && FUZZ_CALC=1000 node tests/calc.test.js"
+    "test:fuzz": "FUZZ_STEP=1 FUZZ_N=600 node tests/spec-fuzz.test.js && FUZZ_N=600 node tests/lesson-fuzz.test.js && FUZZ_CALC=1000 node tests/calc.test.js && FUZZ_ADJ=1000 node tests/testadjust.test.js"
   },
   "engines": { "node": ">=18" }
 }

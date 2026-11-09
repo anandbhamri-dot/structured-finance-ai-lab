@@ -508,13 +508,82 @@ function evalManual(M, st, R, formula) {
   catch (e) { if (e instanceof CalcError) return { err: e.message }; throw e; }
 }
 
+// ---------- your adjustments to the tests (Tests tab): lists of loan-level conditions in the same formula language
+// rules: { adj: { 'conc:<id>' | 'quality:<id>' | 'coverage:<id>': { numOnly: [..], numSkip: [..], denSkip: [..], denCash, on } },
+//          custom: [{ id, label, kind: 'share' | 'largest', field, numOnly, numSkip, denSkip, denCash, limit, op, on }] }
+// numOnly conditions must all hold (AND); a loan meeting any numSkip or denSkip condition is left out (OR)
+const condList = L => (Array.isArray(L) ? L : []).map(x => String(x == null ? '' : x).trim().replace(/^=\s*/, '')).filter(Boolean);
+const onlyOf = a => a.numMode === 'all' ? [] : condList(a.numOnly); // the numerator's own conditions, unless you switched back to the indenture's
+const adjActive = a => !!a && a.on !== false && !!(onlyOf(a).length || condList(a.numSkip).length || condList(a.denSkip).length || a.denCash === false);
+function hasTestRules(T) { return !!T && (Object.values(T.adj || {}).some(adjActive) || (T.custom || []).some(u => u && u.on !== false)); }
+const joinConds = (L, op) => L.length === 1 ? L[0] : L.map(x => /\b(AND|OR)\b|&&|\|\|/i.test(x) ? '(' + x + ')' : x).join(' ' + op + ' ');
+// one condition, worked out for every loan: { flags, n } or { err }
+function rowCond(M, st, R, text) {
+  let ast; try { ast = parse(String(text).replace(/^\s*=/, '')); } catch (e) { if (e instanceof CalcError) return { err: e.message }; throw e; }
+  const e1 = M.checkRefs(refsOf(ast), 'loan'); if (e1) return { err: e1 };
+  const cache = new Map(); const out = new Array(R.count);
+  try {
+    for (let i = 0; i < R.count; i++) {
+      const X = { cache, look: n => st.rowLook(i, n), agg: n => aggregate(n, X, R, st.rowLook) };
+      try { out[i] = truthy(ev(ast, X)); } catch (e) { if (e instanceof CalcError) fail('For ' + R.label(i) + ': ' + e.message); throw e; }
+    }
+  } catch (e) { if (e instanceof CalcError) return { err: e.message }; throw e; }
+  return { flags: out, n: out.filter(Boolean).length };
+}
+// a loan column's value for every loan (to group by): { vals } or { err }
+function rowValues(M, st, R, field) {
+  const f = String(field || '').trim(); const k = f.toLowerCase(); const kind = M.kindOf(k);
+  if (!f) return { err: 'Choose the field to group by' };
+  if (kind !== 'column' && kind !== 'loanvar') return { err: f + ' is not a loan column' + (kind ? '' : suggest(f, STD_COLS.map(c => c[0]).concat(M.extra.map(c => c.name)))) };
+  try { return { vals: Array.from({ length: R.count }, (_, i) => st.rowLook(i, { key: k, name: f })) }; } catch (e) { if (e instanceof CalcError) return { err: e.message }; throw e; }
+}
+function testAdjustFrom(M, st, R, T) {
+  const adjust = { ids: R.N.map(n => n.id), conc: {}, quality: {}, coverage: {}, custom: [] };
+  const errs = {}, counts = {}; let any = false;
+  const one = (key, a, lists) => {
+    const flags = {}, text = {}; let bad = null;
+    lists.forEach(([k, op]) => {
+      const L = k === 'numOnly' ? onlyOf(a) : condList(a[k]); if (!L.length) return;
+      const res = L.map(c => ({ c, r: rowCond(M, st, R, c) }));
+      res.filter(x => x.r.err).forEach(x => (bad = bad || []).push({ list: k, cond: x.c, err: x.r.err }));
+      if (res.some(x => x.r.err)) return;
+      flags[k] = R.N.map((_, i) => op === 'AND' ? res.every(x => x.r.flags[i]) : res.some(x => x.r.flags[i]));
+      text[k] = joinConds(L, op); (counts[key] = counts[key] || {})[k] = flags[k].filter(Boolean).length;
+      counts[key][k + 'Each'] = res.map(x => x.r.n);
+    });
+    if (bad) { errs[key] = bad; return null; }
+    const summary = [text.numOnly ? 'only loans where ' + text.numOnly : '', text.numSkip ? 'numerator leaves out ' + text.numSkip : '', text.denSkip ? 'denominator leaves out ' + text.denSkip : '', a.denCash === false ? 'no Principal Proceeds in the denominator' : ''].filter(Boolean).join('; ');
+    return Object.assign({ text, summary, denCash: a.denCash !== false }, flags);
+  };
+  const ALL = [['numOnly', 'AND'], ['numSkip', 'OR'], ['denSkip', 'OR']];
+  Object.entries(T.adj || {}).forEach(([key, a]) => {
+    if (!adjActive(a)) return; const m = key.match(/^(conc|quality|coverage):(.+)$/); if (!m) return;
+    const o = one(key, a, m[1] === 'coverage' ? [['numSkip', 'OR']] : ALL); if (!o) return;
+    if (m[1] === 'coverage' && !o.numSkip) return;
+    adjust[m[1]][m[2]] = o; any = true;
+  });
+  (T.custom || []).forEach(u => {
+    if (!u || u.on === false || !u.id) return; const key = 'custom:' + u.id; const kind = u.kind === 'largest' ? 'largest' : 'share';
+    const problems = [];
+    if (kind === 'share' && !condList(u.numOnly).length) problems.push({ list: 'numOnly', cond: '', err: 'Say which loans the test counts' });
+    if (u.limit === '' || u.limit == null || !isFinite(+u.limit)) problems.push({ list: 'limit', cond: '', err: 'Enter the limit, as a percentage' });
+    let groups = null; if (kind === 'largest') { const g = rowValues(M, st, R, u.field); if (g.err) problems.push({ list: 'field', cond: String(u.field || ''), err: g.err }); else groups = g.vals; }
+    const o = one(key, u, ALL);
+    if (!o) { errs[key] = (errs[key] || []).concat(problems); return; }
+    if (problems.length) { errs[key] = problems; return; }
+    adjust.custom.push(Object.assign({ id: u.id, label: String(u.label || '').trim() || 'Your test ' + u.id, kind, field: u.field, fieldLabel: String(u.field || ''), limit: +u.limit, op: u.op === '>=' ? '>=' : '<=', groups }, o)); any = true;
+  });
+  return { adjust: any ? adjust : null, errs, counts };
+}
+
 // ---------- the run: built-in figures first, then the calculations, then the run that uses them
 // opt.projection: only the replacements that make sense on a projected date; opt.skipLoanOverrides: the tape already has them
 function runWith(E, spec, tape, inp, calcs, opt) {
   opt = opt || {};
   const list = (calcs || []).filter(c => c && c.on !== false && (String(c.formula || '').trim() !== '' || String(c.name || '').trim() !== ''));
   const man = Array.isArray(inp.manual) ? inp.manual : [];
-  if (!list.length && !man.some(isFormulaRow)) return { result: E.run(spec, tape, inp), info: null };
+  const TR = hasTestRules(opt.tests) ? opt.tests : null;
+  if (!list.length && !man.some(isFormulaRow) && !TR) return { result: E.run(spec, tape, inp), info: null };
   const M = compile(list, spec, tape);
   const inpLite = Object.assign({}, inp, { lite: true, manual: man.map(m => isFormulaRow(m) ? Object.assign({}, m, { amount: 0 }) : m) });
   let pre = E.run(spec, tape, inpLite);
@@ -561,15 +630,21 @@ function runWith(E, spec, tape, inp, calcs, opt) {
     return evalManual(M, st, R, m.formula);
   });
   inp2.manual = man.map((m, i) => isFormulaRow(m) ? Object.assign({}, m, { amount: manOut[i].err ? 0 : manOut[i].amount, src: manOut[i].err ? 'formula with an error, counted as zero' : 'formula =' + m.formula.replace(/^\s*=/, '').trim() }) : m);
+  // your adjustments to the tests: each condition worked out on the loans as the run will see them
+  let tests = null;
+  if (TR) { tests = testAdjustFrom(M, st, R, TR); if (tests.adjust) inp2.testAdjust = tests.adjust; }
   const result = E.run(spec, tape2, inp2);
-  const info = { M, st, R, R0, pre, tape: tape2, tape0: tape, loanApplied, dealApplied, manual: manOut, projection: !!opt.projection };
+  const info = { M, st, R, R0, pre, tape: tape2, tape0: tape, loanApplied, dealApplied, manual: manOut, projection: !!opt.projection, tests, inp: inp2 };
   return { result, info };
 }
 // the engine the projection uses: replacements of the fee basis, collateral value and fees on every projected date
-function projectionEngine(E, calcs) {
+// coverage tests you adjusted change the cash, so they are applied on every projected date too, on that date's loans
+function projectionEngine(E, calcs, tests) {
   const list = (calcs || []).filter(c => c && c.on !== false && c.kind !== 'loan' && c.use && (targetOf('deal', c.use) || {}).proj);
-  if (!list.length) return E;
-  return Object.assign({}, E, { run: (spec, tape, inp) => runWith(E, spec, tape, inp, calcs, { projection: true, skipLoanOverrides: true }).result });
+  const cov = tests && tests.adj ? Object.keys(tests.adj).filter(k => /^coverage:/.test(k) && adjActive(tests.adj[k])) : [];
+  if (!list.length && !cov.length) return E;
+  const T = cov.length ? { adj: Object.fromEntries(cov.map(k => [k, tests.adj[k]])) } : null;
+  return Object.assign({}, E, { run: (spec, tape, inp) => runWith(E, spec, tape, inp, calcs, { projection: true, skipLoanOverrides: true, tests: T }).result });
 }
 
 // ---------- the working behind a calculation, in the same lines as every other figure
@@ -684,6 +759,6 @@ const EXAMPLES = [
     { name: 'Moodys_Rating_Final', kind: 'loan', use: 'moodysDPR', formula: 'IFBLANK(moodys_rating, NOTCH(SP_As_Moodys, 1))', note: 'Step 2: the Moody\'s rating, or one notch below the S&P equivalent where the loan has no Moody\'s rating.' }] }
 ];
 
-return { lc, parse, show, tokenize, refsOf, compile, evaluate, runWith, projectionEngine, working, groupWorking, builtinDefs, extraColumns, snake, cellValue, fmtV, isFormulaRow, FUNCS, STD_COLS, TARGETS, EXAMPLES, CalcError, hasAgg };
+return { lc, parse, show, tokenize, refsOf, compile, evaluate, runWith, projectionEngine, hasTestRules, adjActive, condList, rowsFor: (E, tape, res) => rowsOf(E, tape, res, extraColumns(tape)), working, groupWorking, builtinDefs, extraColumns, snake, cellValue, fmtV, isFormulaRow, FUNCS, STD_COLS, TARGETS, EXAMPLES, CalcError, hasAgg };
 })();
 if (typeof module !== 'undefined') module.exports = CALC;

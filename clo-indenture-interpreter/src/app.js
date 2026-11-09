@@ -39,12 +39,15 @@ function saveManual() { try { localStorage.setItem(MAN_KEY, JSON.stringify(state
 const CALC_KEY = 'clo-interpreter-calcs-v1';
 function loadCalcs() { try { const raw = localStorage.getItem(CALC_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; } }
 function saveCalcs() { try { localStorage.setItem(CALC_KEY, JSON.stringify(state.calcsByDeal)); } catch (e) { /* storage unavailable: keep in memory */ } }
+const TESTADJ_KEY = 'clo-interpreter-tests-v1'; // your adjustments to the tests, and tests of your own, per deal
+function loadTestAdj() { try { const raw = localStorage.getItem(TESTADJ_KEY); const o = raw ? JSON.parse(raw) : {}; return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+function saveTestAdj() { try { localStorage.setItem(TESTADJ_KEY, JSON.stringify(state.testsByDeal)); } catch (e) { /* storage unavailable: keep in memory */ } }
 const DW_KEY = 'clo-interpreter-docwords-v1';
 function loadDocWords() { try { const raw = localStorage.getItem(DW_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; } }
 function saveDocWords() { try { localStorage.setItem(DW_KEY, JSON.stringify(state.docWords)); } catch (e) { /* storage unavailable: keep in memory */ } }
 const SCEN = DATA.scenarios();
 const state = {
-  saved: loadSavedDeals(), docWords: loadDocWords(), manualByDeal: loadManual(), calcsByDeal: loadCalcs(), calcInfo: null, dealId: 'example', scenarioId: 'apr09', tape: null, tapeSource: '', inputs: null,
+  saved: loadSavedDeals(), docWords: loadDocWords(), manualByDeal: loadManual(), calcsByDeal: loadCalcs(), testsByDeal: loadTestAdj(), calcInfo: null, dealId: 'example', scenarioId: 'apr09', tape: null, tapeSource: '', inputs: null,
   stress: { extraDefaultPct: 0, notches: 0, priceShock: 0, defaultPrice: 45 }, tab: 'waterfall', wfView: 'interest', result: null, hist: [],
   interp: { pages: null, fileName: '', excerpts: null, status: '', log: [], spec: null, check: null, busy: false, ctl: null },
   caps: { sample: null, downloads: null }
@@ -86,7 +89,7 @@ function run() {
   state.inputs.manual = manRows();
   try {
     // the user's calculations are worked out first; any that replace a figure are used in the run
-    const out = CALC.runWith(E, deal(), effectiveTape(), state.inputs, calcRows());
+    const out = CALC.runWith(E, deal(), effectiveTape(), state.inputs, calcRows(), { tests: testRules() });
     state.result = out.result; state.calcInfo = out.info; state.error = null;
     if (out.info) manRows().forEach((m, i) => { if (CALC.isFormulaRow(m)) m.amount = out.info.manual[i].err ? 0 : out.info.manual[i].amount; });
     const re = $('#railExp'); if (re) re.textContent = railExpText();
@@ -414,7 +417,7 @@ function renderWaterfall() {
     h += '<tr class="' + cls + '"><td class="step">' + esc(row.id) + '</td><td class="what">' + w + '</td><td class="num">' + link(row.due, 'due', usdz(row.due)) + '</td><td class="num">' + link(row.paid, 'paid', usdz(row.paid)) + '</td><td class="num sh">' + usdz(Math.max(0, row.due - row.paid)) + '</td><td class="rem"><div class="remv">' + link(row.after, 'paid', usd(row.after)) + '</div><div class="rembar' + (divert ? ' dv' : '') + '"><span style="width:' + remPct.toFixed(2) + '%"></span></div></td></tr>';
   }
   h += '</tbody></table></div>';
-  const P = $('#p-waterfall'); P.innerHTML = h; bindBanner(P);
+  const P = $('#p-waterfall'); P.innerHTML = testsNotice('waterfall') + h; bindBanner(P);
   $$('[data-wf]', P).forEach(b => b.onclick = () => { state.wfView = b.dataset.wf; renderWaterfall(); });
   const dl = $('#dlLedger', P); if (dl) dl.onclick = downloadLedger;
   const df = $('#docFile', P); if (df) df.onchange = e => { const f = e.target.files[0]; if (f) matchDocument(f); };
@@ -458,6 +461,7 @@ function openCalc(c) {
 function renderCalc() {
   const c = state.calc, r = state.result, d = $('#calcd'); if (!c || !r) return;
   d.classList.toggle('wide', !!c.cg); // a group's steps side by side need the room
+  if (c.adj) { renderAdjust(c, d); return; }
   let h = '';
   if (c.cg) {
     const keys = calcRows().filter(x => x.group === c.cg && x.on !== false && x.name).map(x => x.name.toLowerCase());
@@ -529,6 +533,7 @@ function bindCalc(title, lines) {
 
 /*@include calc.js*/
 /*@include calc_ui.js*/
+/*@include tests_ui.js*/
 /*@include manual_ui.js*/
 /*@include tieout_ui.js*/
 /*@include projection.js*/
@@ -579,7 +584,7 @@ function renderTests() {
   const sgn = x => x >= 0 ? mm(x) : '−' + mm(-x);
   r.preTests.forEach((t, i) => {
     const post = r.postTests[i]; const cush = t.oc.num - t.ocTrigger / 100 * t.oc.den; const span = t.ic ? ' rowspan="2"' : '';
-    h += '<tr><td' + span + '><b>' + esc(t.label) + '</b></td><td>OC</td><td class="num">' + tcLink('coverage|' + t.id + '|oc|num', t.label + ' OC test') + '</td><td class="num">' + tcLink('coverage|' + t.id + '|oc|den', t.label + ' OC test') + '</td><td class="num">' + pct(t.oc.ratio) + '</td><td class="num">' + pct(t.ocTrigger) + '</td><td class="num">' + sgn(cush) + '</td><td><span class="res ' + (t.ocPass ? 'pass' : 'fail') + '">' + (t.ocPass ? 'Pass' : 'Fail') + '</span></td>' +
+    h += '<tr><td' + span + '><b>' + esc(t.label) + '</b>' + adjCell('coverage:' + t.id, t.label + ' OC test') + '</td><td>OC</td><td class="num">' + tcLink('coverage|' + t.id + '|oc|num', t.label + ' OC test') + '</td><td class="num">' + tcLink('coverage|' + t.id + '|oc|den', t.label + ' OC test') + '</td><td class="num">' + pct(t.oc.ratio) + '</td><td class="num">' + pct(t.ocTrigger) + '</td><td class="num">' + sgn(cush) + '</td><td><span class="res ' + (t.ocPass ? 'pass' : 'fail') + '">' + (t.ocPass ? 'Pass' : 'Fail') + '</span></td>' +
       '<td class="num">' + (tcPart('coverage|' + t.id + '|ocAfter|num') ? '<button type="button" class="calc" data-tc="coverage|' + esc(t.id) + '|ocAfter|den" data-name="' + esc(t.label + ' OC test after payments') + '">' + pct(post.oc.ratio) + '</button>' : pct(post.oc.ratio)) + '</td><td class="ref">' + esc(t.ocRef || '') + '</td></tr>';
     if (t.ic) {
       const icush = t.ic.num - t.icTrigger / 100 * t.ic.den;
@@ -601,8 +606,8 @@ function renderTests() {
     '<p class="small" style="margin-top:8px">CCC bucket: ' + mm(pb.cccAmtMoodys) + ' by Moody\'s, ' + mm(pb.cccAmtSP) + ' by S&amp;P, against a limit of ' + s.haircuts.ccc.limitPct + '% = ' + mm(pb.cccLimit) + '.</p></div>';
   // other ratio tests
   h += '<div class="sec"><h2>Other ratio tests</h2><p class="lead">Tests that divert cash or trigger default rather than cure by paydown.</p><div class="scroll"><table><thead><tr><th>Test</th><th class="num">Numerator</th><th class="num">Denominator</th><th class="num">Ratio</th><th class="num">Trigger</th><th>Result</th><th class="num">After</th></tr></thead><tbody>';
-  if (r.preIRT) { const rt = s.coverage.reinvestmentTest; h += '<tr><td><b>' + esc(rt.label) + '</b><div class="small">Diverts up to ' + rt.maxDiversionPct + '% of remaining interest <span class="ref">' + esc(rt.ref || '') + '</span></div></td><td class="num">' + tcLink('irt|||num', rt.label) + '</td><td class="num">' + tcLink('irt|||den', rt.label) + '</td><td class="num">' + pct(r.preIRT.ratio) + '</td><td class="num">' + pct(rt.trigger) + '</td><td><span class="res ' + (r.preIRT.ratio >= rt.trigger ? 'pass' : 'fail') + '">' + (r.preIRT.ratio >= rt.trigger ? 'Pass' : 'Fail') + '</span></td><td class="num">' + (tcPart('irtAfter|||den') ? '<button type="button" class="calc" data-tc="irtAfter|||den" data-name="' + esc(rt.label + ' after payments') + '">' + pct(r.postIRT.ratio) + '</button>' : pct(r.postIRT.ratio)) + '</td></tr>'; }
-  if (r.preEoD) { const et = s.coverage.eodTest; h += '<tr><td><b>' + esc(et.label) + '</b><div class="small">Breach is an Event of Default <span class="ref">' + esc(et.ref || '') + '</span></div></td><td class="num">' + tcLink('eod|||num', et.label) + '</td><td class="num">' + tcLink('eod|||den', et.label) + '</td><td class="num">' + pct(r.preEoD.ratio) + '</td><td class="num">' + pct(et.trigger) + '</td><td><span class="res ' + (r.preEoD.ratio >= et.trigger ? 'pass' : 'fail') + '">' + (r.preEoD.ratio >= et.trigger ? 'Clear' : 'Breach') + '</span></td><td class="num">' + (tcPart('eodAfter|||den') ? '<button type="button" class="calc" data-tc="eodAfter|||den" data-name="' + esc(et.label + ' after payments') + '">' + pct(r.postEoD.ratio) + '</button>' : pct(r.postEoD.ratio)) + '</td></tr>'; }
+  if (r.preIRT) { const rt = s.coverage.reinvestmentTest; h += '<tr><td><b>' + esc(rt.label) + '</b><div class="small">Diverts up to ' + rt.maxDiversionPct + '% of remaining interest <span class="ref">' + esc(rt.ref || '') + '</span></div>' + adjCell('coverage:irt', rt.label) + '</td><td class="num">' + tcLink('irt|||num', rt.label) + '</td><td class="num">' + tcLink('irt|||den', rt.label) + '</td><td class="num">' + pct(r.preIRT.ratio) + '</td><td class="num">' + pct(rt.trigger) + '</td><td><span class="res ' + (r.preIRT.ratio >= rt.trigger ? 'pass' : 'fail') + '">' + (r.preIRT.ratio >= rt.trigger ? 'Pass' : 'Fail') + '</span></td><td class="num">' + (tcPart('irtAfter|||den') ? '<button type="button" class="calc" data-tc="irtAfter|||den" data-name="' + esc(rt.label + ' after payments') + '">' + pct(r.postIRT.ratio) + '</button>' : pct(r.postIRT.ratio)) + '</td></tr>'; }
+  if (r.preEoD) { const et = s.coverage.eodTest; h += '<tr><td><b>' + esc(et.label) + '</b><div class="small">Breach is an Event of Default <span class="ref">' + esc(et.ref || '') + '</span></div>' + adjCell('coverage:eod', et.label) + '</td><td class="num">' + tcLink('eod|||num', et.label) + '</td><td class="num">' + tcLink('eod|||den', et.label) + '</td><td class="num">' + pct(r.preEoD.ratio) + '</td><td class="num">' + pct(et.trigger) + '</td><td><span class="res ' + (r.preEoD.ratio >= et.trigger ? 'pass' : 'fail') + '">' + (r.preEoD.ratio >= et.trigger ? 'Clear' : 'Breach') + '</span></td><td class="num">' + (tcPart('eodAfter|||den') ? '<button type="button" class="calc" data-tc="eodAfter|||den" data-name="' + esc(et.label + ' after payments') + '">' + pct(r.postEoD.ratio) + '</button>' : pct(r.postEoD.ratio)) + '</td></tr>'; }
   h += '</tbody></table></div></div></div>';
 
   // quality tests
@@ -611,22 +616,24 @@ function renderTests() {
   if (S.moodysModifier) h += '<label>' + esc(S.moodysModifier.label) + ' <select data-sel="moodysModifier">' + S.moodysModifier.options.map(o => '<option' + (o === sel.moodysModifier ? ' selected' : '') + ' value="' + o + '">' + o + '%</option>').join('') + '</select></label>';
   if (S.spCase) h += '<label>' + esc(S.spCase.label) + ' <select data-sel="spCase">' + S.spCase.options.map(o => '<option' + (o === sel.spCase ? ' selected' : '') + ' value="' + o + '">Case ' + o + '</option>').join('') + '</select></label>';
   h += '</div><div class="scroll"><table><thead><tr><th>Test</th><th class="num">Numerator</th><th class="num">Denominator</th><th class="num">Portfolio</th><th class="num">Limit</th><th>Result</th><th>How the limit is set</th><th>Source</th></tr></thead><tbody>';
-  const fmtQ = (q, x) => x == null ? '—' : q.fmt === 'int' ? Math.round(x).toLocaleString('en-US') : q.fmt === 'pct1' ? pct(x, 1) : q.fmt === 'yrs' ? x.toFixed(2) + ' yrs' : q.fmt === 'dec1' ? x.toFixed(1) : pct(x, 2);
+  const fmtQ = fmtQv;
   r.quality.forEach(q => {
     let res;
     if (q.failed) res = '<span class="res na">Not evaluated</span>';
     else if (q.pass == null) res = '<select data-ext="' + esc(q.id) + '" aria-label="' + esc(q.label) + ' result"><option value="">Not entered</option><option value="1"' + (sel.external && sel.external[q.id] === true ? ' selected' : '') + '>Pass</option><option value="0"' + (sel.external && sel.external[q.id] === false ? ' selected' : '') + '>Fail</option></select>';
     else res = '<span class="res ' + (q.pass ? 'pass' : 'fail') + '">' + (q.pass ? 'Pass' : 'Fail') + '</span>';
     const lim = q.op ? (q.op === '<=' ? '≤ ' : '≥ ') + fmtQ(q, q.limit) : '';
-    h += '<tr><td><b>' + esc(q.label) + '</b>' + (q.sub ? '<div class="small">' + q.sub.map(x => x.col + ' ' + pct(x.value, 1) + ' / ' + pct(x.limit, 1) + (x.pass ? '' : ' ✗')).join(', ') + '</div>' : '') + '</td><td class="num">' + tcLink('quality|' + q.id + '||num', q.label) + '</td><td class="num">' + tcLink('quality|' + q.id + '||den', q.label) + '</td><td class="num">' + fmtQ(q, q.value) + '</td><td class="num">' + (q.limit != null ? lim : '—') + '</td><td>' + res + '</td><td class="small">' + esc(q.note || '') + '</td><td class="ref">' + esc(q.ref || '') + '</td></tr>';
+    h += '<tr><td><b>' + esc(q.label) + '</b>' + (q.sub ? '<div class="small">' + q.sub.map(x => x.col + ' ' + pct(x.value, 1) + ' / ' + pct(x.limit, 1) + (x.pass ? '' : ' ✗')).join(', ') + '</div>' : '') + (adjTest('quality:' + q.id) ? adjCell('quality:' + q.id, q.label) : '') + '</td><td class="num">' + tcLink('quality|' + q.id + '||num', q.label) + '</td><td class="num">' + tcLink('quality|' + q.id + '||den', q.label) + '</td><td class="num">' + fmtQ(q, q.value) + '</td><td class="num">' + (q.limit != null ? lim : '—') + '</td><td>' + res + '</td><td class="small">' + esc(q.note || '') + '</td><td class="ref">' + esc(q.ref || '') + '</td></tr>';
   });
   h += '</tbody></table></div></div>';
 
   // concentrations
   h += '<div class="sec"><h2>Portfolio Profile Test</h2><p class="lead">Percentages of Principal Collateral Value at par (' + mm(r.pb.pcvGeneral) + '). The indenture applies these when buying, requiring a breached limit to be maintained or improved.</p><div class="scroll"><table><thead><tr><th>Clause</th><th>Limit on</th><th class="num">Numerator</th><th class="num">Denominator</th><th class="num">Portfolio</th><th class="num">Limit</th><th>Result</th><th>Note</th><th>Source</th></tr></thead><tbody>';
-  r.conc.forEach(c => { h += '<tr><td class="ref" style="color:var(--ink-2)">' + esc(c.id) + '</td><td>' + esc(c.label) + '</td><td class="num">' + tcLink('conc|' + c.id + '||num', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + tcLink('conc|' + c.id + '||den', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + pct(c.value) + '</td><td class="num">' + (c.op === '>=' ? '≥ ' : '≤ ') + pct(c.limit, c.limit % 1 ? 1 : 0) + '</td><td><span class="res ' + (c.pass ? 'pass' : 'fail') + '">' + (c.pass ? 'Pass' : 'Fail') + '</span></td><td class="small">' + esc(c.note || '') + '</td><td class="ref">' + esc(c.ref || '') + '</td></tr>'; });
-  h += '</tbody></table></div></div>';
-  const P = $('#p-tests'); P.innerHTML = overrideBanner() + h; bindTestLinks(P); bindBanner(P);
+  r.conc.forEach(c => { h += '<tr' + (c.custom ? ' class="mine"' : '') + '><td class="ref" style="color:var(--ink-2)">' + esc(c.id) + '</td><td>' + esc(c.label) + (c.custom ? ' <span class="adjtag">Your test</span><div class="adjc"><button type="button" class="linkbtn adjb" data-adj="custom:' + esc(c.id) + '" aria-label="Change your test ' + esc(c.label) + '">Change</button></div>' : adjCell('conc:' + c.id, 'Portfolio Profile Test ' + c.id + ', ' + c.label)) + '</td><td class="num">' + tcLink('conc|' + c.id + '||num', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + tcLink('conc|' + c.id + '||den', 'Portfolio Profile Test ' + c.id + ', ' + c.label) + '</td><td class="num">' + pct(c.value) + '</td><td class="num">' + (c.op === '>=' ? '≥ ' : '≤ ') + pct(c.limit, c.limit % 1 ? 1 : 0) + '</td><td>' + (c.pass == null ? '<span class="res na">Not evaluated</span>' : '<span class="res ' + (c.pass ? 'pass' : 'fail') + '">' + (c.pass ? 'Pass' : 'Fail') + '</span>') + '</td><td class="small">' + esc(c.note || '') + '</td><td class="ref">' + esc(c.ref || '') + '</td></tr>'; });
+  // your own tests that are not finished: shown so they can be finished or removed
+  testRules().custom.filter(u => !r.conc.some(c => c.id === u.id)).forEach(u => { const er = adjErrs('custom:' + u.id) || []; h += '<tr class="mine"><td class="ref" style="color:var(--ink-2)">' + esc(u.id) + '</td><td>' + esc(u.label || u.id) + ' <span class="adjtag err">Not finished</span><div class="adjc"><button type="button" class="linkbtn adjb" data-adj="custom:' + esc(u.id) + '" aria-label="Finish your test ' + esc(u.label || u.id) + '">Finish</button></div></td><td colspan="7" class="small">' + esc(er.map(e => e.err).join('; ') || 'Open it to finish it') + '</td></tr>'; });
+  h += '</tbody></table></div><div class="toolbar adjnew"><button type="button" class="btn small" id="adjNew">Add a test of your own</button><span class="small">A share of loans that meet conditions you set (a field and a value, such as industry is Healthcare), or the largest single value of any field, against a limit.</span></div></div>';
+  const P = $('#p-tests'); P.innerHTML = overrideBanner() + testsNotice() + h; bindTestLinks(P); bindBanner(P); bindAdjButtons(P); bindTestsNotice(P);
   $$('select[data-sel]', P).forEach(x => x.onchange = () => { state.inputs.selections[x.dataset.sel] = +x.value; run(); });
   $$('select[data-ext]', P).forEach(x => x.onchange = () => { state.inputs.selections.external = state.inputs.selections.external || {}; state.inputs.selections.external[x.dataset.ext] = x.value === '' ? null : x.value === '1'; run(); });
 }
@@ -809,7 +816,7 @@ function interpHTML() {
     if (I.found && I.found.length) {
       const order = ['Notes', 'Dates', 'Fees', 'Coverage tests', 'Waterfall', 'Haircuts', 'Quality tests', 'Concentration limits'];
       const gaps = I.found.filter(f => !RR_DONE.includes(f.how)).length;
-      const STL = { found: 'Found', taught: 'Taught', entered: 'Entered by you', missing: 'Not found', estimated: 'Estimated', default: 'Standard value' };
+      const STL = { found: 'Found', taught: 'Taught', entered: 'Entered by you', missing: 'Not found', estimated: 'Estimated', default: 'Standard value', absent: 'Not in this deal' };
       const tlink = f => { if (!f.teach || RR_DONE.includes(f.how) && f.how === 'found') return ''; const lab = RR_DONE.includes(f.how) ? 'Change' : 'Teach'; return ' <button class="linkbtn tl" type="button" ' + (f.teach === 'clause' ? 'data-tclause="' + esc(f.k + '|' + f.cid) + '"' : f.teach === 'concItem' ? 'data-tconc="' + esc(f.cid) + '"' : 'data-tfield="' + esc(f.teach) + '"') + ' aria-label="' + lab + ': ' + esc(f.field) + '">' + lab + '</button>'; };
       h += '<details class="readlist" id="readList"' + (I.readOpen != null ? (I.readOpen ? ' open' : '') : gaps ? ' open' : '') + '><summary>What was read, with pages' + (gaps ? ' <span class="tag warn" style="margin-left:6px">' + gaps + ' to check or enter</span>' : '') + '</summary><div class="scroll" style="margin-top:8px"><table><thead><tr><th>Item</th><th>Value</th><th>Page</th><th>Status</th></tr></thead><tbody>' +
         order.filter(g => I.found.some(f => f.group === g)).map(g => '<tr class="grp"><td colspan="4"><b>' + esc(g) + '</b></td></tr>' + I.found.filter(f => f.group === g).map(f => '<tr' + (!RR_DONE.includes(f.how) ? ' class="gap"' : '') + '><td>' + esc(f.field) + '</td><td' + (f.snippet ? ' title="' + esc(f.snippet) + '"' : '') + '>' + esc(f.value) + '</td><td class="ref">' + (f.page ? esc(pageLabel(f.page)) : '—') + '</td><td class="stc"><span class="res ' + (RR_DONE.includes(f.how) ? 'pass' : f.how === 'missing' ? 'fail' : 'na') + '">' + esc(STL[f.how] || f.how) + '</span>' + tlink(f) + '</td></tr>').join('')).join('') +
@@ -1076,7 +1083,7 @@ $$('#tabs button').forEach(b => b.addEventListener('click', () => selectTab(b.da
 $('#tabs').addEventListener('keydown', e => { const tabs = $$('#tabs button'); const i = tabs.findIndex(b => b.dataset.tab === state.tab); if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; selectTab(n.dataset.tab); n.focus(); } });
 $('#dealSel').onchange = e => loadDeal(e.target.value);
 $('#calcd').addEventListener('click', e => { if (e.target === $('#calcd')) $('#calcd').close(); });
-$('#calcd').addEventListener('close', () => { const c = state.calc; state.calc = null; if (!c) return; const sel = c.cg ? '#p-calcs [data-gwork="' + c.gi + '"]' : c.cv ? 'button.calc[data-cv="' + c.cv + '"]' : c.tc ? 'button.calc[data-tc="' + c.tc + '"]' : c.src ? 'button.calc[data-src="' + c.src + '"]' : 'button.calc[data-k="' + c.k + '"][data-i="' + c.i + '"][data-part="' + (c.part === 'due' ? 'due' : 'paid') + '"]'; const b = $(sel); if (b) b.focus(); });
+$('#calcd').addEventListener('close', () => { const c = state.calc; state.calc = null; if (!c) return; const sel = c.adj ? '#p-tests button.adjb[data-adj="' + c.adj + '"]' : c.cg ? '#p-calcs [data-gwork="' + c.gi + '"]' : c.cv ? 'button.calc[data-cv="' + c.cv + '"]' : c.tc ? 'button.calc[data-tc="' + c.tc + '"]' : c.src ? 'button.calc[data-src="' + c.src + '"]' : 'button.calc[data-k="' + c.k + '"][data-i="' + c.i + '"][data-part="' + (c.part === 'due' ? 'due' : 'paid') + '"]'; const b = $(sel); if (b) b.focus(); });
 $('#goInterpret').onclick = () => { selectTab('rules'); $('#interpBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 $('#railToggle').onclick = () => { const r = $('#rail'); const c = r.classList.toggle('collapsed'); $('#railToggle').setAttribute('aria-expanded', String(!c)); $('#railToggleState').textContent = c ? 'Show' : 'Hide'; };
 window.addEventListener('resize', () => { if (state.result) renderStrip(); });

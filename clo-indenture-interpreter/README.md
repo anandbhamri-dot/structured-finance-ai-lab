@@ -27,6 +27,18 @@ The engine covers:
 
 ![Coverage tests with linked numerators and denominators, the Principal Collateral Value bridge, and the diversion and Event of Default tests](docs/tests.png)
 
+**Adjusts any test to the deal's own definition.** Every coverage, quality and Portfolio Profile test has an **Adjust** link. It opens a panel where you can:
+
+- **Leave loans out of the numerator or the denominator.** Defaulted, CCC, discount, cov-lite and PIK loans take one click. Any other field takes a condition, such as `country <> "US"`, `price < 80`, a column from your tape or one of your loan calculations.
+- **Set the numerator to a field and a value.** Pick a field, then one of its values from a list with a count of loans for each. For example, `industry` is Healthcare, or `asset_type` is 2L. The test then counts only those loans, in place of the clause's own test. Several conditions must all hold.
+- **Add tests of your own.** A test can be the share of loans that meet conditions you set, or the largest single value of any field, such as the largest country. Each has a limit you enter, as a maximum or a minimum.
+
+The panel shows the test as the indenture reads it and as you adjusted it, and each condition says how many loans it catches. Changes apply at once. The working behind the numerator and the denominator lists the loans left out.
+
+Loans left out of a coverage test's numerator come off at their carrying value, for that test only. The waterfall's cures and diversions, and the projection, then follow your version of the test. Adjustments and your own tests are saved per deal, and travel with the Calculations JSON export.
+
+![Adjusting a Portfolio Profile Test: defaulted and CCC loans out of the numerator, defaulted loans out of the denominator](docs/adjust.png)
+
 **Reads a new deal without a model.** Drop in a PDF, or an indenture saved from SEC EDGAR. Text rules read the deal terms, each with the page it came from:
 
 - the notes table, the key dates and the fees;
@@ -95,10 +107,11 @@ Calculations are saved per deal and can be exported and imported as JSON. The pr
 
 1. Open the live tool. Example CLO I is loaded on its April 2009 Payment Date, a credit-stress scenario.
 2. Select any figure in the waterfall to see its working.
-3. **Calculations → Add an example** adds a Fee Basis Amount worked out a different way, or the tape's Principal Balance in place of par. In a formula box, type part of a name, such as `Cla`, to pick from the names that match.
-4. **Indenture rules → Try the sample indenture** reads the fictional indenture in `sample_inputs/`. **Add the sample supplemental indenture** then reads it together with an amendment.
-5. **Tie-out → Try the sample trustee figures**, then **Projection → Run the projection**.
-6. Any CLO indenture filed on SEC EDGAR (often an exhibit to a BDC's 8-K or 10-Q) can be dropped in the same way. Offering memoranda in PDF work too.
+3. **Tests → Adjust**, next to any test, leaves loans out of its numerator or denominator, or sets its numerator to a field and a value. **Add a test of your own** is under the Portfolio Profile Test.
+4. **Calculations → Add an example** adds a Fee Basis Amount worked out a different way, or the tape's Principal Balance in place of par. In a formula box, type part of a name, such as `Cla`, to pick from the names that match.
+5. **Indenture rules → Try the sample indenture** reads the fictional indenture in `sample_inputs/`. **Add the sample supplemental indenture** then reads it together with an amendment.
+6. **Tie-out → Try the sample trustee figures**, then **Projection → Run the projection**.
+7. Any CLO indenture filed on SEC EDGAR (often an exhibit to a BDC's 8-K or 10-Q) can be dropped in the same way. Offering memoranda in PDF work too.
 
 Sample files in `sample_inputs/`:
 
@@ -116,27 +129,41 @@ The reader was checked on six real deal documents, none of them in this reposito
 
 | Document | Rated classes | Interest / principal / post-acceleration clauses | Not modelled | Coverage tests | Concentration limits | Items to review | Spec valid |
 |---|---|---|---|---|---|---|---|
-| A 2007 US CLO offering memorandum (private placement, PDF) | 5 | 19 / 10 / 13 | 0 | 4 + IRT + EoD | 17 | 6 | yes |
-| A 2013 US CLO offering memorandum (PDF) | 6 | 25 / 11 / 19 | 0 | 5 + IRT + EoD | 14 | 8 | yes |
-| [TICC CLO LLC, 2011 indenture](https://www.sec.gov/Archives/edgar/data/0001259429/000119312511219331/dex103.htm) | 1 | 8 / 10 / 7 | 2 | 1 + IRT | 17 | 17 | yes |
+| A 2007 US CLO offering memorandum (private placement, PDF) | 5 | 19 / 10 / 13 | 0 | 4 + IRT + EoD | 17 | 1 | yes |
+| A 2013 US CLO offering memorandum (PDF) | 6 | 25 / 11 / 19 | 0 | 5 + IRT + EoD | 15 | 6 | yes |
+| [TICC CLO LLC, 2011 indenture](https://www.sec.gov/Archives/edgar/data/0001259429/000119312511219331/dex103.htm) | 1 | 8 / 10 / 7 | 0 | 1 + IRT + EoD | 17 | 7 | yes |
 | [Barings BDC Static CLO 2019-I, 2019 indenture](https://www.sec.gov/Archives/edgar/data/1379785/000137978519000025/exhbiti101-cloindenture.htm) | 2 | 9 / 7 / 10 | 0 | 1 + EoD | none in deal | 6 | yes |
-| [PennantPark CLO I, 2019 indenture](https://www.sec.gov/Archives/edgar/data/1504619/000119312519250688/d808045dex992.htm) | 8 | 14 / 15 / 18 | 0 | 3 | 13 | 9 | yes |
-| [Barings Private Credit CLO 2026-1, 2026 indenture (SOFR)](https://www.sec.gov/Archives/edgar/data/1859919/000185991926000047/exhibit102-indenture.htm) | 3 | 13 / 11 / 13 | 0 | 2 + EoD | none in deal | 5 | yes |
+| [PennantPark CLO I, 2019 indenture](https://www.sec.gov/Archives/edgar/data/1504619/000119312519250688/d808045dex992.htm) | 8 | 14 / 15 / 18 | 0 | 3 + EoD | 14 | 3 | yes |
+| [Barings Private Credit CLO 2026-1, 2026 indenture (SOFR)](https://www.sec.gov/Archives/edgar/data/1859919/000185991926000047/exhibit102-indenture.htm) | 3 | 13 / 11 / 13 | 0 | 2 + EoD | none in deal | 4 | yes |
 
-For the 2007 memorandum, a field-by-field check against a hand-built spec matched 84 of 84 fields, and 150 of 150 waterfall payments and OC ratios. Most items left to review are fees set in the collateral management agreement rather than the indenture, matrix-based quality tests and equity amounts the indenture does not state. Those items are what **Teach the reader** is for.
+The TICC and PennantPark indentures were also read as PDFs printed from EDGAR, with the same results as their HTML filings. For the 2007 memorandum, a field-by-field check against a hand-built spec matched 84 of 84 fields, and 150 of 150 waterfall payments and OC ratios.
+
+The items left to review are mostly of three kinds:
+
+- **Fees set in the collateral management agreement**, not the indenture. Add the agreement to the reading as a second document. Where the indenture sets a fee at zero while a named manager serves, as TICC's does, the reader takes 0%.
+- **Quality test limits the manager chooses.** Where the document prints the quality matrix, the reader takes the WARF limit from it at the portfolio's own spread and diversity, and the lowest row and column as the spread and diversity minimums, flagged for review. Limits set by a rating agency model, or by an option the manager elects, are entered with **Teach the reader**.
+- **Concentration limits with no matching tape field**, such as limits on convertible features, derived ratings or tax jurisdictions.
 
 ## Validation
 
 `npm test` runs, with no network or documents needed:
 
-- **Engine audit**: re-evaluates all 8,563 expressions shown in the working panels and checks 5,843 totals tie to the ledger, including runs where calculations replace the fee basis, collateral value, fees and par.
+- **Engine audit**: re-evaluates all 10,666 expressions shown in the working panels and checks 7,380 totals tie to the ledger. This includes runs where calculations replace the fee basis, collateral value, fees and par, and runs with adjusted tests and tests of your own.
 - **Calculations test**: the formula language, dates, ratings, groups, its error messages, and that each replacement reaches the engine (93 checks).
+- **Adjusted tests**: each adjusted figure is worked out again from the loans, independently of the engine's code (45 checks). The checks cover:
+  - loans left out of numerators and denominators;
+  - a field and a value as the numerator;
+  - tests of your own;
+  - a coverage test whose cure follows your version;
+  - conditions with errors;
+  - random sets of adjustments.
 - **Golden-file regression**: compares the engine's results on the built-in scenarios with a stored file.
 - **Reader test**: the reader on the sample indenture must reproduce the built-in deal spec (72 checks).
+- **Reader on other forms**: the sample indenture rewritten as PDF text comes out (lines broken mid-phrase, the notes table a row per line), and in wordings taken from real indentures, still reads correctly (31 checks).
 - **Lessons test**: lessons carry from one document to the next and change nothing they were not aimed at.
 - **Several documents**: an amendment listed first takes priority, fees moved to a separate agreement are found there, and pages name their document (20 checks).
 - **Projection test**: par and note balances roll forward every period, losses rise from Base to Severe, and a par call repays every class.
-- **Fuzz tests**: random and hostile lessons, random formulas, and deleting any part of a deal spec, never break the reader or the engine.
+- **Fuzz tests**: random and hostile lessons, random formulas, random test adjustments, and deleting any part of a deal spec, never break the reader or the engine.
 
 `npm run test:ui` runs browser checks with Playwright, including phone width and downloads outside Claude. Set `CLO_DOCS` to a folder of real indentures to include them. GitHub Actions runs everything on each push.
 
@@ -150,7 +177,7 @@ For the 2007 memorandum, a field-by-field check against a hand-built spec matche
 
 A modelling and review tool, not a replacement for Intex or a trustee's system.
 
-- **Matrix limits**: quality tests that use a matrix (WARF and spread matrices, the S&P CDO Monitor) are entered by hand.
+- **Matrix limits**: a printed spread-by-diversity WARF matrix is read; its recovery adjustment, other matrix layouts and the S&P CDO Monitor are entered by hand.
 - **Standard values**: recovery tables and haircut terms the document does not state use standard values, and the reader lists them for review.
 - **Interest Proceeds**: estimated from the loan tape unless entered.
 - **Projection simplifications**:
@@ -159,6 +186,11 @@ A modelling and review tool, not a replacement for Intex or a trustee's system.
   - Quality tests are reported but do not restrict reinvestment.
   - Administrative expenses are a fixed amount per date.
 - **Calculations**: built-in figures in a formula are the interpreter's own for the Payment Date, worked out before any deal-level replacement. A replaced Fee Basis Amount does not change `Fee_Basis_Amount`; name your own calculation to use the replacement. Loan columns are worked out on the tape as uploaded.
+- **Adjusted tests**:
+  - A measure you adjust is used wherever the indenture uses it. For example, an adjusted Moody's recovery rate feeds the spread test's recovery modifier.
+  - A coverage test's denominator is the notes, so only its numerator takes loan conditions.
+  - The projection applies adjusted coverage tests on every date. Other adjusted tests do not change the cash, so it does not apply them.
+  - A condition that uses a loan calculation sees it as worked out on the uploaded tape. A tape column in a condition shows any replacement.
 - **Several documents**: the reader takes the first instance of most terms in the order the documents are listed. It does not interpret amending language such as "Section 1.1 is amended by deleting…"; it reads the restated definitions.
 - **Not modelled**: Class X notes, combination notes, refinancing and reset, and hedges beyond the amounts entered.
 - **Coverage so far**: tested on US cash-flow CLOs only. European deals follow the same structure but have not been tested.

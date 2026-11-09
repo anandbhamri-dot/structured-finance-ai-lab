@@ -24,7 +24,7 @@ const sig = s => [s.type, s.items || (s.item ? [s.item] : undefined), s.classes,
 for (const k of ['interest', 'principal', 'liquidation']) X.waterfalls[k].forEach((st, i) => { const r = spec.waterfalls[k][i] || {}; eq(k + ' ' + st.id, sig(r), sig(st)); });
 eq('clause counts', ['interest', 'principal', 'liquidation'].map(k => spec.waterfalls[k].length), ['interest', 'principal', 'liquidation'].map(k => X.waterfalls[k].length));
 for (const id of ['was', 'wac', 'div', 'mwarr']) { const q = spec.qualityTests.find(x => x.id === id); n++; if (!q) { bad++; console.log('  FAIL quality', id, 'not read'); } }
-eq('WAL', (spec.qualityTests.find(x => x.id === 'wal') || {}).limit, { type: 'declining', startYears: 9.5, from: 'closingDate' });
+eq('WAL', (spec.qualityTests.find(x => x.id === 'wal') || {}).limit, X.qualityTests.find(x => x.id === 'wal').limit);
 n++; if (spec.concentrations.length < 18) { bad++; console.log('  FAIL concentrations read:', spec.concentrations.length); }
 const gaps = found.filter(f => !L.RR_DONE.includes(f.how)); console.log('  gaps listed for review:', gaps.map(f => f.field + ' (' + f.how + ')').join('; ') || 'none');
 // and the read spec runs: same waterfall payments as the built-in deal on the April 2009 stress tape
