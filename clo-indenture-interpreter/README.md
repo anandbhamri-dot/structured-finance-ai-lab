@@ -2,6 +2,10 @@
 
 **[Open the live tool](https://anandbhamri-dot.github.io/structured-finance-ai-lab/clo-indenture-interpreter/)**
 
+**Demo (1 min 42 s)**
+
+https://github.com/user-attachments/assets/d0a3af92-6e9f-4b16-9b63-47679bc84a5d
+
 ![Example CLO I on its April 2009 Payment Date: the Class E OC test fails and the indenture diverts interest to pay down Class E](docs/waterfall.png)
 
 Reads a CLO indenture or offering memorandum in the browser, turns it into a rules model, and runs the Payment Date waterfall and every collateral test with the working behind each figure. It ties the results out to a trustee report and projects the deal to maturity under credit scenarios. A single HTML file; nothing is uploaded anywhere.
