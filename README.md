@@ -4,6 +4,10 @@
 
 Working tools for securitized products analytics, built by **Anand Bhamri** using Claude (Anthropic) as a modelling and coding partner. They draw on 16 years across CLO, ABS, RMBS and CMBS: deal modelling, tape cracking, surveillance and compliance reporting.
 
+## Demo: CLO Indenture Interpreter (1 min 42 s)
+
+https://github.com/user-attachments/assets/d0a3af92-6e9f-4b16-9b63-47679bc84a5d
+
 | Project | What it does | Stack |
 |---|---|---|
 | [CLO Indenture Interpreter](clo-indenture-interpreter/) | Reads a CLO indenture, with its collateral management agreement and amendments, in the browser and runs its Payment Date waterfall and collateral tests, with the working behind every figure; learns terms you teach it, lets you correct any figure with your own formulas, adjust any test's numerator and denominator or add tests of your own, ties out to a trustee report and projects the deal to maturity under Base, Stress and Severe scenarios | HTML / JavaScript |
